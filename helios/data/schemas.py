@@ -69,6 +69,7 @@ class TrainingDataIndexDataModel(BaseDataModel):
     example_id: Series[str] = pa.Field(
         description="Unique identifier for the example",
         nullable=False,
+        unique=True,
     )
 
     projection: Series[str] = pa.Field(
@@ -93,7 +94,9 @@ class TrainingDataIndexDataModel(BaseDataModel):
     )
 
     time: Series[str] = pa.Field(
-        description="Timestamp in ISO format",
+        description="Timestamp of the following: \
+            (a) for two-week data, the two week period starts at that time; \
+            (b) for one-year data, the one year period is roughly centered at that time.",
         nullable=False,
         regex=r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+\d{2}:\d{2}",  # ISO timestamp format
     )
@@ -101,7 +104,7 @@ class TrainingDataIndexDataModel(BaseDataModel):
     sentinel2_freq: Series[str] = pa.Field(
         description="Whether the example_id is available in the Sentinel-2 Frequency dataset",
         nullable=False,
-        isin=["y", "n"],
+        isin=["y", "n"],  # TODO: potentially might want this to be a boolean
     )
 
     sentinel2_monthly: Series[str] = pa.Field(

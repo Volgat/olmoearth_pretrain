@@ -1,260 +1,251 @@
 """Dataset module for helios."""
 
-import math
-from collections.abc import Sequence
-from pathlib import Path
-from typing import NamedTuple, cast
+from typing import Literal, NamedTuple, cast
 
 import numpy as np
-import pandas as pd
 import rioxarray
-import torch
 import xarray as xr
 from einops import rearrange
 from torch.utils.data import Dataset as PyTorchDataset
+from upath import UPath
 
-from helios.data.utils import load_data_index
+from helios.data.utils import (
+    load_data_index,
+    load_sentinel2_frequency_metadata,
+    load_sentinel2_monthly_metadata,
+)
+
+# TODO: Move these to a .sources folder specific to each data source
+# WARNING: TEMPORARY BANDS: We forgot to pull B9, B10 from the export
+S2_BANDS = [
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7",
+    "B8",
+    "B8A",
+    "B11",
+    "B12",
+]
 
 
 class DatasetOutput(NamedTuple):
-    """A named tuple for storing the output of a dataset.
+    """A named tuple for storing the output of the dataset to the model (a single sample).
 
     Args:
-        space_time_x: The space-time input data.
-        space_x: The space input data.
-        time_x: The time input data.
-        static_x: The static input data.
-        months: The months input data.
+        space_time_x: Input data that is space-time varying
+        space_x: Input data that is space varying only
+        time_x: Input data that is time varying only
+        static_x: Input data that is static across space and time
+        time_info: Input data that is time info namely all the time metadata for the time index
     """
 
     space_time_x: np.ndarray
     space_x: np.ndarray
     time_x: np.ndarray
     static_x: np.ndarray
-    months: np.ndarray
-
-    @classmethod
-    def concatenate(cls, datasetoutputs: Sequence["DatasetOutput"]) -> "DatasetOutput":
-        """Concatenate a sequence of DatasetOutput objects.
-
-        Args:
-            datasetoutputs: A sequence of DatasetOutput objects to concatenate.
-
-        Returns:
-            A new DatasetOutput object with the concatenated data.
-        """
-        s_t_x = np.stack([o.space_time_x for o in datasetoutputs], axis=0)
-        sp_x = np.stack([o.space_x for o in datasetoutputs], axis=0)
-        t_x = np.stack([o.time_x for o in datasetoutputs], axis=0)
-        st_x = np.stack([o.static_x for o in datasetoutputs], axis=0)
-        months = np.stack([o.months for o in datasetoutputs], axis=0)
-        return cls(s_t_x, sp_x, t_x, st_x, months)
-
-
-def to_cartesian(
-    lat: float | np.ndarray | torch.Tensor, lon: float | np.ndarray | torch.Tensor
-) -> np.ndarray | torch.Tensor:
-    """Convert latitude and longitude to Cartesian coordinates
-
-    Args:
-        lat: The latitude.
-        lon: The longitude.
-
-    Returns:
-        The Cartesian coordinates.
-    """
-    if isinstance(lat, float):
-        assert (
-            -90 <= lat <= 90
-        ), f"lat out of range ({lat}). Make sure you are in EPSG:4326"
-        assert (
-            -180 <= lon <= 180
-        ), f"lon out of range ({lon}). Make sure you are in EPSG:4326"
-        assert isinstance(lon, float), f"Expected float got {type(lon)}"
-        # transform to radians
-        lat = lat * math.pi / 180
-        lon = lon * math.pi / 180
-        x = math.cos(lat) * math.cos(lon)
-        y = math.cos(lat) * math.sin(lon)
-        z = math.sin(lat)
-        return np.array([x, y, z])
-    elif isinstance(lon, np.ndarray):
-        assert (
-            -90 <= lat.min()
-        ), f"lat out of range ({lat.min()}). Make sure you are in EPSG:4326"
-        assert (
-            90 >= lat.max()
-        ), f"lat out of range ({lat.max()}). Make sure you are in EPSG:4326"
-        assert (
-            -180 <= lon.min()
-        ), f"lon out of range ({lon.min()}). Make sure you are in EPSG:4326"
-        assert (
-            180 >= lon.max()
-        ), f"lon out of range ({lon.max()}). Make sure you are in EPSG:4326"
-        assert isinstance(lat, np.ndarray), f"Expected np.ndarray got {type(lat)}"
-        # transform to radians
-        lat = lat * math.pi / 180
-        lon = lon * math.pi / 180
-        x_np = np.cos(lat) * np.cos(lon)
-        y_np = np.cos(lat) * np.sin(lon)
-        z_np = np.sin(lat)
-        return np.stack([x_np, y_np, z_np], axis=-1)
-    elif isinstance(lon, torch.Tensor):
-        assert (
-            -90 <= lat.min()
-        ), f"lat out of range ({lat.min()}). Make sure you are in EPSG:4326"
-        assert (
-            90 >= lat.max()
-        ), f"lat out of range ({lat.max()}). Make sure you are in EPSG:4326"
-        assert (
-            -180 <= lon.min()
-        ), f"lon out of range ({lon.min()}). Make sure you are in EPSG:4326"
-        assert (
-            180 >= lon.max()
-        ), f"lon out of range ({lon.max()}). Make sure you are in EPSG:4326"
-        assert isinstance(lat, torch.Tensor), f"Expected torch.Tensor got {type(lat)}"
-        # transform to radians
-        lat = lat * math.pi / 180
-        lon = lon * math.pi / 180
-        x_t = torch.cos(lat) * torch.cos(lon)
-        y_t = torch.cos(lat) * torch.sin(lon)
-        z_t = torch.sin(lat)
-        return torch.stack([x_t, y_t, z_t], dim=-1)
-    else:
-        raise AssertionError(f"Unexpected input type {type(lon)}")
-
-
-# Perhaps a preprocessor module that does transforms on the loaded tif and or splits it out into the multiple arrays for model input
+    time_info: np.ndarray
 
 
 # TODO: Adding a Dataset specific fingerprint is probably good for an evolving dataset
 # TODO: We want to make what data sources and examples we use configuration drivend
+
+# Quick and dirty interface for data sources
+ALL_DATA_SOURCES = ["sentinel2_freq", "sentinel2_monthly"]
+
+LOAD_DATA_SOURCE_METADATA_FUNCTIONS = {
+    "sentinel2_freq": load_sentinel2_frequency_metadata,
+    "sentinel2_monthly": load_sentinel2_monthly_metadata,
+}
+
+# Quick and dirty interface for data source variation types
+DATA_SOURCE_VARIATION_TYPES = Literal[
+    "space_time_varying", "time_varying_only", "space_varying_only", "static_only"
+]
+
+DATA_SOURCE_TO_VARIATION_TYPE = {
+    "sentinel2_freq": "space_time_varying",
+    "sentinel2_monthly": "space_time_varying",
+}
+
+
+# Expected types of Data Sources
+# Space-TIme varying
+# TIme varying only
+# Space varying only
+# Static only
+# For a given location and or time we want to be able to coalesce the data sources
 class HeliosDataset(PyTorchDataset):
     """Helios dataset."""
 
-    def __init__(self, data_index_path: Path | str, output_hw: int = 256):
-        self.data_index_path = data_index_path
-        self.data_index = load_data_index(data_index_path)
-        print(self.data_index.head())
+    def __init__(self, data_index_path: UPath | str, output_hw: int = 256):
+        """Initialize the dataset."""
+        self.data_index_path = UPath(data_index_path)
+        # Using a df as initial ingest due to ease of inspection and manipulation,
+        self.data_index_df = load_data_index(data_index_path)
+        # Intersect available data sources with index column names
+        self.data_sources = [
+            source
+            for source in ALL_DATA_SOURCES
+            if source in self.data_index_df.columns
+        ]
+        print(self.data_sources)
+        assert (
+            len(self.data_sources) > 0
+        ), "No data sources found in index, check naming of columns"
+        print(self.data_index_df.head())
+        self.example_ids = self.data_index_df["example_id"].to_numpy(dtype=str)
         self.output_hw = output_hw
+        self.example_id_to_index_metadata_dict = self.data_index_df.set_index(
+            "example_id"
+        ).to_dict("index")
+        self.root_dir = self.data_index_path.parent
+
+        # Load metadata per data source so we can access quickly per data source per example
+        self.data_source_metadata_dict = {}
+        for data_source in self.data_sources:
+            metadata_df = LOAD_DATA_SOURCE_METADATA_FUNCTIONS[data_source](
+                self.get_path_to_data_source_metadata(data_source)
+            )
+            print(metadata_df.head())
+            metadata_df.set_index(["example_id", "image_idx"], inplace=True, drop=True)
+            # Structure of the metadata is {example_id, image_idx: {column: value}}
+            example_id_to_data_source_metadata_dict = metadata_df.to_dict(
+                orient="index"
+            )
+
+            self.data_source_metadata_dict[data_source] = (
+                example_id_to_data_source_metadata_dict
+            )
+
+    def get_path_to_data_source_metadata(self, data_source: str) -> UPath:
+        """Get the path to the data source metadata."""
+        return self.root_dir / f"{data_source}.csv"
 
     def __len__(self) -> int:
-        return len(self.data_index)
+        """Get the length of the dataset."""
+        return len(self.example_ids)
 
-    def _tif_to_array(self, tif_path: Path | str) -> DatasetOutput:
+    def _tif_to_array(self, tif_path: UPath | str, data_source: str) -> np.ndarray:
         """Convert a tif file to an array.
 
         Args:
             tif_path: The path to the tif file.
+            data_source: The data source string to load the correct datasource
+        Returns:
+            The array from the tif file.
+        """
+        if data_source == "sentinel2_freq":
+            space_bands = S2_BANDS
+        elif data_source == "sentinel2_monthly":
+            space_bands = S2_BANDS
+        else:
+            raise ValueError(f"Unknown data source: {data_source}")
+        # We will need different ingestion logic for different data sources at this point
+
+        variation_type = DATA_SOURCE_TO_VARIATION_TYPE[data_source]
+        if variation_type == "space_time_varying":
+            with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
+                # [all_combined_bands, H, W]
+                # all_combined_bands includes all dynamic-in-time bands
+                # interleaved for all timesteps
+                # followed by the static-in-time bands
+                values = cast(np.ndarray, data.values)
+                # lon = np.mean(cast(np.ndarray, data.x)).item()
+                # lat = np.mean(cast(np.ndarray, data.y)).item()
+
+            num_timesteps = values.shape[0] / len(space_bands)
+            assert (
+                num_timesteps % 1 == 0
+            ), f"{tif_path} has incorrect number of channels {space_bands} \
+                {values.shape[0]=} {len(space_bands)=}"
+            dynamic_in_time_x = rearrange(
+                values, "(t c) h w -> h w t c", c=len(space_bands), t=int(num_timesteps)
+            )
+            return dynamic_in_time_x
+        else:
+            raise NotImplementedError(f"Unknown variation type: {variation_type}")
+
+    def _tif_to_array_with_checks(
+        self, tif_path: UPath | str, data_source: str
+    ) -> np.ndarray:
+        """Load the tif file and return the array.
+
+        Args:
+            tif_path: The path to the tif file.
+            data_source: The data source.
 
         Returns:
-            A DatasetOutput object with the data from the tif file.
+            The array from the tif file.
         """
-        with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
-            # [all_combined_bands, H, W]
-            # all_combined_bands includes all dynamic-in-time bands
-            # interleaved for all timesteps
-            # followed by the static-in-time bands
-            print(data)
-            values = cast(np.ndarray, data.values)
-            lon = np.mean(cast(np.ndarray, data.x)).item()
-            lat = np.mean(cast(np.ndarray, data.y)).item()
-
-        # # this is a bit hackey but is a unique edge case for locations,
-        # # which are not part of the exported bands but are instead
-        # # computed here
-        # static_bands_in_tif = len(EO_STATIC_BANDS) - len(LOCATION_BANDS)
-
-        # num_timesteps = (
-        #     values.shape[0] - len(SPACE_BANDS) - static_bands_in_tif
-        # ) / len(ALL_DYNAMIC_IN_TIME_BANDS)
-        # assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
-        # dynamic_in_time_x = rearrange(
-        #     values[: -(len(SPACE_BANDS) + static_bands_in_tif)],
-        #     "(t c) h w -> h w t c",
-        #     c=len(ALL_DYNAMIC_IN_TIME_BANDS),
-        #     t=int(num_timesteps),
-        # )
-        # dynamic_in_time_x = self._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
-        # space_time_x = dynamic_in_time_x[:, :, :, : -len(TIME_BANDS)]
-
-        # # calculate indices, which have shape [h, w, t, 1]
-        # ndvi = self.calculate_ndi(space_time_x, band_1="B8", band_2="B4")
-
-        # space_time_x = np.concatenate((space_time_x, ndvi), axis=-1)
-
-        # time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
-        # time_x = np.nanmean(time_x, axis=(0, 1))
-
-        # space_x = rearrange(
-        #     values[-(len(SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
-        #     "c h w -> h w c",
-        # )
-        # space_x = self._fillna(space_x, np.array(SPACE_BANDS))
-
-        # static_x = values[-static_bands_in_tif:]
-        # # add DW_STATIC and WC_STATIC
-        # dw_bands = space_x[
-        #     :, :, [i for i, v in enumerate(SPACE_BANDS) if v in DW_BANDS]
-        # ]
-        # wc_bands = space_x[
-        #     :, :, [i for i, v in enumerate(SPACE_BANDS) if v in WC_BANDS]
-        # ]
-        # static_x = np.concatenate(
-        #     [
-        #         np.nanmean(static_x, axis=(1, 2)),
-        #         to_cartesian(lat, lon),
-        #         np.nanmean(dw_bands, axis=(0, 1)),
-        #         np.nanmean(wc_bands, axis=(0, 1)),
-        #     ]
-        # )
-        # static_x = self._fillna(static_x, np.array(STATIC_BANDS))
-
-        # months = self.month_array_from_file(tif_path, int(num_timesteps))
-
-        # try:
-        #     assert not np.isnan(space_time_x).any(), f"NaNs in s_t_x for {tif_path}"
-        #     assert not np.isnan(space_x).any(), f"NaNs in sp_x for {tif_path}"
-        #     assert not np.isnan(time_x).any(), f"NaNs in t_x for {tif_path}"
-        #     assert not np.isnan(static_x).any(), f"NaNs in st_x for {tif_path}"
-        #     assert not np.isinf(space_time_x).any(), f"Infs in s_t_x for {tif_path}"
-        #     assert not np.isinf(space_x).any(), f"Infs in sp_x for {tif_path}"
-        #     assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
-        #     assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
-        #     return DatasetOutput(
-        #         space_time_x.astype(np.half),
-        #         space_x.astype(np.half),
-        #         time_x.astype(np.half),
-        #         static_x.astype(np.half),
-        #         months,
-        #     )
-        # except AssertionError as e:
-        #     raise e
-
-    def _tif_to_array_with_checks(self, idx):
-        tif_path = self.tifs[idx]
         try:
-            output = self._tif_to_array(tif_path)
+            output = self._tif_to_array(tif_path, data_source)
             return output
         except Exception as e:
-            # TODO: Not sure we want to keep this we are essentially increasing prob of another example if we find a bad example that fails
-            # should this be possible after rslearn has ingested already?
             print(f"Replacing tif {tif_path} due to {e}")
-            if idx == 0:
-                new_idx = idx + 1
-            else:
-                new_idx = idx - 1
-            self.tifs[idx] = self.tifs[new_idx]
-            tif_path = self.tifs[idx]
-        output = self._tif_to_array(tif_path)
-        return output
+            raise e
+
+    def _get_tif_path(self, data_source: str, example_id: str) -> UPath:
+        return self.root_dir / data_source / f"{example_id}.tif"
 
     def __getitem__(self, index: int) -> DatasetOutput:
-        return self.data_index.iloc[index]
+        """Get the item at the given index."""
+        example_id = self.example_ids[index]
+        index_metadata = self.example_id_to_index_metadata_dict[example_id]
+        # check which data sources are available for this example
+        data_sources_available_for_example = []
+        for data_source in self.data_sources:
+            if data_source in index_metadata.keys():
+                if index_metadata[data_source] == "y":
+                    data_sources_available_for_example.append(data_source)
+
+        space_time_x = []
+        space_x = []
+        time_x = []
+        static_x = []
+        time_info = []
+        for data_source in data_sources_available_for_example:
+            tif_path = self._get_tif_path(data_source, example_id)
+            data_source_variation_type = DATA_SOURCE_TO_VARIATION_TYPE[data_source]
+            data_source_array = self._tif_to_array_with_checks(tif_path, data_source)
+
+            # TODO: Confirm that this is what we want before we commit to a more optimal structure
+            time_data_info = []
+            for image_idx in range(data_source_array.shape[2]):
+                time_data_info.append(
+                    self.data_source_metadata_dict[data_source][
+                        (example_id, image_idx)
+                    ]["start_time"]
+                )
+            time_info.append(np.array(time_data_info))
+            # grab the related time info for each index on the time axis
+            if data_source_variation_type == "space_time_varying":
+                space_time_x.append(data_source_array)
+            elif data_source_variation_type == "time_varying_only":
+                time_x.append(data_source_array)
+            elif data_source_variation_type == "space_varying_only":
+                space_x.append(data_source_array)
+            elif data_source_variation_type == "static_only":
+                static_x.append(data_source_array)
+
+        # TODO: We will likely want to save thse numpy arrays locally and load directly those files
+        # we will then need to decide how we will handle combining all the data sources together
+        # What part of the dataset output the data belongs too depends on the type of the data source
+        # concatenate on the time index dimensions are (h, w, t, c)
+        space_time_x = np.concatenate(space_time_x, axis=2)
+        ## SO FAR WE ARE NOT USING The below types of data sources
+        space_x = np.empty([])
+        time_x = np.empty([])
+        static_x = np.empty([])
+        time_info = np.concatenate(time_info, axis=0)
+        return DatasetOutput(space_time_x, space_x, time_x, static_x, time_info)
 
 
 if __name__ == "__main__":
+    # TODO: Make this work for remote files likely want to use rslearn utils
     data_index_path = "gs://ai2-helios/data/20250113-sample-dataset-helios/index.csv"
-    sample_tif_path = "gs://ai2-helios/data/20250113-sample-dataset-helios/sentinel2_freq/EPSG:32610_10_55243_-418286_2023-12-06T00:00:00+00:00.tif"
     dataset = HeliosDataset(data_index_path)
-    print(dataset._tif_to_array(sample_tif_path))
+    print(dataset[0])
