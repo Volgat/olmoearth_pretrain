@@ -1,2 +1,5 @@
+einops==0.7.0
 numpy
+rasterio
+rioxarray
 torch>=2.5
