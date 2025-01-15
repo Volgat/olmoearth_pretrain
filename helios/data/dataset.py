@@ -267,6 +267,7 @@ class HeliosDataset(PyTorchDataset):
         for data_source in self.data_sources:
             tif_path = self._get_tif_path(data_source, example_id, data_frequency_type)
             data_source_array = self._tif_to_array_with_checks(tif_path, data_source)
+            print(f"Data source array shape: {data_source_array.shape}")
             # Probably there is a better way to have direct access to the metadata but will leave for now
             metadata_dict = self._get_metadata_for_sample(
                 data_source, example_id, data_frequency_type
@@ -276,6 +277,7 @@ class HeliosDataset(PyTorchDataset):
                 metadata=metadata_dict,
             )
         sample_metadata["frequency_type"] = data_frequency_type
+        sample_metadata["example_id"] = str(example_id)
         return DatasetOutput(**data_source_output_dict, sample_metadata=sample_metadata)
 
 
@@ -287,13 +289,21 @@ if __name__ == "__main__":
     import time
 
     time_to_load_sample = []
-    for i in np.random.randint(0, len(dataset), size=10):
+    batch = []
+    np.random.seed(42)
+    for i in np.random.randint(0, len(dataset), size=4):
         start_time = time.time()
-        dataset[i]
+        batch.append(dataset[i])
         end_time = time.time()
         time_taken = end_time - start_time
         print(f"Time taken: {time_taken} seconds")
         time_to_load_sample.append(time_taken)
+    print(batch)
     print(
         f"Time taken: {np.mean(time_to_load_sample)} seconds and {np.std(time_to_load_sample)} seconds"
     )
+
+    # Okay freq data will need to have variable length collations
+    # monthly data will be able to have fixed length collations
+    # Would we want to seperate the month and the freq data?
+    print(batch[1])
