@@ -1,5 +1,6 @@
 """Collator functions for the dataset."""
 
+from collections.abc import Sequence
 from typing import NamedTuple
 
 import torch
@@ -29,7 +30,7 @@ class CollateFnOutput(NamedTuple):
 
 
 def variable_time_collate_fn(
-    items: list[dict],
+    items: Sequence[dict],
     pad_token_value: float = 0.0,
     patch_size: int = 4,
     encode_ratio: float = 0.5,
