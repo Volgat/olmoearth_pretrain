@@ -9,7 +9,7 @@ import numpy as np
 from upath import UPath
 
 from helios.data.constants import ALL_DATA_SOURCES
-from helios.helios.dataset.utils import (
+from helios.dataset.utils import (
     DataSourceMetadataRegistry,
     FrequencyType,
     load_data_index,
@@ -38,7 +38,6 @@ class DatasetIndexParser:
         self.data_sources = ALL_DATA_SOURCES
         self.data_index_path = UPath(data_index_path)
         self.root_dir = self.data_index_path.parent
-        # Using a df as initial ingest due to ease of inspection and manipulation,
         self.data_index_df = load_data_index(data_index_path)
         self.example_id_to_sample_metadata_dict = self.data_index_df.set_index(
             "example_id"
@@ -47,11 +46,28 @@ class DatasetIndexParser:
         self.freq_metadata_df_dict = {}
         self.monthly_metadata_df_dict = {}
         for data_source in self.data_sources:
+            metadata_path = self.get_path_to_data_source_metadata(data_source, "freq")
             self.freq_metadata_df_dict[data_source] = (
-                DataSourceMetadataRegistry.load_and_validate(data_source, "freq")
+                DataSourceMetadataRegistry.load_and_validate(
+                    data_source,
+                    "freq",
+                    sentinel2_frequency_metadata_path=metadata_path
+                    if data_source == "sentinel2"
+                    else None,
+                )
+            )
+
+            metadata_path = self.get_path_to_data_source_metadata(
+                data_source, "monthly"
             )
             self.monthly_metadata_df_dict[data_source] = (
-                DataSourceMetadataRegistry.load_and_validate(data_source, "monthly")
+                DataSourceMetadataRegistry.load_and_validate(
+                    data_source,
+                    "monthly",
+                    sentinel2_monthly_metadata_path=metadata_path
+                    if data_source == "sentinel2"
+                    else None,
+                )
             )
 
         # Intersect available data sources with index column names

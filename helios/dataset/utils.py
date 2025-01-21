@@ -8,7 +8,7 @@ import pandas as pd
 import pandera as pa
 from pandera.typing import DataFrame
 
-from helios.helios.dataset.schemas import (
+from helios.dataset.schemas import (
     Sentinel2FrequencyMetadataDataModel,
     Sentinel2MonthlyMetadataDataModel,
     TrainingDataIndexDataModel,
@@ -76,7 +76,10 @@ class DataSourceMetadataRegistry:
             raise ValueError(
                 f"Unknown frequency type {frequency_type} for data source {data_source}"
             )
-        return cls._registry[data_source][frequency_type](**kwargs)
+
+        # Get the registered function and call it with the provided kwargs
+        func = cls._registry[data_source][frequency_type]
+        return func(**kwargs)
 
 
 @DataSourceMetadataRegistry.register("sentinel2", "monthly")
