@@ -4,6 +4,7 @@ All of the resulting windows are 1 m/pixel windows.
 """
 
 import argparse
+import logging
 import random
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +16,9 @@ from rslearn.dataset import Dataset, Window
 from rslearn.utils.geometry import STGeometry
 from rslearn.utils.get_utm_ups_crs import get_utm_ups_projection
 from upath import UPath
+
+logger = logging.getLogger(__name__)
+
 
 # Some arbitrarily chosen locations for now.
 # These should all be in the continental US, otherwise no NAIP data will be available.
@@ -117,4 +121,8 @@ if __name__ == "__main__":
                 lat = lat_base + lat_offset
                 window = create_window_naip_time(ds_path, lon, lat)
                 if window is None:
-                    print(f"warning: did not find any NAIP image at {lon}, {lat}")
+                    logger.warning(
+                        "error creating window centered at %f, %f: no matching NAIP image found",
+                        lon,
+                        lat,
+                    )

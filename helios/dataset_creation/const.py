@@ -15,3 +15,15 @@ METADATA_COLUMNS = [
     "start_time",
     "end_time",
 ]
+
+# Columns in the index CSV.
+# It is the columns listed below providing metadata about the example, plus one column
+# per modality indicating whether data for that modality is present at this example.
+INDEX_COLUMNS = [
+    "example_id",
+    "projection",
+    "resolution",
+    "start_column",
+    "start_row",
+    "time",
+] + MODALITIES

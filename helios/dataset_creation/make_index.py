@@ -5,7 +5,7 @@ import csv
 
 from upath import UPath
 
-from .const import MODALITIES
+from .const import INDEX_COLUMNS, MODALITIES
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -32,18 +32,7 @@ if __name__ == "__main__":
 
     # Now we can write the CSV.
     with (helios_path / "index.csv").open("w") as f:
-        column_names = [
-            "example_id",
-            "projection",
-            "resolution",
-            "start_column",
-            "start_row",
-            "time",
-        ]
-        for modality in MODALITIES:
-            column_names.append(modality)
-
-        writer = csv.DictWriter(f, fieldnames=column_names)
+        writer = csv.DictWriter(f, fieldnames=INDEX_COLUMNS)
         writer.writeheader()
 
         for example_id, example_modalities in modalities_by_example.items():
