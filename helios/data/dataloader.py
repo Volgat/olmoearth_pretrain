@@ -19,10 +19,21 @@ from helios.data.dataset import HeliosDataset
 logger = logging.getLogger(__name__)
 
 
-def iter_batched_helios(
+def iter_batched(
     iterable: Iterable[dict[str, Any]], local_batch_size: int
 ) -> Iterable[tuple[dict[str, Any], ...]]:
-    """Iterate over the dataset in batches."""
+    """Iterate over the dataset in batches.
+
+    This is a modified version of olmo_core.data.data_loader.iter_batched that creates batches
+    of size local_batch_size for the local rank from an iterator of items.
+
+    Args:
+        iterable: The iterator of items to batch.
+        local_batch_size: The size of the batches to create for the local rank.
+
+    Returns:
+        An iterator of batches of items.
+    """
     batch: list[dict[str, Any]] = []
     instances = 0
     # shape: Optional[tuple[int, ...]] = None
@@ -103,7 +114,7 @@ class HeliosIterableDatasetWrapper(_IterableDatasetWrapper):
         print(f"data loader rank batch size {self.data_loader.rank_batch_size}")
         return (
             self.data_loader.collator(batch)
-            for batch in iter_batched_helios(
+            for batch in iter_batched(
                 instance_iterator, self.data_loader.rank_batch_size
             )
         )
