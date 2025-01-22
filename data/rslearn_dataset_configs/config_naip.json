@@ -1,0 +1,23 @@
+{
+  "layers": {
+    "naip": {
+      "band_sets": [
+        {
+          "bands": [
+            "R",
+            "G",
+            "B",
+            "IR"
+          ],
+          "dtype": "uint8"
+        }
+      ],
+      "data_source": {
+        "index_cache_dir": "cache/naip",
+        "name": "rslearn.data_sources.aws_open_data.Naip",
+        "use_rtree_index": true
+      },
+      "type": "raster"
+    }
+  }
+}

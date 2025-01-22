@@ -1,0 +1,431 @@
+{
+  "layers": {
+    "landsat_freq": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B1",
+            "B2",
+            "B3",
+            "B4",
+            "B5",
+            "B6",
+            "B7",
+            "B8",
+            "B9",
+            "B10",
+            "B11"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999,
+          "space_mode": "INTERSECTS"
+        }
+      },
+      "type": "raster"
+    },
+    "landsat_mo1": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "-180d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo10": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "90d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo11": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "120d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo12": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "150d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo2": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "-150d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo3": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "-120d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo4": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "-90d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo5": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "-60d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo6": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "-30d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo7": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "0d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo8": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "30d"
+      },
+      "type": "raster"
+    },
+    "landsat_mo9": {
+      "alias": "landsat",
+      "band_sets": [
+        {
+          "bands": [
+            "B01",
+            "B02",
+            "B03",
+            "B04",
+            "B05",
+            "B06",
+            "B07",
+            "B08",
+            "B8A",
+            "B11",
+            "B12"
+          ],
+          "dtype": "uint16"
+        }
+      ],
+      "data_source": {
+        "duration": "30d",
+        "max_time_delta": "0d",
+        "metadata_cache_dir": "cache/landsat",
+        "name": "rslearn.data_sources.aws_landsat.LandsatOliTirs",
+        "query_config": {
+          "max_matches": 9999
+        },
+        "sort_by": "cloud_cover",
+        "time_offset": "60d"
+      },
+      "type": "raster"
+    }
+  }
+}
