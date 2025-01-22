@@ -7,7 +7,7 @@ import rasterio
 from einops import rearrange
 from upath import UPath
 
-from helios.constants import S2_BANDS
+from helios.constants import NAIP_BANDS, S2_BANDS, WORLDCOVER_BANDS
 
 
 class DataSourceReader(ABC):
@@ -24,13 +24,7 @@ class DataSourceReader(ABC):
     def load(cls, file_path: UPath | str) -> tuple[np.ndarray, int]:
         """Load data from file path.
 
-        Args:
-            file_path: Path to the data file
-
-        Returns:
-            Tuple of:
-                - data_array: Numpy array of shape (H, W, T, C)
-                - num_timesteps: Number of timesteps in the data
+        When Overiding this message defaults must be provided for extra kwargs
         """
         pass
 
@@ -39,11 +33,35 @@ class TiffReader(DataSourceReader):
     """Base reader for Tiff files."""
 
     @classmethod
-    def load(cls, file_path: UPath | str) -> tuple[np.ndarray, int]:
+    def load(
+        cls, file_path: UPath | str, bands: list[str] = []
+    ) -> tuple[np.ndarray, int]:
         """Load data from a Tiff file."""
+        if not bands:
+            # Including a default to satisfy mypy
+            raise ValueError("Bands must be provided")
         with rasterio.open(file_path) as data:
             values = data.read()
-        return values, 1  # Default to single timestep
+        num_timesteps = values.shape[0] / len(bands)
+        if not num_timesteps.is_integer():
+            raise ValueError(
+                f"{file_path} has incorrect number of channels {bands} "
+                f"{values.shape[0]=} {len(bands)=}"
+            )
+        num_timesteps = int(num_timesteps)
+
+        data_array = rearrange(
+            values, "(t c) h w -> h w t c", c=len(bands), t=num_timesteps
+        )
+
+        return data_array, num_timesteps
+
+    @classmethod
+    def _check_bands(cls, bands: list[str], valid_bands: list[str]) -> None:
+        """Check if the bands are valid."""
+        if not all(band in valid_bands for band in bands):
+            bands_not_in_valid = [band for band in bands if band not in valid_bands]
+            raise ValueError(f"Invalid bands {bands_not_in_valid} for {cls.__name__}")
 
 
 class GeoJSONReader(DataSourceReader):
@@ -61,7 +79,9 @@ class Sentinel2Reader(TiffReader):
     """Reader for Sentinel-2 data."""
 
     @classmethod
-    def load(cls, file_path: UPath | str) -> tuple[np.ndarray, int]:
+    def load(
+        cls, file_path: UPath | str, bands: list[str] = S2_BANDS
+    ) -> tuple[np.ndarray, int]:
         """Load Sentinel-2 data with specific band handling.
 
         Returns:
@@ -69,37 +89,35 @@ class Sentinel2Reader(TiffReader):
                 - array of shape (H, W, T, C) where C is len(S2_BANDS)
                 - number of timesteps T
         """
-        values, _ = super().load(file_path)
+        cls._check_bands(bands, S2_BANDS)
 
-        num_timesteps = values.shape[0] / len(S2_BANDS)
-        assert num_timesteps % 1 == 0, (
-            f"{file_path} has incorrect number of channels {S2_BANDS} "
-            f"{values.shape[0]=} {len(S2_BANDS)=}"
-        )
-        num_timesteps = int(num_timesteps)
+        values, num_timesteps = super().load(file_path, bands=bands)
 
-        data_array = rearrange(
-            values, "(t c) h w -> h w t c", c=len(S2_BANDS), t=num_timesteps
-        )
-
-        return data_array, num_timesteps
+        return values, num_timesteps
 
 
 class WorldCoverReader(TiffReader):
     """Reader for WorldCover data."""
 
     @classmethod
-    def load(cls, file_path: UPath | str) -> tuple[np.ndarray, int]:
+    def load(
+        cls, file_path: UPath | str, bands: list[str] = WORLDCOVER_BANDS
+    ) -> tuple[np.ndarray, int]:
         """Load WorldCover data.
 
         Returns:
             Tuple of:
-                - array of shape (H, W, 1, 1) containing land cover classes
+                - array of shape (H, W, 1, C) containing land cover classes
                 - always returns 1 timestep
         """
-        values, _ = super().load(file_path)
-        # Ensure single channel and add time dimension for consistency
-        values = values[0][None, :, :, None]  # Shape: (H, W, 1, 1)
+        cls._check_bands(bands, WORLDCOVER_BANDS)
+
+        values, num_timesteps = super().load(file_path, bands=bands)
+        if num_timesteps != 1:
+            raise ValueError(
+                f"WorldCover data must have 1 timestep, got {num_timesteps}"
+            )
+
         return values, 1
 
 
@@ -108,37 +126,31 @@ class OpenStreetMapReader(GeoJSONReader):
 
     @classmethod
     def load(cls, file_path: UPath | str) -> tuple[np.ndarray, int]:
-        """Load OpenStreetMap data.
-
-        Returns:
-            Tuple of:
-                - array of shape (H, W, 1, 3) with binary channels for [roads, buildings, water]
-                - always returns 1 timestep
-        """
-        # Create placeholder raster with binary channels for different feature types
-        placeholder = np.zeros(
-            (256, 256, 1, 3), dtype=np.float32
-        )  # H, W, T, C(roads, buildings, water)
-        return placeholder, 1
+        """Load OpenStreetMap data."""
+        return np.array([]), 1
 
 
 class NAIPReader(TiffReader):
     """Reader for NAIP imagery."""
 
     @classmethod
-    def load(cls, file_path: UPath | str) -> tuple[np.ndarray, int]:
+    def load(
+        cls, file_path: UPath | str, bands: list[str] = NAIP_BANDS
+    ) -> tuple[np.ndarray, int]:
         """Load NAIP data.
 
         Returns:
             Tuple of:
-                - array of shape (H, W, 1, 4) containing [R, G, B, NIR] bands
+                - array of shape (H, W, 1, C) containing  NAIP bands
                 - always returns 1 timestep
         """
-        values, _ = super().load(file_path)
-        # NAIP typically has 4 bands (RGB + NIR) in single timestep
-        # Reshape to expected format (H, W, 1, C)
-        values = values.transpose(1, 2, 0)[..., None, :]  # (H, W, C) -> (H, W, 1, C)
-        return values, 1
+        cls._check_bands(bands, NAIP_BANDS)
+
+        values, num_timesteps = super().load(file_path, bands=bands)
+        if num_timesteps != 1:
+            raise ValueError(f"NAIP data must have 1 timestep, got {num_timesteps}")
+
+        return values, num_timesteps
 
 
 class DataSourceLoaderRegistry:

@@ -19,3 +19,8 @@ S2_BANDS = [
 ]
 
 WORLDCOVER_BANDS = ["B1"]
+
+
+DATA_SOURCE_TO_VARIATION_TYPE = {
+    "sentinel2": "space_time_varying",
+}
