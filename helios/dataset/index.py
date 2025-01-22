@@ -149,7 +149,7 @@ class DatasetIndexParser:
         )
 
     def get_sample_information_from_example_id(
-        self, example_id: str, freq_type: FrequencyType
+        self, example_id: str, reference_freq_type: FrequencyType
     ) -> SampleInformation:
         """Get the sample information from an example ID.
 
@@ -158,7 +158,9 @@ class DatasetIndexParser:
 
         Args:
             example_id: The example ID to get information for.
-            freq_type: The frequency type to get information for.
+            reference_freq_type: The frequency type to get information for which means
+            we will get all the data sources that are available for that frequency type
+            and all static data sources associated with that example_id.
 
         Returns:
             SampleInformation: Information about the sample.
@@ -170,10 +172,18 @@ class DatasetIndexParser:
         example_row = self.data_index_df[
             self.data_index_df["example_id"] == example_id
         ].iloc[0]
-        print(example_row)
-        for data_source, _ in self.data_source_and_freq_types:
-            column_name = f"{data_source}_{freq_type}"
+        for data_source, freq_type in self.data_source_and_freq_types:
+            if freq_type is not None and reference_freq_type != freq_type:
+                logger.debug(
+                    f"Skipping {data_source} {freq_type} as it is not the reference frequency type"
+                )
+                continue
+            # Gather data from static
+            column_name = f"{data_source}_{freq_type}" if freq_type else data_source
             if example_row.get(column_name, "n") != "y":
+                logger.debug(
+                    f"Skipping {data_source} {freq_type} as it is not available"
+                )
                 continue
             data_source_metadata[data_source] = (
                 self.get_metadata_for_data_source_in_sample(
