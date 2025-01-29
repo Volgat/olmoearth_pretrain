@@ -1,4 +1,10 @@
-"""Trying to prototype fitting everything into olmo core."""
+"""Trying to prototype fitting everything into olmo core.
+
+TO run this script please clone the olmo-core repo and pip install the latest version of olmo-core.
+
+The released version on pypi is behind what is used here.
+
+"""
 
 import logging
 
@@ -17,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 ## Config does not yet support our new dataset type so we will construct manually for now
+
 
 if __name__ == "__main__":
     setup_logging()
