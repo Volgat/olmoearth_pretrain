@@ -30,8 +30,7 @@ if __name__ == "__main__":
     # set log level to debug
     logger.setLevel(logging.DEBUG)
 
-    index_path_old = "gs://ai2-helios/data/20250113-sample-dataset-helios/index.csv"
-    index_path = "gs://ai2-helios/data/20250115-sample-dataset-helios/index.csv"
+    index_path = "/weka/dfive-default/helios_sample_data/20250115-sample-dataset-helios/index.csv"
     index_parser = DatasetIndexParser(index_path)
     samples = index_parser.samples
     workdir = UPath("/Users/henryh/Desktop/eai-repos/helios-repos/helios/workdir")
@@ -150,7 +149,7 @@ if __name__ == "__main__":
         work_dir=workdir,
         train_module=train_module,
         data_loader=dataloader,
-        load_strategy=LoadStrategy.never,
+        load_strategy=LoadStrategy.if_available,
         device=DEVICE,
         save_folder=workdir / "save_folder",
         callbacks={"speed_monitor": HeliosSpeedMonitorCallback()},

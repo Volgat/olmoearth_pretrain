@@ -11,24 +11,21 @@ import torch.distributed as dist
 import torch.distributed.checkpoint.state_dict as dist_cp_sd
 import torch.nn as nn
 from einops import rearrange
-from olmo_core.distributed.parallel import (
-    DataParallelType,
-    build_device_mesh,
-    get_dp_mesh,
-    get_dp_process_group,
-)
+from olmo_core.distributed.parallel import (DataParallelType,
+                                            build_device_mesh, get_dp_mesh,
+                                            get_dp_process_group)
 from olmo_core.distributed.utils import get_world_size
 from olmo_core.exceptions import OLMoConfigurationError
 from olmo_core.float8 import Float8Config, Float8Handler
 from olmo_core.optim import OptimConfig, SkipStepOptimizer
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import ReduceType
-from olmo_core.train.train_module import EvalBatchSizeUnit, EvalBatchSpec, TrainModule
+from olmo_core.train.train_module import (EvalBatchSizeUnit, EvalBatchSpec,
+                                          TrainModule)
 from olmo_core.train.train_module.transformer import (
-    TransformerActivationCheckpointingConfig,
-    TransformerDataParallelConfig,
-)
+    TransformerActivationCheckpointingConfig, TransformerDataParallelConfig)
 from olmo_core.utils import gc_cuda, get_default_device, move_to_device
+from torch.distributed.checkpoint.metadata import Metadata
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.tensor import DTensor
 from torch.optim import Optimizer
@@ -238,17 +235,16 @@ class HeliosTrainModule(TrainModule):
                 f"micro-batch size ({self.rank_batch_size:,d}) x DP world size ({dp_ws})"
             )
 
-        # Maybe initialize pipeline schedule.
-        if self._pp_config is not None:
-            raise NotImplementedError("pipeline parallelism not implemented")
 
     def state_dict(self) -> dict[str, Any]:
         """Get the state dict."""
         return self._get_state_dict(self.state_dict_save_opts)
 
-    def state_dict_to_load(self) -> dict[str, Any]:
+    def state_dict_to_load(self, metadata: Metadata) -> dict[str, Any]:
         """Get the state dict to load."""
-        return self._get_state_dict(self.state_dict_load_opts)
+        load_opts = self.state_dict_load_opts
+        logger.info(f"metadata: {metadata}")
+        return self._get_state_dict(load_opts)
 
     def state_dict_to_save(self) -> dict[str, Any]:
         """Get the state dict to save."""
@@ -256,20 +252,19 @@ class HeliosTrainModule(TrainModule):
 
     def load_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load the state dict."""
-        for model, optim in zip(self.model_parts, self.optimizers):
-            dist_cp_sd.set_model_state_dict(
-                model,
-                state_dict["model"],
-                options=self.state_dict_load_opts,
-            )
-            gc_cuda()
-            dist_cp_sd.set_optimizer_state_dict(
-                model,
-                optim,
-                state_dict["optim"],
-                options=self.state_dict_load_opts,
-            )
-            gc_cuda()
+        dist_cp_sd.set_model_state_dict(
+            self.model,
+            state_dict["model"],
+            options=self.state_dict_load_opts,
+        )
+        gc_cuda()
+        dist_cp_sd.set_optimizer_state_dict(
+            self.model,
+            self.optimizer,
+            state_dict["optim"],
+            options=self.state_dict_load_opts,
+        )
+        gc_cuda()
 
     def zero_grads(self) -> None:
         """Zero the gradients."""
@@ -339,8 +334,7 @@ class HeliosTrainModule(TrainModule):
 
         # Sync Float8 AMAXs (argmax of abs(max)) and scales.
         if self.float8_handler is not None:
-            for model in self.model_parts:
-                self.float8_handler.sync_float8_amax_and_scale_history(model)
+            self.float8_handler.sync_float8_amax_and_scale_history(self.model)
 
         # Maybe adjust learning rate.
         if self.scheduler is not None:
@@ -452,7 +446,7 @@ class HeliosTrainModule(TrainModule):
 
         # Adapted from https://github.com/pytorch/torchtitan/blob/2a4437014e66bcf88a3f0419b816266e6326d539/torchtitan/utils.py#L348
 
-        parameters = [p for m in self.model_parts for p in m.parameters()]
+        parameters = [p for p in self.model.parameters()]
         grads = [p.grad for p in parameters if p.grad is not None]
 
         total_norm = nn.utils.get_total_norm(
