@@ -8,7 +8,7 @@ earth system foundation model data, training, and eval
 
 1. Create a virtual environment in prefered directory with python 3.12 `python3 -m venv .venv-helios` \
 2. Navigate to root directory of this repo and run `pip install -e .`
-3. Clone the [Olmo-core](https://github.com/allenai/OLMo-core/tree/v2) repo and switch to the v2 branch
+3. Clone the [Olmo-core](https://github.com/allenai/OLMo-core/tree/v2) repo and switch to the v2 branch `git checkout v2`
 4. Navigate to the root directory of olmo-core repository and run `pip install -e .`
 5. (Skip if dataset is on weka) Make sure you have access to the relevant bucket 'gcloud auth default login' or using beaker secrets
 6. Set `WANDB_API_KEY' api key environment variable (or povide it via --secret-env flag when you start your beaker session)
