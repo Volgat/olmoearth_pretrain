@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import MethodType
+from typing import NamedTuple
 
 import geobench
 import numpy as np
@@ -28,8 +29,20 @@ S2_BAND_NAMES = [
 ]
 
 
+class GeoBenchConfig(NamedTuple):
+    benchmark_name: str
+    imputes: list[str]
+    num_classes: int
+    is_multilabel: bool
+
+
 DATASET_TO_CONFIG = {
-    "m-eurosat": {"benchmark_name": "classification_v1.0", "imputes": []}
+    "m-eurosat": GeoBenchConfig(
+        benchmark_name="classification_v1.0",
+        imputes=[],
+        num_classes=10,
+        is_multilabel=False,
+    )
 }
 
 
@@ -44,6 +57,8 @@ class GeobenchDataset(Dataset):
     ):
         config = DATASET_TO_CONFIG[dataset]
         self.config = config
+        self.num_classes = config.num_classes
+        self.is_multilabel = config.is_multilabel
         self.dataset = dataset
 
         if split not in ["train", "valid", "test"]:
@@ -56,15 +71,15 @@ class GeobenchDataset(Dataset):
         self.partition = partition
 
         for task in geobench.task_iterator(
-            benchmark_name=config["benchmark_name"],
-            benchmark_dir=geobench_dir / config["benchmark_name"],
+            benchmark_name=config.benchmark_name,
+            benchmark_dir=geobench_dir / config.benchmark_name,
         ):
             if task.dataset_name == dataset:
                 break
 
         # hack: https://github.com/ServiceNow/geo-bench/issues/22
         task.get_dataset_dir = MethodType(
-            lambda self: geobench_dir / config["benchmark_name"] / self.dataset_name,
+            lambda self: geobench_dir / config.benchmark_name / self.dataset_name,
             task,
         )
 
@@ -78,7 +93,7 @@ class GeobenchDataset(Dataset):
             original_band_names.index(band_name) for band_name in self.band_names
         ]
         imputed_band_info = self.impute_normalization_stats(
-            task.band_stats, config["imputes"]
+            task.band_stats, config.imputes
         )
         self.mean, self.std = self.get_norm_stats(imputed_band_info)
         self.active_indices = range(int(len(self.dataset)))
@@ -184,7 +199,7 @@ class GeobenchDataset(Dataset):
         for band_idx in self.band_indices:
             x.append(self.dataset[idx].bands[band_idx].data)
 
-        x = self.impute_bands(x, self.band_names, self.config["imputes"])
+        x = self.impute_bands(x, self.band_names, self.config.imputes)
 
         x = np.stack(x, axis=2)  # (h, w, 13)
         assert (

@@ -154,3 +154,36 @@ if __name__ == "__main__":
     )
 
     trainer.fit()
+
+    # eval
+    from torch.utils.data import DataLoader
+
+    from helios.evals.datasets import GeobenchDataset
+    from helios.evals.embeddings import get_embeddings
+    from helios.evals.knn import run_knn_or_kmeans
+
+    geobench_dir = UPath("/weka/skylight-default/presto-geobench/dataset/geobench")
+
+    common_args = {"geobench_dir": geobench_dir, "dataset": "m-eurosat"}
+    train_ds = GeobenchDataset(geobench_dir, "m-eurosat", "train", "default")
+    train_loader = DataLoader(train_ds)
+    val_loader = DataLoader(
+        GeobenchDataset(geobench_dir, "m-eurosat", "valid", "default")
+    )
+    train_embeddings, train_labels = get_embeddings(
+        data_loader=train_loader, model=encoder, device=DEVICE
+    )
+    val_embeddings, test_labels = get_embeddings(
+        data_loader=val_loader, model=encoder, device=DEVICE
+    )
+    val_result = run_knn_or_kmeans(
+        eval_type="KNN-20",
+        train_embeddings=train_embeddings,
+        train_labels=train_labels,
+        test_embeddings=val_embeddings,
+        test_labels=test_labels,
+        num_classes=train_ds.num_classes,
+        is_multilabel=train_ds.is_multilabel,
+        device=DEVICE,
+    )
+    print(val_result)
