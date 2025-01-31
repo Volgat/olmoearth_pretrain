@@ -155,7 +155,8 @@ if __name__ == "__main__":
 
     trainer.fit()
 
-    # eval
+    # eval. Currently this will fail because by default our model ingests 4 timesteps.
+    # we should update the model architecture to ingest variable numbers of timesteps
     from torch.utils.data import DataLoader
 
     from helios.evals.datasets import GeobenchDataset
