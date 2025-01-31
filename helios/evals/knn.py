@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import accuracy_score, f1_score
 
-from .metrics import class_wise_f1
-
 
 def run_knn_or_kmeans(
     eval_type: str,
@@ -15,8 +13,7 @@ def run_knn_or_kmeans(
     is_multilabel: bool,
     device: torch.device,
     skip_idx: bool = False,
-    return_class_wise: bool = False,
-):
+) -> float:
     if not eval_type.startswith("KNN-"):
         raise ValueError(f"Unexpected eval type {eval_type}")
     k = int(eval_type.split("-")[-1])
@@ -30,10 +27,6 @@ def run_knn_or_kmeans(
             device=device,
             skip_idx=skip_idx,
         )
-        if return_class_wise:
-            return class_wise_f1(
-                y_true=test_labels, y_pred=predictions, num_classes=num_classes
-            )
         return accuracy_score(y_true=test_labels, y_pred=predictions)
     else:
         # multilabel dataset, e.g., BigEarthNet
@@ -56,14 +49,7 @@ def run_knn_or_kmeans(
             predictions.append(single_predictions)
 
         predictions = torch.stack(predictions, dim=1)  # (num_samples, num_classes)
-
-        if return_class_wise:
-            return [
-                f1_score(test_labels[:, i], predictions[:, i])
-                for i in range(num_classes)
-            ]
-        else:
-            return f1_score(y_true=test_labels, y_pred=predictions, average="micro")
+        return f1_score(y_true=test_labels, y_pred=predictions, average="micro")
 
 
 def run_knn(
@@ -74,7 +60,7 @@ def run_knn(
     k: int,
     device: torch.device,
     skip_idx: bool,
-):
+) -> torch.Tensor:
     train_embeddings = train_embeddings.to(device)
     test_embeddings = test_embeddings.to(device)
     train_labels = train_labels.to(device)

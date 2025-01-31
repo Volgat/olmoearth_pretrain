@@ -3,7 +3,9 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 
-def get_embeddings(data_loader: DataLoader, model: nn.Module, device: torch.device):
+def get_embeddings(
+    data_loader: DataLoader, model: nn.Module, device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor]:
     embeddings = []
     labels = []
 
