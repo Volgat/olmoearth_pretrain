@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from types import MethodType
 
@@ -6,6 +5,7 @@ import geobench
 import numpy as np
 import torch.multiprocessing
 from einops import repeat
+from geobench.dataset import Stats
 from torch.utils.data import Dataset
 
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -28,6 +28,11 @@ S2_BAND_NAMES = [
 ]
 
 
+DATASET_TO_CONFIG = {
+    "m-eurosat": {"benchmark_name": "classification_v1.0", "imputes": []}
+}
+
+
 class GeobenchDataset(Dataset):
     def __init__(
         self,
@@ -37,8 +42,9 @@ class GeobenchDataset(Dataset):
         partition: str,
         norm_method: str = "norm_no_clip",
     ):
-        with (Path(__file__).parents[0] / f"{dataset}.json").open("r") as f:
-            config = json.load(f)
+        config = DATASET_TO_CONFIG[dataset]
+        self.config = config
+        self.dataset = dataset
 
         if split not in ["train", "valid", "test"]:
             raise ValueError(
@@ -47,14 +53,13 @@ class GeobenchDataset(Dataset):
         assert split in ["train", "valid", "test"]
 
         self.split = split
-        self.config = config
         self.partition = partition
 
         for task in geobench.task_iterator(
-            benchmark_name=self.config["benchmark_name"],
-            benchmark_dir=geobench_dir / self.config["benchmark_name"],
+            benchmark_name=config["benchmark_name"],
+            benchmark_dir=geobench_dir / config["benchmark_name"],
         ):
-            if task.dataset_name == self.config["dataset_name"]:
+            if task.dataset_name == dataset:
                 break
 
         # hack: https://github.com/ServiceNow/geo-bench/issues/22
@@ -68,26 +73,25 @@ class GeobenchDataset(Dataset):
             self.dataset[0].bands[i].band_info.name
             for i in range(len(self.dataset[0].bands))
         ]
-
-        self.band_names = list(self.config["band_info"].keys())
+        self.band_names = [x.name for x in task.bands_info]
         self.band_indices = [
             original_band_names.index(band_name) for band_name in self.band_names
         ]
         imputed_band_info = self.impute_normalization_stats(
-            self.config["band_info"], self.config["imputes"]
+            task.band_stats, config["imputes"]
         )
         self.mean, self.std = self.get_norm_stats(imputed_band_info)
         self.active_indices = range(int(len(self.dataset)))
         self.norm_method = norm_method
 
     @staticmethod
-    def get_norm_stats(imputed_band_info: list[float]):
+    def get_norm_stats(imputed_band_info: list[Stats]):
         means = []
         stds = []
         for band_name in S2_BAND_NAMES:
             assert band_name in imputed_band_info, f"{band_name} not found in band_info"
-            means.append(imputed_band_info[band_name]["mean"])
-            stds.append(imputed_band_info[band_name]["std"])
+            means.append(imputed_band_info[band_name].mean)
+            stds.append(imputed_band_info[band_name].std)
         return np.array(means), np.array(stds)
 
     @staticmethod
@@ -186,7 +190,7 @@ class GeobenchDataset(Dataset):
         assert (
             x.shape[-1] == 13
         ), f"All datasets must have 13 channels, not {x.shape[-1]}"
-        if self.config["dataset_name"] == "m-so2sat":
+        if self.dataset == "m-so2sat":
             x = x * 10_000
 
         x = torch.tensor(self.normalize_bands(x, self.mean, self.std, self.norm_method))
