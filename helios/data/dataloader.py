@@ -8,7 +8,8 @@ from typing import Any
 
 import numpy as np
 import torch
-from olmo_core.data.data_loader import NumpyDataLoaderBase, _IterableDatasetWrapper
+from olmo_core.data.data_loader import (NumpyDataLoaderBase,
+                                        _IterableDatasetWrapper)
 from olmo_core.data.numpy_dataset import NumpyDatasetBase
 from olmo_core.data.utils import get_rng
 from olmo_core.utils import roundrobin, threaded_generator
@@ -115,7 +116,6 @@ class HeliosIterableDatasetWrapper(_IterableDatasetWrapper):
             instance_iterator = (
                 self.data_loader._get_dataset_item(int(idx)) for idx in indices
             )
-        print(f"data loader rank batch size {self.data_loader.rank_batch_size}")
         return (
             self.data_loader.collator(batch)
             for batch in iter_batched(
