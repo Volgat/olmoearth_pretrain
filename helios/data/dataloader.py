@@ -290,7 +290,7 @@ class HeliosDataLoader(NumpyDataLoaderBase):
                 (self.global_batch_size, 256, 256, 12, 13), dtype=torch.float32
             ),
             "naip": torch.rand(
-                (self.global_batch_size, 24, 256, 4), dtype=torch.float32
+                (self.global_batch_size, 256, 256, 4), dtype=torch.float32
             ),
             "worldcover": torch.rand(
                 (self.global_batch_size, 1, 256, 1), dtype=torch.float32
