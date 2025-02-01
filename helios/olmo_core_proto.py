@@ -4,8 +4,8 @@ import logging
 import uuid
 
 import numpy as np
-from olmo_core.distributed.utils import get_fs_local_rank, get_rank, get_world_size
 from olmo_core.distributed.parallel import DataParallelConfig, DataParallelType
+from olmo_core.distributed.utils import get_fs_local_rank, get_rank, get_world_size
 from olmo_core.optim import AdamWConfig
 from olmo_core.train import prepare_training_environment, teardown_training_environment
 from olmo_core.train.callbacks.wandb import WandBCallback

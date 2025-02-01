@@ -114,7 +114,7 @@ class HeliosTrainModuleConfig(Config):
             kwargs["state_dict_load_opts"] = dist_cp_sd.StateDictOptions(
                 **state_dict_load_opts
             )
-        if (loss_fn := kwargs.pop("loss_fn", None)) is  None:
+        if (loss_fn := kwargs.pop("loss_fn", None)) is None:
             raise ValueError("loss_fn must be provided")
         kwargs["loss_fn"] = loss_fn
         return HeliosTrainModule(
