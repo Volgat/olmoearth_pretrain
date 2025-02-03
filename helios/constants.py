@@ -20,6 +20,9 @@ S2_BANDS = [
     "B12",
 ]
 
+LATLON_BANDS = ["lat", "lon"]
+TIMESTAMPS = ["day", "month", "year"]
+
 WORLDCOVER_BANDS = ["B1"]
 
 VARIATION_TYPES = Literal[

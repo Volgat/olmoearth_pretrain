@@ -22,7 +22,7 @@ earth system foundation model data, training, and eval
     export WANDB_API_KEY=<your-key>
     ```
 5. Adjust the variables to be changed per user in olmo_core_proto.py
-6. run `python3 helios/olmo_core_proto.py` for single gpu and `torchrun helios/olmo_core_proto.py`
+6. Run  `torchrun helios/olmo_core_proto.py`
 
 
 
