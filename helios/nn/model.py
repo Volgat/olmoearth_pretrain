@@ -7,13 +7,22 @@ from einops import repeat
 from torch import Tensor, nn
 
 from helios.constants import BASE_GSD
-from helios.nn.encodings import (
-    get_1d_sincos_pos_encoding,
-    get_2d_sincos_pos_encoding_with_resolution,
-    get_month_encoding_table,
-)
+from helios.nn.attention import Block
+from helios.nn.encodings import (get_1d_sincos_pos_encoding,
+                                 get_2d_sincos_pos_encoding_with_resolution,
+                                 get_month_encoding_table)
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample
+
+
+# THis  should be in a utility file
+class ModuleListWithInit(nn.ModuleList):
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
 
 
 class TokensAndMasks(NamedTuple):
@@ -70,11 +79,11 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
         """Check if any data is seen by the encoder."""
         return modality_mask.min() == 0
 
-    def apply_linear_projection(
+    def forward(
         self,
         input_data: MaskedHeliosSample,
         patch_size: int,
-    ):
+    ) -> TokensAndMasks:
         """Returns flexibly patchified embeddings for each modality of the input data
 
         Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D] output.
@@ -117,8 +126,7 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
                 )
             output_dict[modality] = patchified_data
 
-        # TODO: IF possible we should be able to rewrap this intoa named tuple depends how we plan on using the time stuff at this point
-        return MaskedHeliosSample(**output_dict)
+        return TokensAndMasks(**output_dict)
 
 
 class TokensOnly(NamedTuple):
@@ -192,7 +200,7 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         """Calculate the Ground Sample Distance ratio."""
         return input_res * patch_size / BASE_GSD
 
-    def apply_encodings(
+    def forward(
         self,
         per_modality_input_tokens: TokensOnly,
         months: Tensor,  # Shouldn't this vary per modality
@@ -262,111 +270,82 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         return TokensOnly(**output_dict)
 
 
-# class FlexiPrestoBase(nn.Module):
-#     """Based on FlexiPrestoBase from presto-v3"""
-
-#     cross_attn: bool
-
-#     def __init__(
-#         self,
-#         embedding_size: int = 128,
-#         depth=2,
-#         mlp_ratio=2,
-#         num_heads=8,
-#         max_sequence_length=24,
-#         base_patch_size: int = 4,
-#         use_channel_embs: bool = True,
-#         drop_path: float = 0.0,
-#     ):
-#         super().__init__()
-#         self.embedding_size = embedding_size
-#         self.base_patch_size = base_patch_size
-#         self.max_sequence_length = max_sequence_length
-#         # we have 4 embeddings (pos_in_time, pos_in_space, month, channel) so each get
-#         # 0.25 of the dimension. This will change soon anyway
-
-#         self.apply(self._init_weights)
-
-#     def _init_weights(self, m):
-#         if isinstance(m, nn.Linear):
-#             # we use xavier_uniform following official JAX ViT:
-#             torch.nn.init.xavier_uniform_(m.weight)
-#             if isinstance(m, nn.Linear) and m.bias is not None:
-#                 nn.init.constant_(m.bias, 0)
-
-#     @classmethod
-#     def collapse_and_combine_hwtc(
-#         cls,
-#         s_t_x: torch.Tensor,
-#         sp_x: torch.Tensor,
-#         t_x: torch.Tensor,
-#         st_x: torch.Tensor,
-#         s_t_m: torch.Tensor,
-#         sp_m: torch.Tensor,
-#         t_m: torch.Tensor,
-#         st_m: torch.Tensor,
-#     ):
-#         s_t_x = rearrange(s_t_x, "b h w t c_g d -> b (h w t c_g) d")
-#         sp_x = rearrange(sp_x, "b h w c_g d -> b (h w c_g) d")
-#         t_x = rearrange(t_x, "b t c_g d -> b (t c_g) d")
-
-#         s_t_m = rearrange(s_t_m, "b h w t c_g-> b (h w t c_g)")
-#         sp_m = rearrange(sp_m, "b h w c_g-> b (h w c_g)")
-#         t_m = rearrange(t_m, "b t c_g -> b (t c_g)")
-
-#         x = torch.cat(
-#             [
-#                 s_t_x,
-#                 sp_x,
-#                 t_x,
-#                 st_x,
-#             ],
-#             dim=1,
-#         )
-#         m = torch.cat([s_t_m, sp_m, t_m, st_m], dim=1)
-#         return x, m
-
-#     @classmethod
-#     def split_and_expand_hwtc(
-#         cls,
-#         x: torch.Tensor,
-#         h: int,
-#         w: int,
-#         t: int,
-#         s_t_c_g: int,
-#         sp_c_g: int,
-#         t_c_g: int,
-#         st_c_g: int,
-#     ):
-#         n_s_t_t = h * w * t * s_t_c_g
-#         n_t_t = t * t_c_g
-
-#         s_t_x = rearrange(
-#             x[:, :n_s_t_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=s_t_c_g
-#         )
-#         sp_x = rearrange(
-#             x[:, n_s_t_t : -(n_t_t + st_c_g)],
-#             "b (h w c) d -> b h w c d",
-#             h=h,
-#             w=w,
-#             c=sp_c_g,
-#         )
-#         t_x = rearrange(
-#             x[:, -(n_t_t + st_c_g) : -st_c_g], "b (t c) d -> b t c d", t=t, c=t_c_g
-#         )
-#         st_x = x[:, -st_c_g:]
-
-#         return s_t_x, sp_x, t_x, st_x
-
-
 # I want this class to be slighlty more agnostic to the passed in encoding class and have that be configurable too
 class Encoder(nn.Module):
     """Encoder module that processes masked input samples into token representations."""
+
+    cross_attn: bool = False
+
+    def __init__(
+        self,
+        embedding_size: int,
+        max_patch_size: int,
+        num_heads: int,
+        mlp_ratio: float,
+        depth: int,
+        drop_path: float,
+        modalities_to_bands_dict: dict[str, list[int]],
+        max_sequence_length: int,
+        base_patch_size: int,
+        use_channel_embs: bool = True,
+    ):
+        super().__init__()
+        self.embedding_size = embedding_size
+        self.modalities_to_bands_dict = modalities_to_bands_dict
+        self.max_sequence_length = max_sequence_length
+        self.base_patch_size = base_patch_size
+        self.use_channel_embs = use_channel_embs
+
+        self.composite_encodings = FlexiHeliosCompositeEncodings(
+            embedding_size,
+            modalities_to_bands_dict,
+            max_sequence_length,
+            base_patch_size,
+            use_channel_embs,
+        )
+        self.patch_embeddings = FlexiHeliosPatchEmbeddings(
+            modalities_to_bands_dict,
+            max_patch_size,
+            embedding_size,
+        )
+        self.norm = nn.LayerNorm(embedding_size)
+
+        self.blocks = ModuleListWithInit(
+            [
+                Block(
+                    embedding_size,
+                    num_heads,
+                    mlp_ratio,
+                    qkv_bias=True,
+                    norm_layer=nn.LayerNorm,  # TODO: This should be configurable
+                    cross_attn=self.cross_attn,
+                    drop_path=drop_path,
+                )
+                for _ in range(depth)
+            ]
+        )
 
     # apply linear input projection
     # apply Encodings
     # Apply attention
     # apply Norm
+    def apply_attn(self, x: TokensAndMasks) -> TokensAndMasks:
+        """Apply the attention to the tokens and masks."""
+        tokens_only_dict = {}
+        for modalities in self.modalities_to_bands_dict.keys():
+            x_modality = getattr(x, modalities)
+            x_modality = self.blocks[0](x_modality, x_modality, x_modality)
+            tokens_only_dict[modalities] = x_modality
+        tokens_only = TokensOnly(**tokens_only_dict)
+        # We will need input resolution and patch size at this point
+        tokens_only = self.composite_encodings.forward(
+            tokens_only, x.months, self.base_patch_size, x.input_res
+        )
+
+        # Step to  do the collapsing and combining of the tokens so that we get all the non masked tokens left only
+
+        # TODO: Add exit token support and configuration for the exit token
+        return tokens_only
 
     def forward(self, x: MaskedHeliosSample, patch_size: int) -> TokensAndMasks:
         """Process masked input samples into token representations.
@@ -378,7 +357,7 @@ class Encoder(nn.Module):
         Returns:
             TokensAndMasks containing the encoded representations and their masks
         """
-        raise NotImplementedError
+        patchified_tokens = self.patch_embeddings.forward(x, patch_size)
 
 
 class Predictor(nn.Module):
@@ -394,3 +373,32 @@ class Predictor(nn.Module):
             TokensAndMasks containing the predicted tokens and their masks
         """
         raise NotImplementedError
+
+
+if __name__ == "__main__":
+    import rasterio
+
+    # I want an example that I can start running
+    # I am going to create a batch of 2 samples
+    path_to_example_s2_scene = "gs://ai2-helios/data/20250130-sample-dataset-helios/10_sentinel2_monthly/EPSG:32610_166_-1971_20.tif"
+    with rasterio.open(path_to_example_s2_scene) as data:
+        values = data.read()
+    print(values.shape)
+    # s2_array = example_s2_scene.read(1)
+    # s2_mask = torch.ones_like(s2_array)
+    # s2_latlon = torch.randn(2)
+    # s2_latlon_mask = torch.ones_like(s2_latlon)
+    # s2_timestamps = torch.randn(2, 3, 10)
+    # s2_timestamps_mask = torch.ones_like(s2_timestamps)
+
+    # x = MaskedHeliosSample(
+    #     s2_array,
+    #     s2_mask,
+    #     s2_latlon,
+    #     s2_latlon_mask,
+    #     s2_timestamps,
+    #     s2_timestamps_mask,
+    # )
+
+    # patch_size = 2
+    # patchified_tokens = Encoder.forward(x, patch_size)
