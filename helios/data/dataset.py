@@ -72,7 +72,12 @@ class HeliosSample(NamedTuple):
         Returns:
             The batch size of the sample.
         """
-        raise NotImplementedError
+        if self.s2 is None:
+            raise ValueError("S2 is not present in the sample")
+        if len(self.s2.shape) == 5:
+            return self.s2.shape[0]
+        else:
+            raise ValueError("This is a single sample and not a batch")
 
     @property
     def t(self) -> int:
@@ -81,7 +86,9 @@ class HeliosSample(NamedTuple):
         Returns:
             The number of timesteps in the sample.
         """
-        raise NotImplementedError
+        if self.s2 is None:
+            raise ValueError("S2 is not present in the sample")
+        return self.s2.shape[-3]
 
     @property
     def h(self) -> int:
