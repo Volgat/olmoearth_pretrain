@@ -190,10 +190,10 @@ class DatasetIndexParser:
                     f"Skipping {data_source} {freq_type} as it is not available"
                 )
                 continue
-            data_source_metadata[data_source] = (
-                self.get_metadata_for_data_source_in_sample(
-                    data_source, example_id, freq_type
-                )
+            data_source_metadata[
+                data_source
+            ] = self.get_metadata_for_data_source_in_sample(
+                data_source, example_id, freq_type
             )
             data_source_paths[data_source] = self.get_tif_path(
                 data_source, example_id, freq_type

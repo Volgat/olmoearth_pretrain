@@ -7,7 +7,7 @@ from helios.train.model import TokensAndMasks
 
 
 def test_patch_disc_loss():
-    """Just test that it runs as expected"""
+    """Just test that it runs as expected."""
     b, t, t_h, t_w, d = 3, 2, 4, 4, 2
 
     preds = TokensAndMasks(

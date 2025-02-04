@@ -11,6 +11,7 @@ from einops import rearrange
 from olmo_core.config import Config
 from torch import Tensor
 
+from helios.train.masking import MaskValue
 from helios.train.model import TokensAndMasks
 
 
@@ -55,6 +56,11 @@ class PatchDiscriminationLoss(Loss):
 
     @staticmethod
     def _expand_and_reciprocate(t):
+        """As described in the name.
+
+        >>> _expand_and_reciprocate(torch.tensor([1, 2, 3]))
+        tensor([1.0000, 0.5000, 0.5000, 0.3333, 0.3333, 0.3333])
+        """
         reciprocals = torch.reciprocal(t.float())
         return torch.repeat_interleave(reciprocals, t)
 
@@ -86,8 +92,8 @@ class PatchDiscriminationLoss(Loss):
             [self._flatten(getattr(targets, d)) for d in predictions.data_fields], dim=1
         )
 
-        pred = all_preds[all_masks == 2].unsqueeze(dim=0)
-        target = all_targets[all_masks == 2].unsqueeze(dim=0)
+        pred = all_preds[all_masks == MaskValue.DECODER_ONLY].unsqueeze(dim=0)
+        target = all_targets[all_masks == MaskValue.DECODER_ONLY].unsqueeze(dim=0)
 
         bs, nt, _ = pred.shape
 
