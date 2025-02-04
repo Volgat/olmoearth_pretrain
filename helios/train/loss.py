@@ -32,9 +32,20 @@ class PatchDiscriminationLoss(Loss):
     """Loss function for patch discrimination task."""
 
     def __init__(
-        self, tau: float = 0.07, pred2unit: bool = True, mask_other_samples: bool = True
+        self,
+        tau: float = 0.07,
+        pred2unit: bool = False,
+        mask_other_samples: bool = True,
     ):
-        """Initialize patch discrimination loss."""
+        """Initialize patch discrimination loss.
+
+        Args:
+            tau: the softmax temperature
+            pred2unit: whether to standardize the predictions using batch statistics
+            mask_other_samples: whether to apply the contrastive loss drawing samples
+                from within a sample (True) or using all other instances in a batch (False).
+                If this is False, then this is the AllDisc loss from the Galileo paper
+        """
         self.tau = tau
         self.pred2unit = pred2unit
         self.mask_other_samples = mask_other_samples
