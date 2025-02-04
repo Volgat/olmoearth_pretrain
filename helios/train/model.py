@@ -12,13 +12,13 @@ class TokensAndMasks(NamedTuple):
     """Output to compute the loss on.
 
     Args:
-        s2: sentinel 2 data of shape (B, C_G, T, P_H, P_W)
+        s2: sentinel 2 data of shape (B, C_G, T, P_H, P_W, D)
         s2_mask: sentinel 2 mask indicating which tokens are masked/unmasked
-        latlon: lat lon data containing geographical coordinates
+        latlon: lat lon data containing geographical coordinates (B, 1, D)
         latlon_mask: lat lon mask indicating which coordinates are masked/unmasked
     """
 
-    s2: Tensor  # (B, C_G, T, P_H, P_W)
+    s2: Tensor  # (B, C_G, T, P_H, P_W, D)
     s2_mask: Tensor
     latlon: Tensor
     latlon_mask: Tensor
@@ -27,6 +27,11 @@ class TokensAndMasks(NamedTuple):
     def device(self) -> torch.device:
         """Get the device of the tokens and masks."""
         return self.s2.device
+
+    @property
+    def data_fields(self):
+        """Return all data fields."""
+        return [x for x in self._fields if not x.endswith("mask")]
 
 
 class Encoder(nn.Module):
