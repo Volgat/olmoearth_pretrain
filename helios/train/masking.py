@@ -36,16 +36,16 @@ class MaskedHeliosSample(NamedTuple):
     Args:
         s2: ArrayTensor  # [B, len(S2_bands), T H, W]
         s2_mask: ArrayTensor
-        s2_latlon: ArrayTensor  # [B, 2]
-        s2_latlon_mask: ArrayTensor
-        s2_timestamps: ArrayTensor  # [B, D=3, T], where D=[day, month, year]
+        latlon: ArrayTensor  # [B, 2]
+        latlon_mask: ArrayTensor
+        timestamps: ArrayTensor  # [B, D=3, T], where D=[day, month, year]
     """
 
     s2: ArrayTensor  # [B, len(S2_bands), T H, W]
     s2_mask: ArrayTensor
     latlon: ArrayTensor  # [B, 2]
     latlon_mask: ArrayTensor
-    timestamps: ArrayTensor  # [B, D=3, T], where D=[day, month, year]
+    timestamps: ArrayTensor  # [B, D=3, T], where D=[day, month, year] (months are zero indexed)
 
     def as_dict(self) -> dict[str, Any]:
         """Convert the namedtuple to a dictionary.

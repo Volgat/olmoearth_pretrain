@@ -66,12 +66,14 @@ def get_2d_sincos_pos_encoding_with_resolution(
     Args:
         grid_size: int of the grid height and width
         res: array of size n, representing the resolution of a pixel (say, in meters),
+                where n is the number of spatial dimensions
         encoding_dim: output dimension for each position
         cls_token: whether to add a cls token to the encoding
         device: device to run the encoding on
     Returns:
         encoding: position encoding for the given grid: size (H*W, D)
     """
+    # TODO: What happens when the res array is bigger than 1?
     grid_h = torch.arange(grid_size, device=device)
     grid_w = torch.arange(grid_size, device=device)
     grid = torch.meshgrid(grid_w, grid_h, indexing="xy")  # (h_grid, w_grid)
@@ -98,12 +100,9 @@ def get_month_encoding_table(encoding_dim: int) -> torch.Tensor:
     assert encoding_dim % 2 == 0
     angles = torch.arange(0, 13) / (12 / (2 * np.pi))
 
-    sin_table = torch.sin(
-        torch.stack([angles for _ in range(encoding_dim // 2)], axis=-1)
-    )
-    cos_table = torch.cos(
-        torch.stack([angles for _ in range(encoding_dim // 2)], axis=-1)
-    )
+    dim_per_table = encoding_dim // 2
+    sin_table = torch.sin(torch.stack([angles for _ in range(dim_per_table)], axis=-1))
+    cos_table = torch.cos(torch.stack([angles for _ in range(dim_per_table)], axis=-1))
     month_table = torch.concatenate([sin_table[:-1], cos_table[:-1]], axis=-1)
 
     return month_table  # (M, D)
