@@ -1,20 +1,26 @@
 """Model code for the Helios model."""
 
 from collections import OrderedDict
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 import torch
 import torch.nn.functional as F
-from einops import repeat
+from einops import rearrange, repeat
 from torch import Tensor, nn
 
 from helios.constants import BASE_GSD
 from helios.nn.attention import Block
-from helios.nn.encodings import (get_1d_sincos_pos_encoding,
-                                 get_2d_sincos_pos_encoding_with_resolution,
-                                 get_month_encoding_table)
+from helios.nn.encodings import (
+    get_1d_sincos_pos_encoding,
+    get_2d_sincos_pos_encoding_with_resolution,
+    get_month_encoding_table,
+)
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample, MaskValue
+
+
+class TokensOnly(NamedTuple):
+    s2: torch.Tensor
 
 
 # THis  should be in a utility file
@@ -89,7 +95,7 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
     @staticmethod
     def is_any_data_seen_by_encoder(modality_mask: Tensor) -> bool:
         """Check if any data is seen by the encoder."""
-        return modality_mask.min() == 0
+        return modality_mask.min() == MaskValue.ONLINE_ENCODER.value
 
     def forward(
         self,
@@ -155,10 +161,6 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
         output_dict["latlon"] = input_data.latlon
         output_dict["latlon_mask"] = input_data.latlon_mask
         return TokensAndMasks(**output_dict)
-
-
-class TokensOnly(NamedTuple):
-    s2: torch.Tensor
 
 
 # SHould this be called FlexiHeliosCompositeEncodings? or FlexiHeliosCompositeEmbeddings?
@@ -308,7 +310,6 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         return TokensOnly(**output_dict)
 
 
-# FIXME: HOw we find and use input res has to be changed
 # I want this class to be slighlty more agnostic to the passed in encoding class and have that be configurable too
 class Encoder(nn.Module):
     """Encoder module that processes masked input samples into token representations."""
@@ -331,6 +332,7 @@ class Encoder(nn.Module):
         super().__init__()
         self.embedding_size = embedding_size
         self.modalities_to_channel_groups_dict = modalities_to_channel_groups_dict
+
         self.max_sequence_length = max_sequence_length
         self.base_patch_size = base_patch_size
         self.use_channel_embs = use_channel_embs
@@ -364,7 +366,6 @@ class Encoder(nn.Module):
             ]
         )
 
-    # TODO: Should this work for TokensOnly too?
     def collapse_and_combine_hwtc(self, x: TokensAndMasks) -> tuple[Tensor, Tensor]:
         """Collapse the tokens and masks, respectively, into two tensors"""
         tokens, masks = [], []
@@ -392,42 +393,10 @@ class Encoder(nn.Module):
         masks = torch.cat(masks, dim=1)
         return tokens, masks
 
-    @staticmethod
-    def remove_masked_tokens(x: Tensor, mask: Tensor) -> tuple[Tensor, Tensor, Tensor]:
-        """Remove masked tokens from the tokens and masks.
-
-        Implementation from https://stackoverflow.com/a/68621610/2332296
-
-        Args:
-            x: Tokens to remove masked tokens from
-            mask: Mask to remove masked tokens from
-
-        Returns:
-            tokens: Tokens with masked tokens removed
-            indices: Original indices of the masked tokens
-            updated_mask: Mask with masked tokens removed
-        """
-        org_mask_dtype = mask.dtype
-        mask = mask.bool()
-        sorted_mask, indices = torch.sort(
-            (~mask).int(), dim=1, descending=True, stable=True
-        )
-        x = x.gather(1, indices[:, :, None].expand_as(x))
-        # set masked values to 0 (not really necessary since we'll ignore them anyway)
-        x = x * sorted_mask.unsqueeze(-1)
-
-        # cut off to the length of the longest sequence
-        max_length = sorted_mask.sum(-1).max()
-        x = x[:, :max_length]
-        updated_mask = 1 - sorted_mask[:, :max_length]
-
-        return x, indices, updated_mask.to(dtype=org_mask_dtype)
-
     def create_token_exit_ids(
         self, x: TokensOnly, token_exit_cfg: dict[str, int]
     ) -> TokensOnly:
         """Create the token exit ids for # of layers of attention for each band group"""
-
         exit_ids_per_modality_dict = {}
         for (
             modality,
@@ -441,7 +410,48 @@ class Encoder(nn.Module):
         return TokensOnly(**exit_ids_per_modality_dict)
 
     @staticmethod
-    def should_exit(i_blk: int, exit_after_n_layers: Optional[int]) -> bool:
+    def remove_masked_tokens(x: Tensor, mask: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """Remove masked tokens from the tokens and masks.
+
+        Implementation from https://stackoverflow.com/a/68621610/2332296
+
+        On Input:
+        1 means this token should be removed
+        0 means this token should be kept
+
+        Args:
+            x: Tokens to remove masked tokens from
+            mask: Mask to remove masked tokens from
+
+        Returns:
+            tokens: [B, T, D]
+            indices: [B, T]
+            updated_mask: [B, T]
+            where T is the max number of unmasked tokens for an instance
+        """
+        org_mask_dtype = mask.dtype
+        mask = mask.bool()
+        # At this point when we flip the mask 1 means keep 0 means remove
+        sorted_mask, indices = torch.sort(
+            (~mask).int(), dim=1, descending=True, stable=True
+        )
+        # Now all the places where we want to keep the token are at the front of the tensor
+        x = x.gather(1, indices[:, :, None].expand_as(x))
+        # Now all tokens that should be kept are first in the tensor
+
+        # set masked values to 0 (not really necessary since we'll ignore them anyway)
+        x = x * sorted_mask.unsqueeze(-1)
+
+        # cut off to the length of the longest sequence
+        max_length = sorted_mask.sum(-1).max()
+        x = x[:, :max_length]
+        # New mask chopped to the longest sequence
+        updated_mask = 1 - sorted_mask[:, :max_length]
+
+        return x, indices, updated_mask.to(dtype=org_mask_dtype)
+
+    @staticmethod
+    def should_exit(i_blk: int, exit_after_n_layers: int | None) -> bool:
         """Determine if the current block should exit the attention layers"""
         if exit_after_n_layers is None:
             return False
@@ -483,22 +493,23 @@ class Encoder(nn.Module):
         # then move them to their original positions
         out = out.scatter(1, indices[:, :, None].expand_as(out), out)
         full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
+        # Values that were masked out are not returned but the values that are still there are returned to the original positions
         return out, full_mask
 
     # All the dicts need to be ordered so that we can recover
     @staticmethod
     def split_and_expand_per_modality(
         x: Tensor, modalities_to_dims_dict: OrderedDict[str, tuple]
-    ) -> TokensOnly:
+    ) -> OrderedDict[str, Tensor]:
         """Split and expand the tokens per modality
 
         Args:
             x: Tokens to split and expand
             modalities_to_dims_dict: Dictionary mapping modalities to their dimensions
         Returns:
-            tokens: Tokens split per modality and expanded to original hwtc shape
+            tokens_only_dict: OrderedDict mapping modalities to their tokens
         """
-        tokens_only_dict = {}
+        tokens_only_dict = OrderedDict()
         tokens_reshaped = 0
         for modality, dims in modalities_to_dims_dict.items():
             if len(dims) == 6:
@@ -518,7 +529,7 @@ class Encoder(nn.Module):
                 )
             tokens_reshaped += num_tokens_for_modality
             tokens_only_dict[modality] = x_modality
-        return TokensOnly(**tokens_only_dict)
+        return tokens_only_dict
 
     def apply_attn(
         self,
@@ -526,8 +537,8 @@ class Encoder(nn.Module):
         timestamps: Tensor,
         patch_size: int,
         input_res: int,
-        token_exit_cfg: Optional[dict[str, int]] = None,
-        exit_after_n_layers: Optional[int] = None,
+        token_exit_cfg: dict[str, int] | None = None,
+        exit_after_n_layers: int | None = None,
     ) -> TokensAndMasks:
         """Apply the attention to the tokens and masks."""
         # TODO: this part should be cleaner many unneded packaging and unpackaging of data
@@ -619,11 +630,9 @@ class Encoder(nn.Module):
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
         x, _ = self.add_removed_tokens(x, indices, new_mask)
-        tokens_only = self.split_and_expand_per_modality(x, modalities_to_dims_dict)
-        # I want to split and expand back all the original data
-        tokens_only_dict = tokens_only._asdict()
-        print(f"tokens_only_dict keys: {tokens_only_dict.keys()}")
-        print(f"original_masks_dict keys: {original_masks_dict.keys()}")
+        tokens_only_dict = self.split_and_expand_per_modality(
+            x, modalities_to_dims_dict
+        )
         tokens_and_masks_dict = {}
         tokens_and_masks_dict.update(original_masks_dict)  # Add masks first
         tokens_and_masks_dict.update(tokens_only_dict)  # Add tokens second
@@ -633,9 +642,9 @@ class Encoder(nn.Module):
         self,
         x: MaskedHeliosSample,
         patch_size: int,
-        input_res: Optional[int] = BASE_GSD,
-        exit_after: Optional[int] = None,
-        token_exit_cfg: Optional[dict] = None,
+        input_res: int | None = BASE_GSD,
+        exit_after: int | None = None,
+        token_exit_cfg: dict | None = None,
     ) -> TokensAndMasks:
         """Process masked input samples into token representations.
 
@@ -691,7 +700,6 @@ class Predictor(nn.Module):
 
 if __name__ == "__main__":
     import rasterio
-    from einops import rearrange
 
     from helios.constants import S2_BANDS
 
@@ -816,8 +824,8 @@ if __name__ == "__main__":
     )
     print(encoded_tokens)
 
-    # Next steps get this to work
     # Write unit tests for all the components of the encoder
     # write the decoder and all unit tests for the decoder
     # Add S1 data into the test
+    # add additional unit tests for the torch sub components
     # clean up Refactor and SUbmit the PR

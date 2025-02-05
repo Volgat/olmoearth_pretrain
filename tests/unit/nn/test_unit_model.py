@@ -1,0 +1,215 @@
+"""Unit tests for the core model code"""
+
+from collections import OrderedDict
+
+import pytest
+import torch
+from einops import repeat
+
+from helios.nn.model import Encoder, TokensAndMasks
+
+
+class TestEncoder:
+    @pytest.fixture
+    def encoder(self) -> Encoder:
+        """Create encoder fixture for testing.
+
+        Returns:
+            Encoder: Test encoder instance with small test config
+        """
+        modalities_dict = OrderedDict(
+            {"s2": OrderedDict({"rgb": [0, 1, 2], "nir": [3]})}
+        )
+        return Encoder(
+            embedding_size=8,
+            max_patch_size=8,
+            num_heads=2,
+            mlp_ratio=4.0,
+            depth=2,
+            drop_path=0.1,
+            modalities_to_channel_groups_dict=modalities_dict,
+            max_sequence_length=12,
+            base_patch_size=4,
+            use_channel_embs=True,
+        )
+
+    def test_collapse_and_combine_hwtc(self, encoder: Encoder) -> None:
+        """Test collapsing tokens from different modalities into single tensor.
+
+        Args:
+            encoder: Test encoder instance
+        """
+        B, D = 2, 4
+        s2_tokens = torch.randn(B, 2, 1, 1, 2, D)
+        s2_mask = torch.randint(0, 2, (B, 2, 1, 1, 2)).float()
+        x = TokensAndMasks(s2=s2_tokens, s2_mask=s2_mask)
+        tokens, masks = encoder.collapse_and_combine_hwtc(x)
+        assert tokens.shape == (B, 4, D)
+        assert masks.shape == (B, 4)
+
+    def test_create_token_exit_ids(self, encoder: Encoder) -> None:
+        """Test creating exit IDs for early token exiting.
+
+        Args:
+            encoder: Test encoder instance
+        """
+        pass
+
+    def test_remove_masked_tokens(self) -> None:
+        """Test removing masked tokens and tracking indices."""
+        d = 2
+        x = torch.tensor([[0, 1, 0], [1, 0, 1]]).float()
+        x = repeat(x, "b n -> b n d", d=d)
+        print(f"x shape: {x.shape}")
+        mask = torch.tensor([[1, 0, 1], [0, 1, 0]]).float()
+
+        expected_tokens = torch.tensor(
+            [
+                [[1.0, 1.0], [0.0, 0.0]],
+                [[1.0, 1.0], [1.0, 1.0]],
+            ]
+        )
+        num_tokens_to_keep = torch.sum(~mask.bool())
+        expected_indices = torch.tensor([[1, 0, 2], [0, 2, 1]])
+        expected_updated_mask = torch.tensor([[0.0, 1.0], [0.0, 0.0]])
+        tokens, indices, updated_mask = Encoder.remove_masked_tokens(x, mask)
+        kept_unmasked_tokens = torch.sum(~updated_mask.bool())
+        assert torch.equal(tokens, expected_tokens)
+        assert torch.equal(indices, expected_indices)
+        assert torch.equal(updated_mask, expected_updated_mask)
+        assert kept_unmasked_tokens == num_tokens_to_keep
+
+    @pytest.mark.parametrize(
+        "block_idx,exit_after,expected",
+        [
+            (0, None, False),
+            (0, 1, False),
+            (1, 1, True),
+            (1, 2, False),
+            (2, 1, True),
+        ],
+    )
+    def test_should_exit(
+        self, block_idx: int, exit_after: int | None, expected: bool
+    ) -> None:
+        """Test exit condition logic.
+
+        Args:
+            block_idx: Current block index
+            exit_after: Number of layers after which to exit, or None
+            expected: Expected output
+        """
+        assert Encoder.should_exit(block_idx, exit_after) is expected
+
+    def test_add_removed_tokens(self) -> None:
+        """Test adding removed tokens back into tensor."""
+        # Partial tokens after removal (shape [B, T', D]):
+        partial_tokens = torch.tensor(
+            [
+                [[1.0, 11.0], [2.0, 22.0]],
+                [[5.0, 55.0], [6.0, 66.0]],
+            ]
+        )
+        # Indices that map how tokens should be laid out in the original sequence of length 3 (shape [B, 3]):
+        indices = torch.tensor(
+            [
+                [0, 1, 2],
+                [1, 0, 2],
+            ]
+        )
+        # Corresponding partial masks (shape [B, T']), representing unmasked tokens:
+        partial_mask = torch.tensor(
+            [
+                [0.0, 0.0],
+                [0.0, 1.0],
+            ]
+        )
+
+        # Expected full re-inserted output (shape [B, T, D]), with masked positions zeroed out
+        expected_out = torch.tensor(
+            [
+                [[1.0, 11.0], [2.0, 22.0], [0.0, 0.0]],
+                [[0.0, 0.0], [5.0, 55.0], [0.0, 0.0]],
+            ]
+        )
+        # Expected mask (shape [B, T]), re-including the masked tokens
+        expected_mask = torch.tensor(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 1.0],
+            ]
+        )
+
+        out, full_mask = Encoder.add_removed_tokens(
+            partial_tokens, indices, partial_mask
+        )
+        assert torch.equal(out, expected_out)
+        assert torch.equal(full_mask, expected_mask)
+
+    def test_split_and_expand_per_modality(self) -> None:
+        """Test splitting combined tensor back into per-modality tensors."""
+        B, D = 2, 4  # Batch size and embedding dimension
+        modality_1_channel_groups = 3
+        modality_2_channel_groups = 5
+        modalities_to_dims_dict = OrderedDict(
+            {
+                "modality1": (B, 2, 2, 1, modality_1_channel_groups, D),
+                "modality2": (B, 1, 1, 2, modality_2_channel_groups, D),
+            }
+        )
+
+        modality1_data = torch.randn(B, 4 * modality_1_channel_groups, D)
+        modality2_data = torch.randn(B, 4 * modality_2_channel_groups, D)
+
+        x = torch.cat([modality1_data, modality2_data], dim=1)
+
+        # Now call the function
+        modality_tokens_dict = Encoder.split_and_expand_per_modality(
+            x, modalities_to_dims_dict
+        )
+
+        modality1_tokens = modality_tokens_dict["modality1"]
+        modality2_tokens = modality_tokens_dict["modality2"]
+        assert list(modality1_tokens.shape) == [
+            2,
+            2,
+            2,
+            1,
+            3,
+            4,
+        ], f"Incorrect shape for modality1 tokens: {modality1_tokens.shape}"
+        assert list(modality2_tokens.shape) == [
+            2,
+            1,
+            1,
+            2,
+            5,
+            4,
+        ], f"Incorrect shape for modality2 tokens: {modality2_tokens.shape}"
+
+    def test_apply_attn(self, encoder: Encoder) -> None:
+        """Test applying attention layers with masking.
+
+        Args:
+            encoder: Test encoder instance
+        """
+        pass
+
+    def test_forward(self, encoder: Encoder) -> None:
+        """Test full forward pass.
+
+        Args:
+            encoder: Test encoder instance
+        """
+        pass
+
+
+# First write unit testss for all the complex mask manipulation stuff in the Encoder
+
+# Then write a unit test for applying the Composite encodings
+
+# Then write a unit test for the FlexiPatchEmbeddings
+
+# Then write a unit test for the encoder apply attention
+
+# Then write a unit test for encoder forward
