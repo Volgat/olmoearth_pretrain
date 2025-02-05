@@ -219,17 +219,17 @@ class GeobenchDataset(Dataset):
                 )
         return image
 
-    def __getitem__(self, idx) -> tuple[HeliosSample, torch.Tensor]:
+    def __getitem__(self, idx: int) -> tuple[HeliosSample, torch.Tensor]:
         """Return a single GeoBench data instance."""
         label = self.dataset[idx].label
 
-        x = []
+        x_list = []
         for band_idx in self.band_indices:
-            x.append(self.dataset[idx].bands[band_idx].data)
+            x_list.append(self.dataset[idx].bands[band_idx].data)
 
-        x = self._impute_bands(x, self.band_names, self.config.imputes)
+        x_list = self._impute_bands(x_list, self.band_names, self.config.imputes)
 
-        x = np.stack(x, axis=2)  # (h, w, 13)
+        x = np.stack(x_list, axis=2)  # (h, w, 13)
         assert (
             x.shape[-1] == 13
         ), f"All datasets must have 13 channels, not {x.shape[-1]}"
@@ -255,7 +255,9 @@ class GeobenchDataset(Dataset):
         return len(self.dataset)
 
     @staticmethod
-    def collate_fn(batch: Sequence[tuple[HeliosSample, torch.Tensor]]):
+    def collate_fn(
+        batch: Sequence[tuple[HeliosSample, torch.Tensor]],
+    ) -> tuple[HeliosSample, torch.Tensor]:
         """Collate function for DataLoaders."""
         samples, targets = zip(*batch)
         # we assume that the same values are consistently None
