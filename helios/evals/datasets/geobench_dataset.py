@@ -50,7 +50,7 @@ class GeoBenchConfig(NamedTuple):
     """GeoBench configs."""
 
     benchmark_name: str
-    imputes: list[str]
+    imputes: list[tuple[str, str]]
     num_classes: int
     is_multilabel: bool
 
@@ -122,7 +122,7 @@ class GeobenchDataset(Dataset):
 
     @staticmethod
     def _get_norm_stats(
-        imputed_band_info: list[Stats],
+        imputed_band_info: dict[str, Stats],
     ) -> tuple[np.ndarray, np.ndarray]:
         means = []
         stds = []
@@ -141,7 +141,7 @@ class GeobenchDataset(Dataset):
             return band_info
 
         names_list = list(band_info.keys())
-        new_band_info = {}
+        new_band_info: dict = {}
         for band_name in GEOBENCH_S2_BAND_NAMES:
             new_band_info[band_name] = {}
             if band_name in names_list:
@@ -160,8 +160,10 @@ class GeobenchDataset(Dataset):
 
     @staticmethod
     def _impute_bands(
-        image_list: list[np.ndarray], names_list: list[str], imputes: list[str]
-    ):
+        image_list: list[np.ndarray],
+        names_list: list[str],
+        imputes: list[tuple[str, str]],
+    ) -> list:
         # image_list should be one np.array per band, stored in a list
         # image_list and names_list should be ordered consistently!
         if not imputes:
