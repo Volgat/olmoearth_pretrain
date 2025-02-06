@@ -18,7 +18,8 @@ from upath import UPath
 
 from helios.data.dataloader import HeliosDataLoader
 from helios.data.dataset import HeliosDataset
-from helios.dataset.index import DatasetIndexParser
+from helios.dataset.parse import parse_helios_dataset
+from helios.dataset.sample import image_tiles_to_samples
 from helios.latent_predictor import LatentMIMStyle
 from helios.train.callbacks.speed_monitor import HeliosSpeedMonitorCallback
 from helios.train.decoder import SimpleLatentDecoder
@@ -108,9 +109,9 @@ if __name__ == "__main__":
     # set log level to debug
     logger.setLevel(logging.DEBUG)
 
-    index_path = "/weka/dfive-default/helios_sample_data/20250115-sample-dataset-helios/index.csv"
-    index_parser = DatasetIndexParser(index_path)
-    samples = index_parser.samples
+    tile_path = "/weka/dfive-default/helios_sample_data/20250130-sample-dataset-helios/"
+    tiles = parse_helios_dataset(tile_path)
+    samples = image_tiles_to_samples(tiles)
 
     # Variable masking is not used
     encoder = PatchEncoder(
@@ -144,7 +145,7 @@ if __name__ == "__main__":
     dataloader = HeliosDataLoader(
         dataset=HeliosDataset(
             *samples,
-            path=index_path,
+            path=tile_path,
             dtype=np.dtype("float32"),
         ),
         global_batch_size=GLOBAL_BATCH_SIZE,
@@ -202,19 +203,8 @@ if __name__ == "__main__":
     )
     train_embeddings, train_labels = get_embeddings(
         data_loader=train_loader, model=encoder
-<<<<<<< HEAD
-    )
-<<<<<<< HEAD
-    val_embeddings, test_labels = get_embeddings(data_loader=val_loader, model=encoder)
-=======
-    val_embeddings, test_labels = get_embeddings(
-        data_loader=val_loader, model=encoder, device=DEVICE
-    )
->>>>>>> eeda120 (More docstrings)
-=======
     )
     val_embeddings, test_labels = get_embeddings(data_loader=val_loader, model=encoder)
->>>>>>> dbb6bde (mypy)
     val_result = run_knn(
         eval_type="KNN-20",
         train_embeddings=train_embeddings,

@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 """GeoBench datasets, returning data in the Helios format."""
 
-=======
->>>>>>> 76081b3 (Align with new framework)
 from collections.abc import Sequence
 from pathlib import Path
 from types import MethodType
@@ -37,11 +34,7 @@ GEOBENCH_S2_BAND_NAMES = [
 ]
 
 
-<<<<<<< HEAD
 def _geobench_band_index_from_helios_name(helios_name: str) -> int:
-=======
-def geobench_band_index_from_helios_name(helios_name: str) -> int:
->>>>>>> 76081b3 (Align with new framework)
     for idx, band_name in enumerate(GEOBENCH_S2_BAND_NAMES):
         if helios_name.endswith(band_name.split(" ")[0][-2:]):
             return idx
@@ -49,11 +42,7 @@ def geobench_band_index_from_helios_name(helios_name: str) -> int:
 
 
 GEOBENCH_TO_HELIOS_S2_BANDS = [
-<<<<<<< HEAD
     _geobench_band_index_from_helios_name(b) for b in S2_BANDS
-=======
-    geobench_band_index_from_helios_name(b) for b in S2_BANDS
->>>>>>> 76081b3 (Align with new framework)
 ]
 
 
@@ -152,11 +141,7 @@ class GeobenchDataset(Dataset):
             return band_info
 
         names_list = list(band_info.keys())
-<<<<<<< HEAD
         new_band_info: dict = {}
-=======
-        new_band_info = {}
->>>>>>> 76081b3 (Align with new framework)
         for band_name in GEOBENCH_S2_BAND_NAMES:
             new_band_info[band_name] = {}
             if band_name in names_list:
@@ -266,7 +251,6 @@ class GeobenchDataset(Dataset):
         s2 = repeat(x, "h w c -> c t h w", t=1)[GEOBENCH_TO_HELIOS_S2_BANDS, :, :, :]
         return HeliosSample(s2=s2), target
 
-<<<<<<< HEAD
     def __len__(self) -> int:
         """Length of dataset."""
         return len(self.dataset)
@@ -276,13 +260,6 @@ class GeobenchDataset(Dataset):
         batch: Sequence[tuple[HeliosSample, torch.Tensor]],
     ) -> tuple[HeliosSample, torch.Tensor]:
         """Collate function for DataLoaders."""
-=======
-    def __len__(self):
-        return len(self.dataset)
-
-    @staticmethod
-    def collate_fn(batch: Sequence[tuple[HeliosSample, torch.Tensor]]):
->>>>>>> 76081b3 (Align with new framework)
         samples, targets = zip(*batch)
         # we assume that the same values are consistently None
         collated_sample = default_collate(
