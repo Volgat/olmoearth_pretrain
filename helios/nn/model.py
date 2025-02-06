@@ -56,6 +56,11 @@ class TokensAndMasks(NamedTuple):
         """Get the masked modality name."""
         return f"{modality}_mask"
 
+    @property
+    def data_fields(self) -> list[str]:
+        """Return all data fields."""
+        return [x for x in self._fields if not x.endswith("mask")]
+
 
 class FlexiHeliosPatchEmbeddings(nn.Module):
     """Module that patchifies and encodes the input data."""
