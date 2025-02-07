@@ -146,7 +146,9 @@ def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
         """Stack the tensors while handling None values."""
         if batch[0].__getattribute__(attr) is None:
             return None
-        return torch.stack([getattr(sample, attr) for sample in batch], dim=0)
+        return torch.stack(
+            [torch.from_numpy(getattr(sample, attr)) for sample in batch], dim=0
+        )
 
     return HeliosSample(
         s2=stack_or_none("s2"),

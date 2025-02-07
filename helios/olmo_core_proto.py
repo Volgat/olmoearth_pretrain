@@ -13,6 +13,7 @@ from helios.latent_predictor import LatentMIMStyle
 from helios.train.callbacks.speed_monitor import HeliosSpeedMonitorCallback
 from helios.train.decoder import SimpleLatentDecoder
 from helios.train.encoder import PatchEncoder
+from helios.train.masking import MaskingConfig
 from helios.train.train_module import HeliosTrainModuleConfig
 from olmo_core.distributed.parallel import DataParallelConfig, DataParallelType
 from olmo_core.distributed.utils import (get_fs_local_rank, get_rank,
@@ -131,9 +132,10 @@ if __name__ == "__main__":
     model = model.to(device)
     checkpointer_config = CheckpointerConfig(work_dir=workdir)
     optim_config = AdamWConfig()
-
+    masking_config = MaskingConfig(strategy_config={"type": "random"})
     train_module_config = HeliosTrainModuleConfig(
         optim=optim_config,
+        masking_config=masking_config,
         rank_batch_size=RANK_BATCH_SIZE,
         loss_fn=patch_disc_loss,
     )

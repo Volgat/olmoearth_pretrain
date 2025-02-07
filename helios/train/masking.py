@@ -10,10 +10,9 @@ import numpy as np
 import torch
 from class_registry import ClassRegistry
 from einops import rearrange, repeat
-from olmo_core.config import Config
-
 from helios.data.dataset import HeliosSample
 from helios.types import ArrayTensor
+from olmo_core.config import Config
 
 
 class MaskValue(Enum):
@@ -215,6 +214,7 @@ class RandomMaskingStrategy(MaskingStrategy):
         # should these not be kwargs but instead be explicitly
         # in the function signature?
         patch_size: int = kwargs["patch_size"]
+        #TODO: this should be shared across train module
         modalities_to_channel_groups_dict: dict[str, dict[str, list[int]]] = kwargs[
             "modalities_to_channel_groups_dict"
         ]
@@ -285,6 +285,4 @@ class MaskingConfig(Config):
 
     def build(self) -> type[MaskingStrategy]:
         """Build a MaskingStrategy from the config."""
-        return MASKING_STRATEGY_REGISTRY[self.strategy_config["type"]](
-            **self.strategy_config
-        )
+        return MASKING_STRATEGY_REGISTRY[self.strategy_config["type"]]

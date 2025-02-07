@@ -9,14 +9,13 @@ from typing import Any
 
 import numpy as np
 import torch
+from helios.data.dataset import HeliosDataset, HeliosSample
 from olmo_core.data.data_loader import DataLoaderBase
 from olmo_core.data.utils import get_rng, memmap_to_write
 from olmo_core.distributed.utils import barrier
 from olmo_core.utils import roundrobin, threaded_generator
 from torch.utils.data import default_collate
 from upath import UPath
-
-from helios.data.dataset import HeliosDataset, HeliosSample
 
 logger = logging.getLogger(__name__)
 
@@ -243,9 +242,9 @@ class HeliosDataLoader(DataLoaderBase):
 
     def get_mock_batch(self) -> HeliosSample:
         """Get a mock batch, for dry-run of forward and backward pass."""
-        mock_s2 = np.random.rand(1, 13, 12, 256, 256)
-        mock_latlon = np.random.rand(1, 2)
-        mock_timestamps = np.random.randint(1, 31, size=(1, 3, 12))
+        mock_s2 = torch.rand(1, 13, 12, 256, 256)
+        mock_latlon = torch.rand(1, 2)
+        mock_timestamps = torch.randint(1, 31, size=(1, 3, 12))
         return HeliosSample(
             s2=mock_s2,
             latlon=mock_latlon,
