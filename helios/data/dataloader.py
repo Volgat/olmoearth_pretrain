@@ -16,7 +16,7 @@ from olmo_core.utils import roundrobin, threaded_generator
 from torch.utils.data import default_collate
 from upath import UPath
 
-from helios.data.dataset import HeliosDataset
+from helios.data.dataset import HeliosDataset, HeliosSample
 
 logger = logging.getLogger(__name__)
 
@@ -193,14 +193,10 @@ class HeliosDataLoader(DataLoaderBase):
         indices = indices[:, self.dp_rank :: self.dp_world_size].reshape((-1,))
         return indices
 
-    def _get_dataset_item(self, idx: int) -> dict[str, Any]:
+    def _get_dataset_item(self, idx: int) -> HeliosSample:
         """Get a dataset item."""
         item = self.dataset[idx]
-        if isinstance(item, dict):
-            return dict(**item, index=idx)
-        else:
-            # TODO: Check if this is correct
-            return {"index": idx}
+        return item
 
     def state_dict(self) -> dict[str, Any]:
         """Get the state dict."""
@@ -245,19 +241,21 @@ class HeliosDataLoader(DataLoaderBase):
                 parts.append(f"{key}{value}")
         return "_".join(parts)
 
-    def get_mock_batch(self) -> dict[str, Any]:
+    def get_mock_batch(self) -> HeliosSample:
         """Get a mock batch, for dry-run of forward and backward pass."""
         mock_s2 = np.random.rand(1, 13, 12, 256, 256)
         mock_latlon = np.random.rand(1, 2)
         mock_timestamps = np.random.randint(1, 31, size=(1, 3, 12))
-        # Return a dictionary mimicking a real batch
-        return {"s2": mock_s2, "latlon": mock_latlon, "timestamps": mock_timestamps}
+        return HeliosSample(
+            s2=mock_s2,
+            latlon=mock_latlon,
+            timestamps=mock_timestamps,
+        )
 
 
-# Note: both iter_batches and _IterableDatasetWrapper are for multi-threading in dataloader
 def iter_batched(
-    iterable: Iterable[dict[str, Any]], local_batch_size: int
-) -> Iterable[tuple[dict[str, Any], ...]]:
+    iterable: Iterable[HeliosSample], local_batch_size: int
+) -> Iterable[tuple[HeliosSample, ...]]:
     """Iterate over the dataset in batches.
 
     This is a modified version of olmo_core.data.data_loader.iter_batched that creates batches
@@ -270,7 +268,7 @@ def iter_batched(
     Returns:
         An iterator of batches of items.
     """
-    batch: list[dict[str, Any]] = []
+    batch: list[HeliosSample] = []
     instances = 0
     for x in iterable:
         if instances > local_batch_size:
@@ -285,7 +283,7 @@ def iter_batched(
         yield tuple(batch)
 
 
-class _IterableDatasetWrapper(torch.utils.data.IterableDataset[dict[str, Any]]):
+class _IterableDatasetWrapper(torch.utils.data.IterableDataset[HeliosSample]):
     """Iterable dataset wrapper.
 
     This is a modified version of olmo_core.data.data_loader._IterableDatasetWrapper
@@ -305,7 +303,7 @@ class _IterableDatasetWrapper(torch.utils.data.IterableDataset[dict[str, Any]]):
         """Get worker info."""
         return torch.utils.data.get_worker_info()
 
-    def __iter__(self) -> Iterator[dict[str, Any]]:
+    def __iter__(self) -> Iterator[HeliosSample]:
         """Iterate over the dataset."""
         global_indices = self.data_loader.get_global_indices()
 
@@ -316,7 +314,7 @@ class _IterableDatasetWrapper(torch.utils.data.IterableDataset[dict[str, Any]]):
             num_threads = 4
 
         # Potentially slice by threads.
-        instance_iterator: Iterator[dict[str, Any]]
+        instance_iterator: Iterator[HeliosSample]
         if num_threads:
             # In order to stay ahead of training the total queue size (sum across all threads)
             # should be bigger than the batch size per rank.
