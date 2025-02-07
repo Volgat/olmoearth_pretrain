@@ -91,6 +91,39 @@ class RandomMaskingStrategy(MaskingStrategy):
     """Randomly masks the input data."""
 
     @staticmethod
+    def _create_mask_per_static_modality(
+        b: int,
+        encode_ratio: float,
+        decode_ratio: float,
+        channel_groups_dict: dict[str, list[int]],
+        return_tensor_device: torch.device | None = None,
+    ) -> ArrayTensor:
+        num_tokens_per_instance = b * len(channel_groups_dict)
+        num_encode_tokens = int(num_tokens_per_instance * encode_ratio)
+        num_decode_tokens = int(num_tokens_per_instance * decode_ratio)
+        num_target_encode_tokens = num_tokens_per_instance - (
+            num_encode_tokens + num_decode_tokens
+        )
+
+        # we do this as a numpy array to take advantage of
+        # numpy's permuted function
+        flat_mask_tokens = np.concatenate(
+            (
+                np.ones(num_target_encode_tokens, dtype=np.int_),
+                np.ones(num_decode_tokens, dtype=np.int_) * 2,
+                np.zeros(num_encode_tokens, dtype=np.int_),
+            )
+        )
+        # hopefully this will allow for reproducibility, since random is seeded
+        rng = np.random.default_rng(random.randint(0, 100))
+        flat_mask_tokens = rng.permuted(flat_mask_tokens, axis=1)
+        static_mask = rearrange(flat_mask_tokens, "(b t) -> b t", b=b, t=len(channel_groups_dict))
+        if return_tensor_device:
+            return torch.from_numpy(static_mask).to(return_tensor_device)
+        else:
+            return static_mask
+
+    @staticmethod
     def _create_mask_per_space_time_modality(
         b: int,
         h: int,
@@ -172,12 +205,13 @@ class RandomMaskingStrategy(MaskingStrategy):
                 output_dict[modality_name] = modality
                 continue
 
+            if isinstance(modality, torch.Tensor):
+                return_device: torch.device | None = modality.device
+            else:
+                return_device = None
             if len(modality.shape) == 5:
                 b, _, t, h, w = modality.shape
-                if isinstance(modality, torch.Tensor):
-                    return_device: torch.device | None = modality.device
-                else:
-                    return_device = None
+
                 mask = self._create_mask_per_space_time_modality(
                     b,
                     h,
@@ -189,6 +223,17 @@ class RandomMaskingStrategy(MaskingStrategy):
                     modalities_to_channel_groups_dict[modality_name],
                     return_device,
                 )
+            elif len(modality.shape == 2):
+                b = modality.shape[0]
+                mask = self._create_mask_per_static_modality(
+                    b,
+                    encode_ratio,
+                    decode_ratio,
+                    modalities_to_channel_groups_dict[modality_name],
+                    return_device,
+                )
+            else:
+                raise ValueError(f"Unsupported modality shape {modality.shape}")
 
             output_dict[modality_name] = modality
             output_dict[f"{modality_name}_mask"] = mask
