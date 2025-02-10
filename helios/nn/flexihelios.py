@@ -35,9 +35,8 @@ class TokensAndMasks(NamedTuple):
 
     s2: Tensor  # (B, C_G, T, P_H, P_W)
     s2_mask: Tensor
-    # TODO:Temporary internal hack for not dealing with lat lons yet
-    latlon: Tensor | None = None
-    latlon_mask: Tensor | None = None
+    latlon: Tensor
+    latlon_mask: Tensor
 
     @property
     def device(self) -> torch.device:
@@ -74,23 +73,119 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
         """
         super().__init__()
         self.modalities_to_channel_groups_dict = modalities_to_channel_groups_dict
-        # WE want to be able to remove certain bands and moda
+        self.max_patch_size = max_patch_size
+        self.embedding_size = embedding_size
+        # TODO: want to be able to remove certain bands and modalities
         # dict will be modality -> channel_group -> bands
+
+        # I want to be able to easily assign an embeddign to a modality and I want it to be explicit for now
         self.per_modality_embeddings = nn.ModuleDict({})
-        for (
-            modality,
-            channel_groups_dict,
-        ) in self.modalities_to_channel_groups_dict.items():
-            self.per_modality_embeddings[modality] = nn.ModuleDict(
+        for modality in self.modalities_to_channel_groups_dict.keys():
+            self.per_modality_embeddings[modality] = (
+                self._get_patch_embedding_module_for_modality(modality)
+            )
+
+    def _get_patch_embedding_module_for_modality(self, modality: str) -> nn.Module:
+        """Get the patch embedding module for a modality."""
+        channel_groups_dict = self.modalities_to_channel_groups_dict[modality]
+        # Based on the modality name we choose the way to embed the data
+
+        # I likely will need to know about what the embedding strategy is in the forward as well
+        # Static modality
+        if modality == "latlon":
+            return nn.ModuleDict(
                 {
-                    channel_group: FlexiPatchEmbed(
-                        in_chans=len(channel_band_idxs),
-                        embed_dim=embedding_size,
-                        patch_size=max_patch_size,
+                    channel_group: nn.Linear(
+                        len(channel_band_idxs), self.embedding_size
                     )
                     for channel_group, channel_band_idxs in channel_groups_dict.items()
                 }
             )
+        else:
+            return nn.ModuleDict(
+                {
+                    channel_group: FlexiPatchEmbed(
+                        in_chans=len(channel_band_idxs),
+                        embed_dim=self.embedding_size,
+                        patch_size=self.max_patch_size,
+                    )
+                    for channel_group, channel_band_idxs in channel_groups_dict.items()
+                }
+            )
+
+    def apply_embedding_to_modality(
+        self, modality: str, input_data: MaskedHeliosSample, patch_size: int
+    ) -> tuple[Tensor, Tensor]:
+        """Apply embedding to a modality."""
+        channel_groups_dict = self.modalities_to_channel_groups_dict[modality]
+        masked_modality_name = input_data.get_masked_modality_name(modality)
+        modality_mask = getattr(input_data, masked_modality_name)
+        modality_tokens, modality_masks = [], []
+        for idx, (channel_group, channel_band_idxs) in enumerate(
+            channel_groups_dict.items()
+        ):
+            if modality == "latlon":
+                modality_masks.append(modality_mask[:, idx])
+                if self.is_any_data_seen_by_encoder(modality_mask):
+                    modality_data = input_data.latlon[:, channel_band_idxs]
+                    logger.info(
+                        f"latlon data shape: {modality_data.shape} {channel_band_idxs}"
+                    )
+                    embedded_data = self.per_modality_embeddings[modality][
+                        channel_group
+                    ](modality_data)
+                    logger.info(
+                        f"latlon embedded data shape: {embedded_data.shape} {channel_band_idxs}"
+                    )
+                    modality_tokens.append(embedded_data)
+                else:
+                    modality_tokens.append(
+                        torch.empty(
+                            input_data.latlon.shape[0],
+                            len(channel_band_idxs),
+                            self.per_modality_embeddings[modality][
+                                channel_group
+                            ].embedding_size,
+                        )
+                    )
+            else:
+                # TODO: Unsure if we always want to recaculate height and width here
+                height, width = input_data.height, input_data.width
+                new_height, new_width = (
+                    height // patch_size,
+                    width // patch_size,
+                )
+                logger.info(
+                    f"Patchifying input data with patch size: {patch_size} height: {height} \
+                    width: {width} new height: {new_height} new width: {new_width}"
+                )
+                patchified_mask = modality_mask[:, 0::patch_size, 0::patch_size, :, idx]
+                modality_masks.append(patchified_mask)
+
+                if self.is_any_data_seen_by_encoder(modality_mask):
+                    modality_data = getattr(input_data, modality)
+                    logger.info(
+                        f"Channel band indices for {modality} {channel_group}: type={type(channel_band_idxs[0])}, indices={channel_band_idxs}"
+                    )
+                    modality_data = modality_data[:, :, :, :, channel_band_idxs]
+                    patchified_data = self.per_modality_embeddings[modality][
+                        channel_group
+                    ](modality_data, patch_size=patch_size)
+                else:
+                    # If all data should be ignored by encoder, we need to return an empty tensor
+                    patchified_data = torch.empty(
+                        modality_data.shape[0],
+                        new_height,
+                        new_width,
+                        self.per_modality_embeddings[modality][
+                            channel_group
+                        ].embedding_size,
+                        dtype=modality_data.dtype,
+                        device=modality_data.device,
+                    )
+                modality_tokens.append(patchified_data)
+
+        return torch.stack(modality_tokens, dim=-2), torch.stack(modality_masks, dim=-1)
 
     @staticmethod
     def is_any_data_seen_by_encoder(modality_mask: Tensor) -> bool:
@@ -113,66 +208,19 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
         [1, 1, 0, 0]
         for the H, W dimensions
         """
-        # Calculate the new dimensions after patchification
-        height = input_data.height
-        width = input_data.width
-        # perhaps return a dictionary instead of an un-named tuple
-        if height < patch_size or width < patch_size:
-            raise ValueError(
-                f"Patch size is larger than the input data height or width. Patch size: {patch_size} height: {height} width: {width}"
-            )
-        new_height, new_width = height // patch_size, width // patch_size
-        logger.info(
-            f"Patchifying input data with patch size: {patch_size} height: {height} \
-            width: {width} new height: {new_height} new width: {new_width}"
-        )
         output_dict = {}
-        # We will do channel groups for now
-        for (
-            modality,
-            channel_groups_dict,
-        ) in self.modalities_to_channel_groups_dict.items():
-            masked_modality_name = input_data.get_masked_modality_name(modality)
-            modality_mask = getattr(input_data, masked_modality_name)
-            # patchify masked data
-            # TODO: Factor this out into a more readable function
-            modality_tokens, modality_masks = [], []
-            for idx, (channel_group, channel_band_idxs) in enumerate(
-                channel_groups_dict.items()
-            ):
-                patchified_mask = modality_mask[:, 0::patch_size, 0::patch_size, :, idx]
-                modality_masks.append(patchified_mask)
-
-                if self.is_any_data_seen_by_encoder(modality_mask):
-                    modality_data = getattr(input_data, modality)
-                    logger.info(
-                        f"type modality dataf for {modality} {modality_data.dtype}"
-                    )
-                    logger.info(
-                        f"Channel band indices for {modality} {channel_group}: type={type(channel_band_idxs[0])}, indices={channel_band_idxs}"
-                    )
-                    modality_data = modality_data[:, :, :, :, channel_band_idxs]
-                    patchified_data = self.per_modality_embeddings[modality][
-                        channel_group
-                    ](modality_data, patch_size=patch_size)
-                else:
-                    # If all data should be ignored by encoder, we need to return an empty tensor
-                    patchified_data = torch.empty(
-                        modality_data.shape[0],
-                        new_height,
-                        new_width,
-                        self.per_modality_embeddings[modality][
-                            channel_group
-                        ].embedding_size,
-                        dtype=modality_data.dtype,
-                        device=modality_data.device,
-                    )
-                modality_tokens.append(patchified_data)
-            output_dict[modality] = torch.stack(modality_tokens, dim=-2)
-            output_dict[masked_modality_name] = torch.stack(modality_masks, dim=-1)
-        # Sort of Hacky way to satisfy the output being a named tuple we already have
-        output_dict["latlon"] = input_data.latlon
-        output_dict["latlon_mask"] = input_data.latlon_mask
+        for modality in self.modalities_to_channel_groups_dict.keys():
+            logger.info(f"Applying embedding to modality: {modality}")
+            modality_tokens, modality_masks = self.apply_embedding_to_modality(
+                modality, input_data, patch_size
+            )
+            logger.info(
+                f"for {modality} modality tokens shape: {modality_tokens.shape}"
+            )
+            logger.info(f"for {modality} modality masks shape: {modality_masks.shape}")
+            output_dict[modality] = modality_tokens
+            modality_mask_name = input_data.get_masked_modality_name(modality)
+            output_dict[modality_mask_name] = modality_masks
         return TokensAndMasks(**output_dict)
 
 
@@ -1209,4 +1257,5 @@ if __name__ == "__main__":
     decoded_tokens = predictor.forward(
         encoded_tokens, timestamps, patch_size, input_res
     )
+    print(f"decoded_tokens.s2.shape: {decoded_tokens.s2.shape}")
     print(f"decoded_tokens.s2.shape: {decoded_tokens.s2.shape}")

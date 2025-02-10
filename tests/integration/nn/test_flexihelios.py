@@ -6,8 +6,69 @@ Any methods that piece together multiple steps or are the entire forward pass fo
 import pytest
 import torch
 
-from helios.nn.flexihelios import Encoder, Predictor, TokensAndMasks
+from helios.nn.flexihelios import (
+    Encoder,
+    FlexiHeliosPatchEmbeddings,
+    Predictor,
+    TokensAndMasks,
+)
 from helios.train.masking import MaskedHeliosSample, MaskValue
+
+
+class TestFlexiHeliosPatchEmbeddings:
+    """Integration tests for the FlexiHeliosPatchEmbeddings class."""
+
+    @pytest.fixture
+    def patch_embeddings(self) -> FlexiHeliosPatchEmbeddings:
+        """Create patch embeddings fixture for testing.
+
+        Returns:
+            FlexiHeliosPatchEmbeddings: Test patch embeddings instance with small test config
+        """
+        modalities_dict = {
+            "s2": {"rgb": [0, 1, 2], "nir": [3]},
+            "latlon": {"pos": [0, 1]},
+        }
+        return FlexiHeliosPatchEmbeddings(
+            modalities_to_channel_groups_dict=modalities_dict,
+            embedding_size=16,
+            max_patch_size=8,
+        )
+
+    def test_forward(self, patch_embeddings: FlexiHeliosPatchEmbeddings) -> None:
+        """Test the forward pass of the patch embeddings."""
+        B, H, W, T, num_channels = 1, 16, 16, 3, 4
+        s2 = torch.randn((B, H, W, T, num_channels))
+        s2_mask = torch.zeros((B, H, W, T, num_channels), dtype=torch.long)
+        patch_size = 4
+
+        latlon = torch.randn(B, 2)
+        latlon_mask = torch.randint(0, 2, (B, 2), dtype=torch.float32)
+        days = torch.randint(0, 25, (B, 1, T), dtype=torch.long)
+        months = torch.randint(0, 12, (B, 1, T), dtype=torch.long)
+        years = torch.randint(2018, 2020, (B, 1, T), dtype=torch.long)
+        timestamps = torch.cat([days, months, years], dim=1)  # Shape: (B, 3, T)
+
+        sample = MaskedHeliosSample(s2, s2_mask, latlon, latlon_mask, timestamps)
+        output = patch_embeddings.forward(sample, patch_size)
+        embedding_size = patch_embeddings.embedding_size
+        assert output.s2.shape == (
+            B,
+            H // patch_size,
+            W // patch_size,
+            T,
+            2,  # num channel groups
+            embedding_size,
+        )
+        assert output.s2_mask.shape == (
+            B,
+            H // patch_size,
+            W // patch_size,
+            T,
+            2,  # num channel groups
+        )
+        assert output.latlon.shape == (B, 1, embedding_size)  # B, C_G , D
+        assert output.latlon_mask.shape == (B, 1)  # B, C_G
 
 
 class TestEncoder:
