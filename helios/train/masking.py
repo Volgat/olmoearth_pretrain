@@ -44,7 +44,7 @@ class MaskedHeliosSample(NamedTuple):
 
     Args:
         s2: ArrayTensor  # [B, H, W, T, len(S2_bands)]
-        s2_mask: ArrayTensor  # [B, H, W, T, len(S2_bands)]
+        s2_mask: ArrayTensor  # [B, H, W, T, len(S2_band_groups)]
         latlon: ArrayTensor  # [B, 2]
         latlon_mask: ArrayTensor  # [B, len(latlon_band_groups)]
         timestamps: ArrayTensor  # [B, D=3, T], where D=[day, month, year]
@@ -84,6 +84,21 @@ class MaskedHeliosSample(NamedTuple):
     def get_masked_modality_name(modality: str) -> str:
         """Get the masked modality name."""
         return f"{modality}_mask"
+
+    @classmethod
+    def from_heliossample(cls, sample: HeliosSample) -> "MaskedHeliosSample":
+        """Transforms a HelioSample into a MaskedHeliosSample.
+
+        This function assumes modalities are uniformly missing.
+        """
+        masked_sample_dict = {}
+        for key, t in sample.as_dict(ignore_nones=False).items():
+            if t is None:
+                masked_sample_dict[key] = torch.empty(sample.shape(key))
+            else:
+                masked_sample_dict[key] = t
+        # TODO: masks
+        return MaskedHeliosSample(**masked_sample_dict)
 
 
 class MaskingStrategy(ABC):

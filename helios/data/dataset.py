@@ -5,7 +5,7 @@ import logging
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -56,18 +56,18 @@ class HeliosSample(NamedTuple):
         attribute_to_shape = {
             "s2": [
                 self.b,
-                sum(len(b.bands) for b in Modality.S2.band_sets),
+                len(self.attribute_to_bands()["s2"]),
                 self.t,
                 self.h,
                 self.w,
             ],
-            "latlon": [self.b, 2],  # TODO - is this ok to hardcode?
-            "timestamps": [self.b, 3],  # TODO - is this ok to hardcode?
+            "latlon": [self.b, len(self.attribute_to_bands()["laton"])],
+            "timestamps": [self.b, len(self.attribute_to_bands()["timestamps"])],
         }
 
         return attribute_to_shape[attribute]
 
-    def as_dict(self, ignore_nones: bool = True) -> dict[str, Any]:
+    def as_dict(self, ignore_nones: bool = True) -> dict[str, ArrayTensor | None]:
         """Convert the namedtuple to a dictionary.
 
         Args:
