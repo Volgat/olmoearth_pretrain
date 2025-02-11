@@ -42,7 +42,6 @@ class HeliosSample(NamedTuple):
     # if an attribute is added here, its bands must also
     # be added to attribute_to_bands
 
-    # input shape is (B, C, T, H, W)
     s2: ArrayTensor | None = None  # [B, H, W, T, len(S2_bands)]
     latlon: ArrayTensor | None = None  # [B, 2]
     timestamps: ArrayTensor | None = None  # [B, T, D=3], where D=[day, month, year]
@@ -300,7 +299,7 @@ class HeliosDataset(Dataset):
         s2_data = rearrange(image, "t c h w -> c t h w")
         dt = pd.to_datetime(timestamps)
         # Month is 0 indexed
-        time_data = np.array([dt.day, dt.month - 1, dt.year])  # [3, T]
+        time_data = np.array([dt.day, dt.month - 1, dt.year]).T  # [T, 3]
         # Get coordinates at projection units, and then transform to latlon
         grid_resolution = sample.grid_tile.resolution_factor * BASE_RESOLUTION
         x, y = (

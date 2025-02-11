@@ -379,9 +379,12 @@ class TestPredictor:
         encoded_tokens = TokensAndMasks(
             s2=s2_tokens, s2_mask=s2_mask, latlon=latlon, latlon_mask=latlon_mask
         )
-        timestamps = torch.tensor(
-            [[[1, 15, 30], [6, 7, 8], [2018, 2018, 2018]]],
-            dtype=torch.long,
+        timestamps = rearrange(
+            torch.tensor(
+                [[[1, 15, 30], [6, 7, 8], [2018, 2018, 2018]]],
+                dtype=torch.long,
+            ),
+            "b d t -> b t d",
         )
 
         patch_size = 4
