@@ -53,16 +53,20 @@ class HeliosSample(NamedTuple):
         This is useful if you want to know what the shape of a
         missing attribute would have been for this sample.
         """
+        try:
+            b = [self.b]
+        except ValueError:
+            b = []
         attribute_to_shape = {
-            "s2": [
-                self.b,
+            "s2": b
+            + [
                 len(self.attribute_to_bands()["s2"]),
                 self.t,
                 self.h,
                 self.w,
             ],
-            "latlon": [self.b, len(self.attribute_to_bands()["laton"])],
-            "timestamps": [self.b, len(self.attribute_to_bands()["timestamps"])],
+            "latlon": b + [len(self.attribute_to_bands()["laton"])],
+            "timestamps": b + [len(self.attribute_to_bands()["timestamps"])],
         }
 
         return attribute_to_shape[attribute]
