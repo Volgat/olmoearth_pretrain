@@ -253,8 +253,8 @@ class HeliosDataLoader(DataLoaderBase):
         years = torch.randint(2018, 2020, (1, 1, 12), dtype=torch.long)
         timestamps = torch.cat([days, months, years], dim=1).T  # Shape: (B, T, 3)
         return HeliosSample(
-            s2=mock_s2,
-            s1=mock_s1,
+            sentinel2=mock_s2,
+            sentinel1=mock_s1,
             worldcover=mock_worldcover,
             latlon=mock_latlon,
             timestamps=timestamps,
