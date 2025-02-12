@@ -58,14 +58,15 @@ class BandSet:
 
 class ClassRegistry:
     """A registry to hold and manage modality instances."""
+
     _registry = {}
 
     @classmethod
-    def register(cls, name: str, modality: 'Modality') -> None:
+    def register(cls, name: str, modality: "Modality") -> None:
         """Register a modality."""
         cls._registry[name] = modality
-    
-    def get(cls, name: str) -> 'Modality':
+
+    def get(cls, name: str) -> "Modality":
         """Get a modality by name."""
         if name not in cls._registry:
             valid_modalities = list(cls._registry.keys())
@@ -75,12 +76,12 @@ class ClassRegistry:
         return cls._registry[name]
 
     @classmethod
-    def get_all(cls) -> list['Modality']:
+    def get_all(cls) -> list["Modality"]:
         """Get all modalities."""
         return list(cls._registry.values())
-    
+
     @classmethod
-    def get_subset(cls, filter_fn: Callable[['Modality'], bool]) -> list['Modality']:
+    def get_subset(cls, filter_fn: Callable[["Modality"], bool]) -> list["Modality"]:
         """Get a subset of modalities that match the filter function."""
         modalities_subset = []
         for modality in cls._registry.values():
@@ -91,6 +92,7 @@ class ClassRegistry:
 
 # Class registry for modalities
 MODALITIES = ClassRegistry()
+
 
 @dataclass(frozen=True)
 class Modality:
@@ -123,7 +125,15 @@ class Modality:
                 [modality_bands.index(b_name) for b_name in band_set.bands]
             )
         return band_specs_as_indices
-    
+
+    @property
+    def num_channels(self) -> int:
+        """Get the number of channels.
+
+        The number of channels is the sum of the number of bands in all the band sets.
+        """
+        return sum(len(band_set.bands) for band_set in self.band_sets)
+
     # TODO: We can modify this to directly return the number of bands
     def get_band_names(self) -> list[str]:
         """Get the combined band names."""
@@ -228,7 +238,6 @@ Modality(
 
 # Accessing modalities
 ALL_MODALITIES = MODALITIES.get_all()
-SUPPORTED_MODALITIES = MODALITIES.get_subset(lambda x: x.name in ["sentinel1", "sentinel2", "worldcover", "latlon"])
-
-
-
+SUPPORTED_MODALITIES = MODALITIES.get_subset(
+    lambda x: x.name in ["sentinel1", "sentinel2", "worldcover", "latlon"]
+)
