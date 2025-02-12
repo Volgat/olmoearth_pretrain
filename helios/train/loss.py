@@ -131,6 +131,59 @@ class PatchDiscriminationLoss(Loss):
         return loss
 
 
+@LOSS_REGISTRY.register("mae")
+class MAELoss(Loss):
+    """Loss function for mean average error."""
+
+    @staticmethod
+    def _flatten(x: Tensor) -> Tensor:
+        return rearrange(x, "b ... d -> b (...) d")
+
+    @staticmethod
+    def _expand_and_reciprocate(t: Tensor) -> Tensor:
+        """As described in the name.
+
+        >>> _expand_and_reciprocate(torch.tensor([1, 2, 3]))
+        tensor([1.0000, 0.5000, 0.5000, 0.3333, 0.3333, 0.3333])
+        """
+        reciprocals = torch.reciprocal(t.float())
+        return torch.repeat_interleave(reciprocals, t)
+
+    def compute(
+        self, predictions: TokensAndMasks, targets: TokensAndMasks, **kwargs: Any
+    ) -> float:
+        """Compute patch discrimination loss between predictions and targets.
+
+        Args:
+            predictions: Model predictions.
+            targets: Ground truth targets.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The computed loss value.
+        """
+        # TODO: How will we deal with only training with some subset of modalities? If we use passed in modalities channels dict to define which modalities is one way but using class directly implies all used
+        all_preds = torch.cat(
+            [self._flatten(getattr(predictions, d)) for d in predictions.data_fields],
+            dim=1,
+        )
+        all_masks = torch.cat(
+            [
+                self._flatten(getattr(predictions, f"{d}_mask").unsqueeze(dim=-1))
+                for d in predictions.data_fields
+            ],
+            dim=1,
+        )[:, :, 0]
+        all_targets = torch.cat(
+            [self._flatten(getattr(targets, d)) for d in predictions.data_fields],
+            dim=1,
+        )
+        pred = all_preds[all_masks == MaskValue.DECODER_ONLY.value].unsqueeze(dim=0)
+        target = all_targets[all_masks == MaskValue.DECODER_ONLY.value].unsqueeze(dim=0)
+
+        return F.l1_loss(pred, target)
+
+
 @dataclass
 class LossConfig(Config):
     """Configuration for loss functions.
