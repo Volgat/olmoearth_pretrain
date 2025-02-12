@@ -13,6 +13,7 @@ from class_registry import ClassRegistry
 from einops import rearrange, repeat
 from olmo_core.config import Config
 
+from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.types import ArrayTensor
 
@@ -50,8 +51,8 @@ class MaskedHeliosSample(NamedTuple):
         timestamps: ArrayTensor  # [B, T, D=3], where D=[day, month, year]
     """
 
-    s2: ArrayTensor
-    s2_mask: ArrayTensor
+    sentinel2: ArrayTensor
+    sentinel2_mask: ArrayTensor
     latlon: ArrayTensor  # [B, 2]
     latlon_mask: ArrayTensor
     timestamps: (
@@ -73,12 +74,12 @@ class MaskedHeliosSample(NamedTuple):
     @property
     def height(self) -> int:
         """Get the height of the data."""
-        return self.s2.shape[1]
+        return self.sentinel2.shape[1]
 
     @property
     def width(self) -> int:
         """Get the width of the data."""
-        return self.s2.shape[2]
+        return self.sentinel2.shape[2]
 
     @property
     def time(self) -> int:
@@ -150,10 +151,10 @@ class RandomMaskingStrategy(MaskingStrategy):
         b: int,
         encode_ratio: float,
         decode_ratio: float,
-        channel_groups_dict: dict[str, list[int]],
+        num_band_sets: int,
         return_tensor_device: torch.device | None = None,
     ) -> ArrayTensor:
-        num_tokens_per_instance = int(b * len(channel_groups_dict))
+        num_tokens_per_instance = int(b * num_band_sets)
         num_encode_tokens = int(num_tokens_per_instance * encode_ratio)
         num_decode_tokens = int(num_tokens_per_instance * decode_ratio)
         num_target_encode_tokens = int(
@@ -172,9 +173,7 @@ class RandomMaskingStrategy(MaskingStrategy):
         # hopefully this will allow for reproducibility, since random is seeded
         rng = np.random.default_rng(random.randint(0, 100))
         flat_mask_tokens = rng.permuted(flat_mask_tokens, axis=0)
-        static_mask = rearrange(
-            flat_mask_tokens, "(b t) -> b t", b=b, t=len(channel_groups_dict)
-        )
+        static_mask = rearrange(flat_mask_tokens, "(b t) -> b t", b=b, t=num_band_sets)
         if return_tensor_device:
             return torch.from_numpy(static_mask).to(return_tensor_device)
         else:
@@ -189,11 +188,11 @@ class RandomMaskingStrategy(MaskingStrategy):
         encode_ratio: float,
         decode_ratio: float,
         patch_size: int,
-        channel_groups_dict: dict[str, list[int]],
+        num_band_sets: int,
         return_tensor_device: torch.device | None = None,
     ) -> ArrayTensor:
         h_p, w_p = int(h / patch_size), int(w / patch_size)
-        num_tokens_per_instance = int(h_p * w_p * t * len(channel_groups_dict))
+        num_tokens_per_instance = int(h_p * w_p * t * num_band_sets)
         num_encode_tokens = int(num_tokens_per_instance * encode_ratio)
         num_decode_tokens = int(num_tokens_per_instance * decode_ratio)
         num_target_encode_tokens = int(
@@ -219,7 +218,7 @@ class RandomMaskingStrategy(MaskingStrategy):
             h=h_p,
             w=w_p,
             t=t,
-            c=len(channel_groups_dict),
+            c=num_band_sets,
         )
         space_time_mask = np.repeat(
             np.repeat(b_flat_tokens, repeats=patch_size, axis=1),
@@ -252,10 +251,6 @@ class RandomMaskingStrategy(MaskingStrategy):
         # should these not be kwargs but instead be explicitly
         # in the function signature?
         patch_size: int = kwargs["patch_size"]
-        # TODO: this should be shared across train module
-        modalities_to_channel_groups_dict: dict[str, dict[str, list[int]]] = kwargs[
-            "modalities_to_channel_groups_dict"
-        ]
         encode_ratio: float = kwargs["encode_ratio"]
         decode_ratio: float = kwargs["decode_ratio"]
 
@@ -288,7 +283,7 @@ class RandomMaskingStrategy(MaskingStrategy):
                     encode_ratio,
                     decode_ratio,
                     patch_size,
-                    modalities_to_channel_groups_dict[modality_name],
+                    len(Modality.get_modality_from_name(modality_name).band_sets),
                     return_device,
                 )
             elif len(modality.shape) == 2:
@@ -297,7 +292,7 @@ class RandomMaskingStrategy(MaskingStrategy):
                     b,
                     encode_ratio,
                     decode_ratio,
-                    modalities_to_channel_groups_dict[modality_name],
+                    len(Modality.get_modality_from_name(modality_name).band_sets),
                     return_device,
                 )
             else:
