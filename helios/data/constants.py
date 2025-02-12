@@ -78,7 +78,7 @@ class ModalitySpec:
         return get_resolution(self.tile_resolution_factor)
 
     def get_band_names(self) -> list[str]:
-        """Get the band names."""
+        """Get the combinedband names."""
         return [band for band_set in self.band_sets for band in band_set.bands]
 
 
@@ -121,8 +121,7 @@ class Modality:
             # 15 m/pixel bands that we store at 10 m/pixel.
             BandSet(["B8"], 16),
             # 30 m/pixel bands that we store at 20 m/pixel.
-            # TODO: Check if the resolution factor is 16 or 32?
-            BandSet(["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9", "B10", "B11"], 16),
+            BandSet(["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9", "B10", "B11"], 32),
         ],
         is_multitemporal=True,
     )

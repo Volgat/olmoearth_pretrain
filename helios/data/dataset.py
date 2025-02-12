@@ -31,9 +31,6 @@ from helios.types import ArrayTensor
 logger = logging.getLogger(__name__)
 
 
-# TODO: Update all bands names, make sure they correspond to the bands in the dataset
-
-
 class HeliosSample(NamedTuple):
     """A sample of the data from the Helios dataset.
 
