@@ -151,13 +151,9 @@ class HeliosSample(NamedTuple):
             A dictionary mapping attribute names to their corresponding bands.
         """
         return {
-            "s2": [band for bandset in Modality.S2.band_sets for band in bandset.bands],
-            "s1": [band for bandset in Modality.S1.band_sets for band in bandset.bands],
-            "worldcover": [
-                band
-                for bandset in Modality.WORLDCOVER.band_sets
-                for band in bandset.bands
-            ],
+            "s2": Modality.S2.get_band_names(),
+            "s1": Modality.S1.get_band_names(),
+            "worldcover": Modality.WORLDCOVER.get_band_names(),
             "latlon": LATLON_BANDS,
             "timestamps": TIMESTAMPS,
         }

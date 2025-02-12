@@ -77,6 +77,10 @@ class ModalitySpec:
         """Compute the tile resolution."""
         return get_resolution(self.tile_resolution_factor)
 
+    def get_band_names(self) -> list[str]:
+        """Get the band names."""
+        return [band for band_set in self.band_sets for band in band_set.bands]
+
 
 # Modalities supported by helios
 class Modality:
