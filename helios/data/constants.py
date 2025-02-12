@@ -3,7 +3,7 @@
 Warning: this is only developed for raster data currently.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from helios.constants import MODALITY_NAME_TO_BANDS
@@ -56,27 +56,57 @@ class BandSet:
         return get_resolution(self.resolution_factor)
 
 
+class ClassRegistry:
+    """A registry to hold and manage modality instances."""
+    _registry = {}
+
+    @classmethod
+    def register(cls, name: str, modality: 'Modality') -> None:
+        """Register a modality."""
+        cls._registry[name] = modality
+    
+    def get(cls, name: str) -> 'Modality':
+        """Get a modality by name."""
+        if name not in cls._registry:
+            valid_modalities = list(cls._registry.keys())
+            raise ValueError(
+                f"Unmatched modality name {name}. Valid modalities: {valid_modalities}"
+            )
+        return cls._registry[name]
+
+    @classmethod
+    def get_all(cls) -> list['Modality']:
+        """Get all modalities."""
+        return list(cls._registry.values())
+    
+    @classmethod
+    def get_subset(cls, filter_fn: Callable[['Modality'], bool]) -> list['Modality']:
+        """Get a subset of modalities that match the filter function."""
+        modalities_subset = []
+        for modality in cls._registry.values():
+            if filter_fn(modality):
+                modalities_subset.append(modality)
+        return modalities_subset
+
+
+# Class registry for modalities
+MODALITIES = ClassRegistry()
+
 @dataclass(frozen=True)
-class ModalitySpec:
-    """Specification of one modality."""
+class Modality:
+    """Modality specification."""
 
     name: str
-
-    # Resolution by which the grid is defined for this modality.
-    # If tile_resolution_factor == 0, this means the data
-    # does not vary in space (e.g. latlons)
     tile_resolution_factor: int
-
-    # Band sets in this modality.
     band_sets: Sequence[BandSet]
-
-    # If True, this modality should have two sets of tiles in the raw Helios dataset,
-    # one _monthly for monthly over one-year period, and one _freq for every sample over
-    # two-week period.
     is_multitemporal: bool
 
+    def __post_init__(self) -> None:
+        """Post-initialization hook."""
+        MODALITIES.register(self.name, self)
+
     def __hash__(self) -> int:
-        """Hash this ModalitySpec."""
+        """Hash this Modality."""
         return hash(self.name)
 
     def get_tile_resolution(self) -> float:
@@ -95,133 +125,109 @@ class ModalitySpec:
         return band_specs_as_indices
 
     def get_band_names(self) -> list[str]:
-        """Get the combinedband names."""
-        return [band for band_set in self.band_sets for band in band_set.bands]
-
-    @property
-    def num_channels(self) -> int:
-        """Get the total number of channel across all band sets."""
-        return len(self.get_band_names())
+        """Get the combined band names."""
+        band_names = []
+        for band_set in self.band_sets:
+            band_names.extend(band_set.bands)
+        return band_names
 
 
-# Modalities supported by helios
-class Modality:
-    """Modality information."""
+# Registering modalities
+Modality(
+    name="naip",
+    tile_resolution_factor=1,
+    band_sets=[BandSet(["R", "G", "B", "IR"], 1)],
+    is_multitemporal=False,
+)
 
-    NAIP = ModalitySpec(
-        name="naip",
-        tile_resolution_factor=1,
-        band_sets=[BandSet(["R", "G", "B", "IR"], 1)],
-        is_multitemporal=False,
-    )
+Modality(
+    name="sentinel1",
+    tile_resolution_factor=16,
+    band_sets=[BandSet(["VV", "VH"], 16)],
+    is_multitemporal=True,
+)
 
-    S1 = ModalitySpec(
-        name="sentinel1",
-        tile_resolution_factor=16,
-        band_sets=[BandSet(["VV", "VH"], 16)],
-        is_multitemporal=True,
-    )
+Modality(
+    name="sentinel2",
+    tile_resolution_factor=16,
+    band_sets=[
+        BandSet(["B02", "B03", "B04", "B08"], 16),
+        BandSet(["B05", "B06", "B07", "B8A", "B11", "B12"], 32),
+        BandSet(["B01", "B09", "B10"], 64),
+    ],
+    is_multitemporal=True,
+)
 
-    S2 = ModalitySpec(
-        name="sentinel2",
-        tile_resolution_factor=16,
-        band_sets=[
-            # 10 m/pixel bands.
-            BandSet(["B02", "B03", "B04", "B08"], 16),
-            # 20 m/pixel bands.
-            BandSet(["B05", "B06", "B07", "B8A", "B11", "B12"], 32),
-            # 60 m/pixel bands that we store at 40 m/pixel.
-            BandSet(["B01", "B09", "B10"], 64),
-        ],
-        is_multitemporal=True,
-    )
+Modality(
+    name="landsat",
+    tile_resolution_factor=16,
+    band_sets=[
+        BandSet(["B8"], 16),
+        BandSet(["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9", "B10", "B11"], 32),
+    ],
+    is_multitemporal=True,
+)
 
-    LANDSAT = ModalitySpec(
-        name="landsat",
-        tile_resolution_factor=16,
-        band_sets=[
-            # 15 m/pixel bands that we store at 10 m/pixel.
-            BandSet(["B8"], 16),
-            # 30 m/pixel bands that we store at 20 m/pixel.
-            BandSet(["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9", "B10", "B11"], 32),
-        ],
-        is_multitemporal=True,
-    )
+Modality(
+    name="worldcover",
+    tile_resolution_factor=16,
+    band_sets=[BandSet(["B1"], 16)],
+    is_multitemporal=False,
+)
 
-    WORLDCOVER = ModalitySpec(
-        name="worldcover",
-        tile_resolution_factor=16,
-        band_sets=[BandSet(["B1"], 16)],
-        is_multitemporal=False,
-    )
+Modality(
+    name="latlon",
+    tile_resolution_factor=0,
+    band_sets=[BandSet(["lat", "lon"], 0)],
+    is_multitemporal=False,
+)
 
-    LATLONS = ModalitySpec(
-        name="latlon",
-        tile_resolution_factor=0,
-        band_sets=[BandSet(["lat", "lon"], 0)],
-        is_multitemporal=False,
-    )
-
-    OSM = ModalitySpec(
-        name="openstreetmap",
-        # OpenStreetMap is gridded at 10 m/pixel, but the data itself is rasterized at
-        # 2.5 m/pixel (so each tile contains 1024x1024 instead of 256x256).
-        tile_resolution_factor=16,
-        band_sets=[
-            BandSet(
-                [
-                    "aerialway_pylon",
-                    "aerodrome",
-                    "airstrip",
-                    "amenity_fuel",
-                    "building",
-                    "chimney",
-                    "communications_tower",
-                    "crane",
-                    "flagpole",
-                    "fountain",
-                    "generator_wind",
-                    "helipad",
-                    "highway",
-                    "leisure",
-                    "lighthouse",
-                    "obelisk",
-                    "observatory",
-                    "parking",
-                    "petroleum_well",
-                    "power_plant",
-                    "power_substation",
-                    "power_tower",
-                    "river",
-                    "runway",
-                    "satellite_dish",
-                    "silo",
-                    "storage_tank",
-                    "taxiway",
-                    "water_tower",
-                    "works",
-                ],
-                4,
-            )
-        ],
-        is_multitemporal=False,
-    )
-
-    @classmethod
-    def get_all_modalities(cls) -> list[ModalitySpec]:
-        """Get all modalities."""
-        return [cls.S1, cls.S2, cls.WORLDCOVER, cls.LATLONS]
-
-    @classmethod
-    def get_modality_from_name(cls, name: str) -> ModalitySpec:
-        """Return the ModalitySpec with name == name."""
-        for modality in cls.get_all_modalities():
-            if modality.name == name:
-                return modality
-        valid_modalities = [m.name for m in cls.get_all_modalities()]
-        raise ValueError(
-            f"Unmatched modality name {name}. Valid modalities: {valid_modalities}"
+Modality(
+    name="openstreetmap",
+    tile_resolution_factor=16,
+    band_sets=[
+        BandSet(
+            [
+                "aerialway_pylon",
+                "aerodrome",
+                "airstrip",
+                "amenity_fuel",
+                "building",
+                "chimney",
+                "communications_tower",
+                "crane",
+                "flagpole",
+                "fountain",
+                "generator_wind",
+                "helipad",
+                "highway",
+                "leisure",
+                "lighthouse",
+                "obelisk",
+                "observatory",
+                "parking",
+                "petroleum_well",
+                "power_plant",
+                "power_substation",
+                "power_tower",
+                "river",
+                "runway",
+                "satellite_dish",
+                "silo",
+                "storage_tank",
+                "taxiway",
+                "water_tower",
+                "works",
+            ],
+            4,
         )
+    ],
+    is_multitemporal=False,
+)
+
+# Accessing modalities
+ALL_MODALITIES = MODALITIES.get_all()
+SUPPORTED_MODALITIES = MODALITIES.get_subset(lambda x: x.name in ["sentinel1", "sentinel2", "worldcover", "latlon"])
 
 
-ALL_MODALITIES = Modality.get_all_modalities()
+

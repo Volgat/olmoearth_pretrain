@@ -19,7 +19,8 @@ from upath import UPath
 
 from helios.constants import LATLON_BANDS, TIMESTAMPS
 from helios.data.constants import (
-    ALL_MODALITIES,
+    MODALITIES,
+    SUPPORTED_MODALITIES,
     BASE_RESOLUTION,
     IMAGE_TILE_SIZE,
     Modality,
@@ -34,17 +35,12 @@ logger = logging.getLogger(__name__)
 class HeliosSample(NamedTuple):
     """A sample of the data from the Helios dataset.
 
-    This is a namedtuple that contains the data for a single sample from the Helios dataset.
-    For each modality. we have an ArrayTensor named by modality, positions in lat lon of each sample and
-    timestamps of each sample.
+    This is a namedtuple that contains the data of a single sample or a batch of samples from the Helios dataset.
+    For each modality, we have an ArrayTensor named by the modality, along with the latlon and timestamps.
     """
-
-    # if an attribute is added here, its bands must also
-    # be added to attribute_to_bands
-
     sentinel2: ArrayTensor | None = None  # [B, H, W, T, len(S2_bands)]
     sentinel1: ArrayTensor | None = None  # [B, H, W, T, len(S1_bands)]
-    worldcover: ArrayTensor | None = None  # [B, H, W, T, len(WC_bands)]
+    worldcover: ArrayTensor | None = None  # [B, H, W, len(WC_bands)]
     latlon: ArrayTensor | None = None  # [B, 2]
     timestamps: ArrayTensor | None = None  # [B, T, D=3], where D=[day, month, year]
 
@@ -53,28 +49,36 @@ class HeliosSample(NamedTuple):
 
         This is useful if you want to know what the shape of a
         missing attribute would have been for this sample.
+
+        Args:
+            attribute: The attribute to get the shape of, e.g., "sentinel2", "timestamps", etc.
+            mask: Whether to get the shape of the mask.
+
+        Returns:
+            The shape of the attribute.
         """
-        try:
-            b = [self.b]
-        except ValueError:
-            b = []
-
+        # It is safe to assume we always have Sentinel2, timestamps, and latlon
+        # If other attributes are missing, we use Sentinel2 to get its partial shape (B, H, W, T)
+        # For static modality like worldcover, we specify the T dimension as 1
         if attribute == "timestamps":
-            # timestamps is a special case which is not in Modality
-            return b + [self.t, self.num_bands(attribute, mask)]
-
-        modality_spec = Modality.get_modality_from_name(attribute)
-
-        return_bands = b
-        if modality_spec.get_tile_resolution() > 0:
-            # for now, we only support a single resolution but
-            # this is how we'd also support differing modalities
-            return_bands += [self.h, self.w]
-        if modality_spec.is_multitemporal:
-            return_bands += [self.t]
-
-        return_bands += [self.num_bands(attribute, mask)]
-        return return_bands
+            if not mask:
+                return self.timestamps.shape
+            else:
+                # timestamps is a special case which is not in Modality
+                raise ValueError("Timestamps are not maskable")
+        else:
+            if self.sentinel2 is None:
+                raise ValueError("Sentinel2 is not present in the sample")
+            return_shape = []
+            if MODALITIES.get(attribute).get_tile_resolution() > 0:
+                return_shape += self.sentinel2.shape[:-2]  # get batch size (if has), height, width
+            if MODALITIES.get(attribute).is_multitemporal:
+                return_shape += [self.sentinel2.shape[-2]]  # number of timesteps
+            if not mask:
+                return_shape += [len(MODALITIES.get(attribute).get_band_names())]  # number of bands
+            else:
+                return_shape += [len(MODALITIES.get(attribute).band_sets)]
+            return return_shape
 
     def as_dict(self, ignore_nones: bool = True) -> dict[str, ArrayTensor | None]:
         """Convert the namedtuple to a dictionary.
@@ -112,85 +116,6 @@ class HeliosSample(NamedTuple):
                 self.timestamps.to(device) if self.timestamps is not None else None
             ),
         )
-
-    @staticmethod
-    def num_bands(attribute: str, mask: bool = False) -> int:
-        """Get the bands for each attribute.
-
-        Returns:
-            A dictionary mapping attribute names to their corresponding bands.
-
-        If mask is True, we return the number of band sets for the mask.
-        If mask is False, we return the number of bands for the attribute.
-        """
-        if mask:
-            # we use the band sets to construct our tokens,
-            # so that a band set == a channel group
-            if attribute == "timestamps":
-                raise ValueError("No masks can be created for timestamps")
-            mask_dict = {
-                "sentinel2": len(Modality.get_modality_from_name("sentinel2").band_sets),
-                "sentinel1": len(Modality.get_modality_from_name("sentinel1").band_sets),
-                "worldcover": len(Modality.get_modality_from_name("worldcover").band_sets),
-                "latlon": len(Modality.get_modality_from_name("latlon").band_sets),
-            }
-            return mask_dict[attribute]
-        else:
-            x_dict = {
-                "sentinel2": len(Modality.S2.get_band_names()),
-                "sentinel1": len(Modality.S1.get_band_names()),
-                "worldcover": len(Modality.WORLDCOVER.get_band_names()),
-                "latlon": len(Modality.LATLONS.get_band_names()),
-                "timestamps": len(TIMESTAMPS),
-            }
-            return x_dict[attribute]
-
-    @property
-    def b(self) -> int:
-        """Get the batch size.
-
-        Returns:
-            The batch size of the sample.
-        """
-        if self.sentinel2 is None:
-            raise ValueError("S2 is not present in the sample")
-        if len(self.sentinel2.shape) == 5:
-            return self.sentinel2.shape[0]
-        else:
-            raise ValueError("This is a single sample and not a batch")
-
-    @property
-    def t(self) -> int:
-        """Get the number of timesteps.
-
-        Returns:
-            The number of timesteps in the sample.
-        """
-        if self.sentinel2 is None:
-            raise ValueError("S2 is not present in the sample")
-        return self.sentinel2.shape[3]
-
-    @property
-    def h(self) -> int:
-        """Get the height of the image.
-
-        Returns:
-            The height of the image in the sample.
-        """
-        if self.sentinel2 is None:
-            raise ValueError("S2 is not present in the sample")
-        return self.sentinel2.shape[1]
-
-    @property
-    def w(self) -> int:
-        """Get the width of the image.
-
-        Returns:
-            The width of the image in the sample.
-        """
-        if self.sentinel2 is None:
-            raise ValueError("S2 is not present in the sample")
-        return self.sentinel2.shape[2]
 
 
 def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
@@ -299,15 +224,14 @@ class HeliosDataset(Dataset):
         filtered_samples = []
         for sample in samples:
             # Check if the sample has all the necessary modalities
-            if not all(modality in sample.modalities for modality in ALL_MODALITIES):
+            if not all(modality in sample.modalities for modality in SUPPORTED_MODALITIES):
                 continue
-            if sample.time_span != TimeSpan.YEAR:
-                continue
-            # Check if S1 and S2 have the same number of timestamps
+            # Check if S1 and S2 all have 12 months of data
             total_months = 12
             if (
-                len(sample.modalities[Modality.S1].images) != total_months
-                or len(sample.modalities[Modality.S2].images) != total_months
+                sample.time_span != TimeSpan.YEAR
+                or len(sample.modalities[MODALITIES.get("sentinel1")].images) != total_months
+                or len(sample.modalities[MODALITIES.get("sentinel2")].images) != total_months
             ):
                 continue
             filtered_samples.append(sample)
@@ -343,15 +267,16 @@ class HeliosDataset(Dataset):
         """Get the item at the given index."""
         sample = self.samples[index]
         sample_dict = {}
-        for modality in ALL_MODALITIES:
-            if modality not in sample.modalities:
+        for modality in sample.modalities:
+            # Skip modalities that are not supported right now
+            if modality not in SUPPORTED_MODALITIES:
                 continue
             sample_modality = sample.modalities[modality]
             image = load_image_for_sample(sample_modality, sample)
             modality_data = rearrange(image, "t c h w -> h w t c")
             sample_dict[modality.name] = modality_data
-            # Tentatively, get latlon and timestamps all from s2
-            if modality == Modality.S2:
+            # Get latlon and timestamps from s2
+            if modality == MODALITIES.get("sentinel2"):
                 sample_dict["latlon"] = self._get_latlon(sample)
                 sample_dict["timestamps"] = self._get_timestamps(sample)
         # TODO: Add normalization and better way of doing dtype

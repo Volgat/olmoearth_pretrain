@@ -8,7 +8,7 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_origin
 
-from helios.data.constants import BandSet, Modality
+from helios.data.constants import BandSet, Modality, MODALITIES
 from helios.data.dataset import HeliosDataset, HeliosSample
 from helios.dataset.parse import GridTile, ModalityImage, ModalityTile, TimeSpan
 from helios.dataset.sample import SampleInformation
@@ -66,7 +66,7 @@ def prepare_dataset(data_path: Path) -> HeliosDataset:
             grid_tile=GridTile(crs=crs, resolution_factor=16, col=165, row=-1968),
             time_span=TimeSpan.YEAR,
             modalities={
-                Modality.S2: ModalityTile(
+                MODALITIES.get("sentinel2"): ModalityTile(
                     grid_tile=GridTile(
                         crs=crs, resolution_factor=16, col=165, row=-1968
                     ),
@@ -81,7 +81,7 @@ def prepare_dataset(data_path: Path) -> HeliosDataset:
                         BandSet(["B01", "B09", "B10"], 64): data_path / "s2_40m.tif",
                     },
                 ),
-                Modality.S1: ModalityTile(
+                MODALITIES.get("sentinel1"): ModalityTile(
                     grid_tile=GridTile(
                         crs=crs, resolution_factor=16, col=165, row=-1968
                     ),
@@ -91,7 +91,7 @@ def prepare_dataset(data_path: Path) -> HeliosDataset:
                         BandSet(["VV", "VH"], 16): data_path / "s1_10m.tif",
                     },
                 ),
-                Modality.WORLDCOVER: ModalityTile(
+                MODALITIES.get("worldcover"): ModalityTile(
                     grid_tile=GridTile(
                         crs=crs, resolution_factor=16, col=165, row=-1968
                     ),
@@ -113,8 +113,8 @@ def test_helios_dataset(tmp_path: Path) -> None:
 
     assert len(dataset) == 1
     assert isinstance(dataset[0], HeliosSample)
-    assert dataset[0].s2.shape == (256, 256, 12, 13)  # type: ignore
-    assert dataset[0].s1.shape == (256, 256, 12, 2)  # type: ignore
-    assert dataset[0].worldcover.shape == (256, 256, 1, 1)  # type: ignore
+    assert dataset[0].sentinel2.shape == (256, 256, 12, 13)  # type: ignore
+    assert dataset[0].sentinel1.shape == (256, 256, 12, 2)  # type: ignore
+    assert dataset[0].worldcover.shape == (256, 256, 1)  # type: ignore
     assert dataset[0].latlon.shape == (2,)  # type: ignore
     assert dataset[0].timestamps.shape == (12, 3)  # type: ignore

@@ -18,7 +18,7 @@ from helios.train.masking import MaskedHeliosSample
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-
+# TODO: make sure we can map the S2 band names with what we have in this dataset
 GEOBENCH_S2_BAND_NAMES = [
     "01 - Coastal aerosol",
     "02 - Blue",
