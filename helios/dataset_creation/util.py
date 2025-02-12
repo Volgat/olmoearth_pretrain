@@ -2,7 +2,10 @@
 
 from datetime import datetime
 
+from rslearn.dataset import Window
 from upath import UPath
+
+from .constants import WINDOW_DURATION
 
 
 class WindowMetadata:
@@ -37,29 +40,26 @@ class WindowMetadata:
 
     def get_window_name(self) -> str:
         """Encode the metadata back to a window name."""
-        return (
-            f"{self.crs}_{self.resolution}_"
-            + f"{self.col}_{self.row}_"
-            + self.time.isoformat()
-        )
+        return f"{self.crs}_{self.resolution}_{self.col}_{self.row}"
 
 
-def parse_window_name(window_name: str) -> WindowMetadata:
-    """Parse the specified window name, extracting the encoded metadata.
+def get_window_metadata(window: Window) -> WindowMetadata:
+    """Extract metadata about a window from the window.
 
     Args:
-        window_name: the window name to parse.
+        window: the Window.
 
     Returns:
-        WindowMetadata object containing the metadata encoded within the window name
+        WindowMetadata object containing the Helios metadata encoded within the window
     """
-    crs, resolution, col, row, time = window_name.split("_")
+    crs, resolution, col, row = window.name.split("_")
+    center_time = window.time_range[0] + WINDOW_DURATION // 2
     return WindowMetadata(
         crs,
         float(resolution),
         int(col),
         int(row),
-        datetime.fromisoformat(time),
+        center_time,
     )
 
 

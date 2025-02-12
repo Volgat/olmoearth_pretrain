@@ -11,7 +11,7 @@ from rslearn.dataset import Window
 from upath import UPath
 
 from ..constants import GEOTIFF_RASTER_FORMAT, METADATA_COLUMNS
-from ..util import get_modality_fname, get_modality_temp_meta_fname, parse_window_name
+from ..util import get_modality_fname, get_modality_temp_meta_fname, get_window_metadata
 
 PIXELS_PER_TILE = 256
 EPSILON = 1e-6
@@ -100,7 +100,7 @@ def convert_freq(
             during ingestion.
     """
     window = Window.load(window_path)
-    window_metadata = parse_window_name(window.name)
+    window_metadata = get_window_metadata(window)
     layer_datas = window.load_layer_datas()
 
     # We read the individual images and their timestamps, then write the stacked
@@ -222,7 +222,7 @@ def convert_monthly(
         band_sets: the band sets.
     """
     window = Window.load(window_path)
-    window_metadata = parse_window_name(window.name)
+    window_metadata = get_window_metadata(window)
 
     # The monthly images are stored in different layers, so we read one image per
     # layer. Then we reconstruct the time range to match the dataset configuration. And

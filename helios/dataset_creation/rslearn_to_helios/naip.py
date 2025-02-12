@@ -12,7 +12,7 @@ from rslearn.utils.raster_format import GeotiffRasterFormat
 from upath import UPath
 
 from ..constants import METADATA_COLUMNS
-from ..util import get_modality_fname, get_modality_temp_meta_fname, parse_window_name
+from ..util import get_modality_fname, get_modality_temp_meta_fname, get_window_metadata
 
 BANDS = [
     "R",
@@ -37,7 +37,7 @@ def convert_naip(window_path: UPath, helios_path: UPath) -> None:
         helios_path: Helios dataset path to write to.
     """
     window = Window.load(window_path)
-    window_metadata = parse_window_name(window.name)
+    window_metadata = get_window_metadata(window)
     layer_datas = window.load_layer_datas()
     raster_format = GeotiffRasterFormat()
 

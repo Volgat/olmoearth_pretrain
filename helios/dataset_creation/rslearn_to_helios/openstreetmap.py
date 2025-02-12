@@ -22,7 +22,7 @@ from rslearn.utils.vector_format import GeojsonCoordinateMode, GeojsonVectorForm
 from upath import UPath
 
 from ..constants import METADATA_COLUMNS
-from ..util import get_modality_fname, get_modality_temp_meta_fname, parse_window_name
+from ..util import get_modality_fname, get_modality_temp_meta_fname, get_window_metadata
 
 # Placeholder time range for OpenStreetMap.
 START_TIME = datetime(2020, 1, 1, tzinfo=timezone.utc)
@@ -47,7 +47,7 @@ def convert_openstreetmap(window_path: UPath, helios_path: UPath) -> None:
         helios_path: Helios dataset path to write to.
     """
     window = Window.load(window_path)
-    window_metadata = parse_window_name(window.name)
+    window_metadata = get_window_metadata(window)
     vector_format = GeojsonVectorFormat(coordinate_mode=GeojsonCoordinateMode.CRS)
 
     if not window.is_layer_completed(LAYER_NAME):
