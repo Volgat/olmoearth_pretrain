@@ -49,7 +49,6 @@ class MaskedHeliosSample(NamedTuple):
         latlon_mask: ArrayTensor  # [B, len(latlon_band_groups)]
         timestamps: ArrayTensor  # [B, T, D=3], where D=[day, month, year]
     """
-
     s2: ArrayTensor
     s2_mask: ArrayTensor
     latlon: ArrayTensor  # [B, 2]
@@ -105,7 +104,7 @@ class MaskedHeliosSample(NamedTuple):
             if key == "timestamps":
                 # lets assume timestamps is not None
                 masked_sample_dict[key] = t
-            else:
+            elif key == "latlon" or key == "s2":
                 if t is None:
                     masked_sample_dict[key] = torch.empty(sample.shape(key))
                     masked_sample_dict[f"{key}_mask"] = (
@@ -276,6 +275,9 @@ class RandomMaskingStrategy(MaskingStrategy):
 
         output_dict = {}
         for modality_name in batch._fields:
+            # TODO: remove this later after integrating S1 and WorldCover into MaskedHelios
+            if modality_name == "s1" or modality_name == "worldcover":
+                continue
             if modality_name == "latlon":
                 continue
             modality = getattr(batch, modality_name)
@@ -288,7 +290,7 @@ class RandomMaskingStrategy(MaskingStrategy):
             else:
                 return_device = None
             if len(modality.shape) == 5:
-                b, _, t, h, w = modality.shape
+                b, _, t, h, w = modality.shape  # here we still assume the (B, C, T, H, W) shape
 
                 mask = self._create_mask_per_space_time_modality(
                     b,

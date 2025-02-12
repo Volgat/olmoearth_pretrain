@@ -18,7 +18,7 @@ from torch.utils.data import Dataset
 from upath import UPath
 
 from helios.constants import LATLON_BANDS, S2_BANDS, TIMESTAMPS
-from helios.data.constants import BASE_RESOLUTION, IMAGE_TILE_SIZE, Modality
+from helios.data.constants import BASE_RESOLUTION, IMAGE_TILE_SIZE, Modality, ALL_MODALITIES
 from helios.dataset.parse import TimeSpan
 from helios.dataset.sample import SampleInformation, load_image_for_sample
 from helios.types import ArrayTensor
@@ -36,12 +36,9 @@ class HeliosSample(NamedTuple):
     timestamps of each sample.
     """
     # Input shape is (B, H, W, T, C)
-    s1: ArrayTensor | None = None  # [B, H, W, T, len(S1_bands)]
     s2: ArrayTensor | None = None  # [B, H, W, T, len(S2_bands)]
-    landsat: ArrayTensor | None = None  # [B, H, W, T, len(LS_bands)]
-    naip: ArrayTensor | None = None  # [B, H, W, T, len(NAIP_bands)]
+    s1: ArrayTensor | None = None  # [B, H, W, T, len(S1_bands)]
     worldcover: ArrayTensor | None = None  # [B, H, W, T, len(WC_bands)]
-    openstreetmap: ArrayTensor | None = None  # [B, H, W, T, len(OSM_bands)]
     latlon: ArrayTensor | None = None  # [B, 2]
     timestamps: ArrayTensor | None = None  # [B, T, D=3], where D=[day, month, year]
 
@@ -62,6 +59,24 @@ class HeliosSample(NamedTuple):
                 self.w,
                 self.t,
                 len(self.attribute_to_bands()["s2"])
+                if num_channels is None
+                else num_channels,
+            ],
+            "s1": b
+            + [
+                self.h,
+                self.w,
+                self.t,
+                len(self.attribute_to_bands()["s1"])
+                if num_channels is None
+                else num_channels,
+            ],
+            "worldcover": b
+            + [
+                self.h,
+                self.w,
+                self.t,
+                len(self.attribute_to_bands()["worldcover"])
                 if num_channels is None
                 else num_channels,
             ],
@@ -110,12 +125,9 @@ class HeliosSample(NamedTuple):
             A new HeliosSample with all tensors moved to the specified device.
         """
         return HeliosSample(
-            s1=self.s1.to(device) if self.s1 is not None else None,
             s2=self.s2.to(device) if self.s2 is not None else None,
-            landsat=self.landsat.to(device) if self.landsat is not None else None,
-            naip=self.naip.to(device) if self.naip is not None else None,
+            s1=self.s1.to(device) if self.s1 is not None else None,
             worldcover=self.worldcover.to(device) if self.worldcover is not None else None,
-            openstreetmap=self.openstreetmap.to(device) if self.openstreetmap is not None else None,
             latlon=self.latlon.to(device) if self.latlon is not None else None,
             timestamps=(
                 self.timestamps.to(device) if self.timestamps is not None else None
@@ -130,10 +142,12 @@ class HeliosSample(NamedTuple):
             A dictionary mapping attribute names to their corresponding bands.
         """
         return {
-            "s2": S2_BANDS,  # TODO: double check this, this may be wrong given how different bands are resampled and concatenated together
+            "s2": [band for bandset in Modality.S2.band_sets for band in bandset.bands],
+            "s1": [band for bandset in Modality.S1.band_sets for band in bandset.bands],
+            "worldcover": [band for bandset in Modality.WORLDCOVER.band_sets for band in bandset.bands],
             "latlon": LATLON_BANDS, 
             "timestamps": TIMESTAMPS}
-
+    
     @property
     def b(self) -> int:
         """Get the batch size.
@@ -142,7 +156,7 @@ class HeliosSample(NamedTuple):
             The batch size of the sample.
         """
         if self.s2 is None:
-            raise ValueError("S2 is not present in the sample")
+            raise ValueError("s2 is not present in the sample")
         if len(self.s2.shape) == 5:
             return self.s2.shape[0]
         else:
@@ -156,7 +170,7 @@ class HeliosSample(NamedTuple):
             The number of timesteps in the sample.
         """
         if self.s2 is None:
-            raise ValueError("S2 is not present in the sample")
+            raise ValueError("s2 is not present in the sample")
         return self.s2.shape[3]
 
     @property
@@ -167,7 +181,7 @@ class HeliosSample(NamedTuple):
             The height of the image in the sample.
         """
         if self.s2 is None:
-            raise ValueError("S2 is not present in the sample")
+            raise ValueError("s2 is not present in the sample")
         return self.s2.shape[1]
 
     @property
@@ -178,7 +192,7 @@ class HeliosSample(NamedTuple):
             The width of the image in the sample.
         """
         if self.s2 is None:
-            raise ValueError("S2 is not present in the sample")
+            raise ValueError("s2 is not present in the sample")
         return self.s2.shape[2]
 
 
@@ -196,6 +210,8 @@ def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
 
     return HeliosSample(
         s2=stack_or_none("s2"),
+        s1=stack_or_none("s1"),
+        worldcover=stack_or_none("worldcover"),
         latlon=stack_or_none("latlon"),
         timestamps=stack_or_none("timestamps"),
     )
@@ -282,15 +298,19 @@ class HeliosDataset(Dataset):
         self, samples: list[SampleInformation]
     ) -> list[SampleInformation]:
         """Filter samples to adjust to the HeliosSample format."""
-        # Right now, we only need S2 data with complete year data (12 months)
-        # Later, more modalities can be easily added
+        # Right now, only use yearly S1 and S2 data
         filtered_samples = []
         for sample in samples:
-            for modality, image_tile in sample.modalities.items():
-                if modality == Modality.S2 and sample.time_span == TimeSpan.YEAR:
-                    timestamps = [i.start_time for i in image_tile.images]
-                    if len(timestamps) == 12:
-                        filtered_samples.append(sample)
+            # Check if the sample has all the necessary modalities
+            if not all(modality in sample.modalities for modality in ALL_MODALITIES):
+                continue
+            if sample.time_span != TimeSpan.YEAR:
+                continue
+            # Check if S1 and S2 have the same number of timestamps
+            total_months = 12
+            if len(sample.modalities[Modality.S1].images) != total_months or len(sample.modalities[Modality.S2].images) != total_months:
+                continue
+            filtered_samples.append(sample)
         return filtered_samples
     
     def _get_latlon(self, sample: SampleInformation) -> np.ndarray:
@@ -313,7 +333,7 @@ class HeliosDataset(Dataset):
         timestamps = [i.start_time for i in sample_s2.images]
         dt = pd.to_datetime(timestamps)
         # Note that month should be 0-indexed
-        return np.array([dt.day, dt.month - 1, dt.year])
+        return np.array([dt.day, dt.month - 1, dt.year]).T
 
     def __len__(self) -> int:
         """Get the length of the dataset."""
@@ -322,14 +342,17 @@ class HeliosDataset(Dataset):
     def __getitem__(self, index: int) -> HeliosSample:
         """Get the item at the given index."""
         sample = self.samples[index]
-        sample_s2 = sample.modalities[Modality.S2]
-        image = load_image_for_sample(sample_s2, sample)
-        s2_data = rearrange(image, "t c h w -> h w t c")
-        time_data = self._get_timestamps(sample).T  # [T, 3]
-        latlon_data = self._get_latlon(sample)  # [2,]
+        sample_dict = {}
+        for modality in ALL_MODALITIES:
+            if modality not in sample.modalities:
+                continue
+            sample_modality = sample.modalities[modality]
+            image = load_image_for_sample(sample_modality, sample)
+            modality_data = rearrange(image, "t c h w -> h w t c")
+            sample_dict[modality.name] = modality_data
+            # Tentatively, get latlon and timestamps all from s2
+            if modality == Modality.S2:
+                sample_dict["latlon"] = self._get_latlon(sample)
+                sample_dict["timestamps"] = self._get_timestamps(sample)
         # TODO: Add normalization and better way of doing dtype
-        return HeliosSample(
-            s2=(s2_data / 10000).astype(self.dtype),
-            latlon=latlon_data,
-            timestamps=time_data,
-        )
+        return HeliosSample(**sample_dict)

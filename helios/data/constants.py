@@ -90,14 +90,14 @@ class Modality:
     )
 
     S1 = ModalitySpec(
-        name="sentinel1",
+        name="s1",
         tile_resolution_factor=16,
         band_sets=[BandSet(["VV", "VH"], 16)],
         is_multitemporal=True,
     )
 
     S2 = ModalitySpec(
-        name="sentinel2",
+        name="s2",
         tile_resolution_factor=16,
         band_sets=[
             # 10 m/pixel bands.
@@ -117,6 +117,7 @@ class Modality:
             # 15 m/pixel bands that we store at 10 m/pixel.
             BandSet(["B8"], 16),
             # 30 m/pixel bands that we store at 20 m/pixel.
+            # TODO: Check if the resolution factor is 16 or 32?
             BandSet(["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9", "B10", "B11"], 16),
         ],
         is_multitemporal=True,
@@ -180,7 +181,7 @@ class Modality:
         return [
             cls.S1,
             cls.S2,
-            cls.NAIP,
+            cls.WORLDCOVER,
         ]
 
 
