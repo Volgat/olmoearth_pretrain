@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 from helios.constants import S2_BANDS
 from helios.evals.datasets import GeobenchDataset
 from helios.nn.flexihelios import Encoder
-from helios.train.masking import MaskedHeliosSample
 
 
 @pytest.fixture
@@ -56,7 +55,4 @@ def test_geobench_dataset(geobench_dir: Path) -> None:
     )
 
     batch, _ = next(iter(d))
-    masked_batch = MaskedHeliosSample.from_heliossample(
-        batch, encoder.modalities_to_channel_groups_dict
-    )
-    _ = encoder(masked_batch, patch_size=4)
+    _ = encoder(batch, patch_size=4)

@@ -13,6 +13,7 @@ from geobench.dataset import Stats
 from torch.utils.data import Dataset, default_collate
 
 from helios.data.dataset import S2_BANDS, HeliosSample
+from helios.train.masking import MaskedHeliosSample
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -221,7 +222,7 @@ class GeobenchDataset(Dataset):
                 )
         return image
 
-    def __getitem__(self, idx: int) -> tuple[HeliosSample, torch.Tensor]:
+    def __getitem__(self, idx: int) -> tuple[MaskedHeliosSample, torch.Tensor]:
         """Return a single GeoBench data instance."""
         sample = self.dataset[idx]
         label = sample.label
@@ -257,7 +258,10 @@ class GeobenchDataset(Dataset):
             GEOBENCH_TO_HELIOS_S2_BANDS,
         ]
         timestamp = repeat(torch.tensor(self.default_day_month_year), "d -> t d", t=1)
-        return HeliosSample(s2=s2.float(), timestamps=timestamp.long()), target
+        masked_sample = MaskedHeliosSample.from_heliossample(
+            HeliosSample(sentinel2=s2.float(), timestamps=timestamp.long())
+        )
+        return masked_sample, target
 
     def __len__(self) -> int:
         """Length of dataset."""
