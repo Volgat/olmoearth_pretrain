@@ -143,7 +143,7 @@ def image_tiles_to_samples(
 
 def load_image_for_sample(
     image_tile: ModalityTile, sample: SampleInformation
-) -> npt.NDArray:
+) -> tuple[npt.NDArray, list[str]]:
     """Loads the portion of the image that corresponds with the sample.
 
     If image_tile and sample share the same resolution, then we load the entire image.
@@ -159,9 +159,10 @@ def load_image_for_sample(
             should be loaded or just a portion of it.
 
     Returns:
-        the image as a numpy array TCHW (time is on the first dimension). In the
-            future, this may include vector data too, or that may go in a separate
-            function.
+        band_set_images: the image as a numpy array TCHW (time is on the first dimension).
+        In the future, this may include vector data too, or that may go in a separate
+        function.
+        bands: the list of bands that were loaded.
     """
     # Compute the factor by which image_tile is bigger (coarser) than the sample.
     factor = (

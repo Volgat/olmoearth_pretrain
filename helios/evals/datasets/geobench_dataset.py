@@ -12,7 +12,8 @@ from einops import repeat
 from geobench.dataset import Stats
 from torch.utils.data import Dataset, default_collate
 
-from helios.data.dataset import S2_BANDS, HeliosSample
+from helios.constants import S2_BANDS
+from helios.data.dataset import HeliosSample
 from helios.train.masking import MaskedHeliosSample
 
 torch.multiprocessing.set_sharing_strategy("file_system")
