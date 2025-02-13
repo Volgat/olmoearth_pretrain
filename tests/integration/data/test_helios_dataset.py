@@ -47,13 +47,18 @@ def prepare_samples(data_path: Path) -> list[SampleInformation]:
     """Prepare the dataset."""
     # Create three S2 tiles corresponding to its bandsets & resolutions
     crs = "EPSG:32610"
-    create_geotiff(data_path / "s2_10m.tif", 256, 256, 10, crs, 4 * 12)
-    create_geotiff(data_path / "s2_20m.tif", 128, 128, 20, crs, 6 * 12)
-    create_geotiff(data_path / "s2_40m.tif", 64, 64, 40, crs, 3 * 12)
+    sentinel2_10m_path = data_path / "s2_10m.tif"
+    sentinel2_20m_path = data_path / "s2_20m.tif"
+    sentinel2_40m_path = data_path / "s2_40m.tif"
+    sentinel1_10m_path = data_path / "s1_10m.tif"
+    worldcover_path = data_path / "worldcover.tif"
+    create_geotiff(sentinel2_10m_path, 256, 256, 10, crs, 4 * 12)
+    create_geotiff(sentinel2_20m_path, 128, 128, 20, crs, 6 * 12)
+    create_geotiff(sentinel2_40m_path, 64, 64, 40, crs, 3 * 12)
     # Create one S1 tile
-    create_geotiff(data_path / "s1_10m.tif", 256, 256, 10, crs, 2 * 12)
+    create_geotiff(sentinel1_10m_path, 256, 256, 10, crs, 2 * 12)
     # Create one WorldCover tile
-    create_geotiff(data_path / "worldcover.tif", 256, 256, 10, crs, 1 * 1)
+    create_geotiff(worldcover_path, 256, 256, 10, crs, 1 * 1)
 
     images = []
     # Create a list of ModalityImage objects for the year 2020
@@ -130,3 +135,41 @@ def test_helios_dataset(tmp_path: Path) -> None:
     assert dataset[0].worldcover.shape == (256, 256, 1, 1)  # type: ignore
     assert dataset[0].latlon.shape == (2,)  # type: ignore
     assert dataset[0].timestamps.shape == (12, 3)  # type: ignore
+
+
+class TestHeliosDataset:
+    """Test the HeliosDataset class."""
+
+    def test_load_sample_correct_band_order(self, tmp_path: Path) -> None:
+        """Test the load_sample method."""
+        samples = prepare_samples(tmp_path)
+        sample: SampleInformation = samples[0]
+        sample_modality: ModalityTile = sample.modalities[Modality.SENTINEL2]
+        image = HeliosDataset.load_sample(sample_modality, sample, dtype=np.uint16)
+        sentinel2_bandset_indices = Modality.SENTINEL2.bandsets_as_indices()
+        # checking that sample data is loaded in the order corresponding to the bandset indices
+        # These are manually extracted values from each band
+        expected_values = [
+            [171, 147, 241, 226],
+            [246, 79, 39, 18, 74, 129],
+            [103, 33, 68],
+        ]
+        for bandset_index, expected_value_lst in zip(
+            sentinel2_bandset_indices, expected_values
+        ):
+            loaded_data = image[..., bandset_index]
+            for idx in range(len(expected_value_lst)):
+                assert loaded_data[0, 0, 0, idx] == expected_value_lst[idx]
+
+        # Now check that different bandset indices change the values
+        fake_bandset_indices = [[1, 2, 3, 9], [4, 5, 6, 8, 11, 12], [0, 9, 10]]
+        data_matches = []
+        for fake_bandset_index, expected_value_lst in zip(
+            fake_bandset_indices, expected_values
+        ):
+            loaded_data = image[..., fake_bandset_index]
+            for idx in range(len(fake_bandset_index)):
+                data_matches.append(
+                    loaded_data[0, 0, 0, idx] == expected_value_lst[idx]
+                )
+        assert not all(data_matches)

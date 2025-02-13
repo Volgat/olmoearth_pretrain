@@ -24,7 +24,7 @@ from helios.data.constants import (
     TIMESTAMPS,
     Modality,
 )
-from helios.dataset.parse import TimeSpan
+from helios.dataset.parse import ModalityTile, TimeSpan
 from helios.dataset.sample import SampleInformation, load_image_for_sample
 from helios.types import ArrayTensor
 
@@ -290,6 +290,15 @@ class HeliosDataset(Dataset):
         """Get the length of the dataset."""
         return len(self.samples)
 
+    @classmethod
+    def load_sample(
+        self, sample_modality: ModalityTile, sample: SampleInformation, dtype: np.dtype
+    ) -> np.ndarray:
+        """Load the sample."""
+        image = load_image_for_sample(sample_modality, sample)
+        modality_data = rearrange(image, "t c h w -> h w t c")
+        return modality_data.astype(dtype)
+
     def __getitem__(self, index: int) -> HeliosSample:
         """Get the item at the given index."""
         sample = self.samples[index]
@@ -299,9 +308,8 @@ class HeliosDataset(Dataset):
             if modality not in SUPPORTED_MODALITIES:
                 continue
             sample_modality = sample.modalities[modality]
-            image = load_image_for_sample(sample_modality, sample)
-            modality_data = rearrange(image, "t c h w -> h w t c")
-            sample_dict[modality.name] = modality_data.astype(np.float32)
+            image = self.load_sample(sample_modality, sample, self.dtype)
+            sample_dict[modality.name] = image
             # Get latlon and timestamps from s2
             if modality == Modality.SENTINEL2:
                 sample_dict["latlon"] = self._get_latlon(sample).astype(np.float32)
