@@ -43,7 +43,7 @@ def create_geotiff(
             dst.write(data[band - 1], band)
 
 
-def prepare_dataset(data_path: Path) -> HeliosDataset:
+def prepare_samples(data_path: Path) -> list[SampleInformation]:
     """Prepare the dataset."""
     # Create three S2 tiles corresponding to its bandsets & resolutions
     crs = "EPSG:32610"
@@ -114,13 +114,13 @@ def prepare_dataset(data_path: Path) -> HeliosDataset:
         )
     ]
     logger.info(f"num samples: {len(samples)}")
-    dataset = HeliosDataset(*samples, path=data_path)
-    return dataset
+    return samples
 
 
 def test_helios_dataset(tmp_path: Path) -> None:
     """Test the HeliosDataset class."""
-    dataset = prepare_dataset(tmp_path)
+    samples = prepare_samples(tmp_path)
+    dataset = HeliosDataset(*samples, path=tmp_path)
     dataset.prepare()
 
     assert len(dataset) == 1

@@ -72,18 +72,19 @@ class ModalitySpec:
         return get_resolution(self.tile_resolution_factor)
 
     def bandsets_as_indices(self) -> list[list[int]]:
-        """Return the band sets as indices."""
-        # TODO: Add Integration test that we actually load the data in the correct order from the band sets
-        band_specs_as_indices = []
+        """Return band sets as indices."""
+        indices = []
+        offset = 0
         for band_set in self.band_sets:
-            # TODO: I think the bands are not actually in the order of the old constant but stacked succesively from band sets
-            band_specs_as_indices.append(list(range(len(band_set.bands))))
-        return band_specs_as_indices
+            num_bands = len(band_set.bands)
+            indices.append(list(range(offset, offset + num_bands)))
+            offset += num_bands
+        return indices
 
     @property
     def band_order(self) -> list[str]:
-        """Get the band order."""
-        return [b for band_set in self.band_sets for b in band_set.bands]
+        """Get band order."""
+        return sum((list(band_set.bands) for band_set in self.band_sets), [])
 
     @property
     def num_band_sets(self) -> int:
