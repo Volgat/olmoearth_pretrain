@@ -315,11 +315,5 @@ class HeliosDataset(Dataset):
                 sample_dict["timestamps"] = self._get_timestamps(sample).astype(
                     np.int32
                 )
-            # TODO: fix the bug with sentinel1 data (missing bands)
-            # if modality == Modality.SENTINEL1:
-            #     if modality_data.shape[-2] != 12:
-            #         logger.info(f"sample.sentinel1.shape: {modality_data.shape}")
-            #         logger.info(f"sample.timestamps: {sample}")
-            #         exit(0)
         # TODO: Add normalization and better way of doing dtype
         return HeliosSample(**sample_dict)
