@@ -17,6 +17,7 @@ from upath import UPath
 
 from helios.data.dataloader import HeliosDataLoader
 from helios.data.dataset import HeliosDataset, collate_helios
+from helios.data.constants import SUPPORTED_MODALITIES
 from helios.dataset.parse import parse_helios_dataset
 from helios.dataset.sample import image_tiles_to_samples
 from helios.latent_predictor import LatentMIMStyle
@@ -40,8 +41,8 @@ if __name__ == "__main__":
     WANDB_USERNAME = "eai-ai2"  # nosec
     WANDB_PROJECT = "helios-debug"
     # PER EXPERIMENT Variables
-    GLOBAL_BATCH_SIZE = 8
-    RANK_BATCH_SIZE = 4
+    GLOBAL_BATCH_SIZE = 1
+    RANK_BATCH_SIZE = 1
     MAX_DURATION = Duration.epochs(10)
     NUM_WORKERS = 0
     NUM_THREADS = 0
@@ -62,23 +63,24 @@ if __name__ == "__main__":
         prepare_training_environment(seed=42, backend=None)
     # set log level to debug
     logger.setLevel(logging.DEBUG)
+    logger.info("Starting Helios training")
 
     # Variable masking is not used
     from helios.constants import S2_BANDS
 
-    # The indexes need to be compatible with pytorch indexing
-    modalities_to_channel_groups_dict = {
-        "s2": {
-            "S2_RGB": [S2_BANDS.index(b) for b in ["B02", "B03", "B04"]],
-            "S2_Red_Edge": [S2_BANDS.index(b) for b in ["B05", "B06", "B07"]],
-            "S2_NIR_10m": [S2_BANDS.index(b) for b in ["B08"]],
-            "S2_NIR_20m": [S2_BANDS.index(b) for b in ["B8A"]],
-            "S2_SWIR": [S2_BANDS.index(b) for b in ["B11", "B12"]],
-        },
-        # "latlon": {
-        #     "latlon": [0, 1],
-        # },
-    }
+    # # The indexes need to be compatible with pytorch indexing
+    # modalities_to_channel_groups_dict = {
+    #     "s2": {
+    #         "S2_RGB": [S2_BANDS.index(b) for b in ["B02", "B03", "B04"]],
+    #         "S2_Red_Edge": [S2_BANDS.index(b) for b in ["B05", "B06", "B07"]],
+    #         "S2_NIR_10m": [S2_BANDS.index(b) for b in ["B08"]],
+    #         "S2_NIR_20m": [S2_BANDS.index(b) for b in ["B8A"]],
+    #         "S2_SWIR": [S2_BANDS.index(b) for b in ["B11", "B12"]],
+    #     },
+    #     # "latlon": {
+    #     #     "latlon": [0, 1],
+    #     # },
+    # }
     # Log the type of band indexes
     # for modality, channel_groups in modalities_to_channel_groups_dict.items():
     #     for group_name, band_indices in channel_groups.items():
@@ -86,6 +88,7 @@ if __name__ == "__main__":
     #             f"Band indices for {modality} {group_name}: type={type(band_indices[0])}, indices={band_indices}"
     #         )
     # exit(0)
+    supported_modalities = ["sentinel2", "latlon"]
     encoder = Encoder(
         embedding_size=16,
         max_patch_size=8,
@@ -96,7 +99,7 @@ if __name__ == "__main__":
         max_sequence_length=12,
         base_patch_size=8,
         use_channel_embs=True,
-        modalities_to_channel_groups_dict=modalities_to_channel_groups_dict,
+        supported_modalities=supported_modalities,
     )
     decoder = Predictor(
         encoder_embedding_size=16,
@@ -106,7 +109,7 @@ if __name__ == "__main__":
         num_heads=2,
         max_sequence_length=12,
         max_patch_size=8,
-        modalities_to_channel_groups_dict=modalities_to_channel_groups_dict,
+        supported_modalities=supported_modalities,
     )
     model = LatentMIMStyle(encoder, decoder)
 
@@ -132,8 +135,9 @@ if __name__ == "__main__":
         "/weka/dfive-default/helios_sample_data/20250130-sample-dataset-helios/"
     )
     tiles = parse_helios_dataset(tile_path)
+    logger.info(f"Tiles: {len(tiles)}")
     samples = image_tiles_to_samples(tiles)
-
+    logger.info(f"Samples: {len(samples)}")
     # Create HeliosDataLoader
     dataloader = HeliosDataLoader(
         dataset=HeliosDataset(

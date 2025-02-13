@@ -14,8 +14,9 @@ from helios.data.constants import (
     Modality,
 )
 from helios.dataset_creation.util import WindowMetadata, get_modality_fname
+import logging
 
-
+logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class ModalityImage:
     """Information about one image contained within a modality tile.
@@ -179,6 +180,11 @@ def parse_helios_dataset(
     tiles: dict[Modality, dict[TimeSpan, list[ModalityTile]]] = {}
 
     for modality in ALL_MODALITIES:
+        if modality.name == "latlon":
+            continue
+        # TODO: there's N/A in the image_idx column for openstreetmap
+        if modality.name == "openstreetmap":
+            continue
         if modality.is_multitemporal:
             # We need to load the one-year and two-week data separately.
             time_spans = [TimeSpan.YEAR, TimeSpan.TWO_WEEK]
@@ -197,7 +203,7 @@ def parse_helios_dataset(
                 helios_path
                 / f"{tile_resolution}_{modality.name}{time_span.get_suffix()}.csv"  # type: ignore
             )
-
+            logger.info(f"Parsing {modality.name} {time_span} {csv_fname}")
             tiles[modality][time_span] = parse_modality_csv(  # type: ignore
                 helios_path,
                 modality,

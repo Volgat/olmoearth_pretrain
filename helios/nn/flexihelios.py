@@ -155,7 +155,11 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
             patchified_dims = token_mask.shape[1:]
             # Now apply the embedding to
             if self.is_any_data_seen_by_encoder(token_mask):
+                # logger.info(f"modality_data: {modality_data.dtype}")
+                # logger.info(f"channel_set_indices: {channel_set_indices, type(channel_set_indices)}")
+                # logger.info(f"modality: {modality}")
                 patchified_data = modality_data[..., channel_set_indices]
+                
                 patchified_data = self.per_modality_embeddings[modality][
                     self._get_embedding_module_name(modality, idx)
                 ](patchified_data, **modality_specific_kwargs)
@@ -274,7 +278,8 @@ class FlexiHeliosCompositeEncodings(nn.Module):
             # we use xavier_uniform following official JAX ViT:
             torch.nn.init.xavier_uniform_(m.weight)
             if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+                # TODO: fix the dtype here
+                nn.init.constant_(m.bias, 0).to(torch.float32)
 
     @staticmethod
     def calculate_gsd_ratio(input_res: float, patch_size: int) -> float:
@@ -340,6 +345,7 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         )
 
         # Month encodings
+        logger.info(f"timestamps: {timestamps.shape}")
         months = timestamps[:, :, 1]
         month_embed = self.month_embed(months)
         modality_month_embed = repeat(

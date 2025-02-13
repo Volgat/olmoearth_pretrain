@@ -235,9 +235,13 @@ class HeliosDataset(Dataset):
         logger.info(f"Number of samples before filtering: {len(samples)}")
         filtered_samples = []
         for sample in samples:
+            # TODO: get rid of naip check here
+            if MODALITIES.get("naip") in sample.modalities:
+                continue
             # Check if the sample has all the necessary modalities
+            # TODO: get rid of latlon check here
             if not all(
-                modality in sample.modalities for modality in SUPPORTED_MODALITIES
+                modality in sample.modalities for modality in SUPPORTED_MODALITIES if modality != MODALITIES.get("latlon")
             ):
                 continue
             # Check if S1 and S2 all have 12 months of data
@@ -294,10 +298,20 @@ class HeliosDataset(Dataset):
             sample_modality = sample.modalities[modality]
             image = load_image_for_sample(sample_modality, sample)
             modality_data = rearrange(image, "t c h w -> h w t c")
-            sample_dict[modality.name] = modality_data
+            sample_dict[modality.name] = modality_data.astype(np.float32)
             # Get latlon and timestamps from s2
             if modality == MODALITIES.get("sentinel2"):
-                sample_dict["latlon"] = self._get_latlon(sample)
-                sample_dict["timestamps"] = self._get_timestamps(sample)
+                sample_dict["latlon"] = self._get_latlon(sample).astype(np.float32)
+                sample_dict["timestamps"] = self._get_timestamps(sample).astype(np.int32)
+                
+            if modality == MODALITIES.get("sentinel1"):
+                if modality_data.shape[-2] == 11:
+                    logger.info(f"sample: {sample}")
+                    exit(0)
+            # # TODO: fix the normalization
+            # logger.info(f"modality: {modality}")
+            # logger.info(f"modality_data: {modality_data.dtype}")
+            # modality_data = (modality_data / 10000).astype(np.float32)
+            # logger.info(f"modality_data: {modality_data.dtype}")
         # TODO: Add normalization and better way of doing dtype
         return HeliosSample(**sample_dict)

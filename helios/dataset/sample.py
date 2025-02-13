@@ -128,13 +128,13 @@ def image_tiles_to_samples(
             # image (potentially requiring cropping).
             sample.modalities[modality] = image_tile
 
-        # For now, we skip samples if not all modalities are available.
-        if len(sample.modalities) < len(ALL_MODALITIES):
-            if sample.grid_tile.resolution_factor == 1:
-                logger.debug(
-                    f"skipping sample {sample.grid_tile} since it only has {len(sample.modalities)} modalities"
-                )
-            continue
+        # # For now, we skip samples if not all modalities are available.
+        # if len(sample.modalities) < len(ALL_MODALITIES):
+        #     if sample.grid_tile.resolution_factor == 1:
+        #         logger.debug(
+        #             f"skipping sample {sample.grid_tile} since it only has {len(sample.modalities)} modalities"
+        #         )
+        #     continue
 
         samples.append(sample)
 
@@ -206,6 +206,7 @@ def load_image_for_sample(
                     downscale_factor = subtile_size // desired_subtile_size
                     image = image[:, ::downscale_factor, ::downscale_factor]
                 elif desired_subtile_size > subtile_size:
+                    # TODO: add test for this image loader
                     # This is the more common case, where we need to upscale because we
                     # stored some bands at a lower resolution, e.g. for Sentinel-2 or
                     # Landsat.
