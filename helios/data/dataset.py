@@ -66,13 +66,13 @@ class HeliosSample(NamedTuple):
                 raise ValueError("Sentinel2 is not present in the sample")
             attribute_shape = []
             if MODALITIES.get(attribute).get_tile_resolution() > 0:
-                attribute_shape += self.sentinel2.shape[:-2]  # get batch size (if has), height, width
+                attribute_shape += self.sentinel2.shape[:-2]  # add batch size (if has), height, width
             if MODALITIES.get(attribute).is_multitemporal:
-                attribute_shape += [self.sentinel2.shape[-2]]  # get number of timesteps
+                attribute_shape += [self.sentinel2.shape[-2]]  # add number of timesteps
             if not mask:
-                attribute_shape += [MODALITIES.get(attribute).num_channels]  # get number of bands
+                attribute_shape += [MODALITIES.get(attribute).num_channels]  # add number of bands
             else:
-                attribute_shape += [MODALITIES.get(attribute).num_band_sets]  # get number of band sets
+                attribute_shape += [MODALITIES.get(attribute).num_band_sets]  # add number of band sets
             return attribute_shape
 
     @staticmethod
@@ -233,15 +233,15 @@ class HeliosDataset(Dataset):
             if sample.grid_tile.resolution_factor != resolution_factor:
                 continue
             # Check if all the modalities are available
-            for modality_name in SUPPORTED_MODALITIES:
-                if MODALITIES.get(modality_name) not in sample.modalities:
-                    continue
-            # Check if S1 and S2 all have the same number of months of data
+            if not all(MODALITIES.get(modality) in sample.modalities for modality in SUPPORTED_MODALITIES):
+                continue
+            # Check if S1 and S2 all have the same 12 months of data
             sentinel1_months = len(set(sample.modalities[MODALITIES.get("sentinel1")].images))
             sentinel2_months = len(set(sample.modalities[MODALITIES.get("sentinel2")].images))
             if (
                 sample.time_span != TimeSpan.YEAR
                 or sentinel1_months != sentinel2_months
+                or sentinel2_months != 12
             ):
                 continue
             filtered_samples.append(sample)
@@ -290,10 +290,10 @@ class HeliosDataset(Dataset):
             if modality == MODALITIES.get("sentinel2"):
                 sample_dict["latlon"] = self._get_latlon(sample).astype(np.float32)
                 sample_dict["timestamps"] = self._get_timestamps(sample).astype(np.int32)
-            # # TODO: fix the normalization for all modalities
-            # logger.info(f"modality: {modality}")
-            # logger.info(f"modality_data: {modality_data.dtype}")
-            # modality_data = (modality_data / 10000).astype(np.float32)
-            # logger.info(f"modality_data: {modality_data.dtype}")
+            if modality == MODALITIES.get("sentinel1"):
+                if modality_data.shape[-2] != 12:
+                    logger.info(f"sample.sentinel1.shape: {modality_data.shape}")
+                    logger.info(f"sample.timestamps: {sample}")
+                    exit(0)
         # TODO: Add normalization and better way of doing dtype
         return HeliosSample(**sample_dict)

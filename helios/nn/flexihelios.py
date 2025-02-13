@@ -155,9 +155,6 @@ class FlexiHeliosPatchEmbeddings(nn.Module):
             patchified_dims = token_mask.shape[1:]
             # Now apply the embedding to
             if self.is_any_data_seen_by_encoder(token_mask):
-                # logger.info(f"modality_data: {modality_data.dtype}")
-                # logger.info(f"channel_set_indices: {channel_set_indices, type(channel_set_indices)}")
-                # logger.info(f"modality: {modality}")
                 patchified_data = modality_data[..., channel_set_indices]
                 
                 patchified_data = self.per_modality_embeddings[modality][
@@ -345,7 +342,6 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         )
 
         # Month encodings
-        logger.info(f"timestamps: {timestamps.shape}")
         months = timestamps[:, :, 1]
         month_embed = self.month_embed(months)
         modality_month_embed = repeat(

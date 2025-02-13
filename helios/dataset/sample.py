@@ -92,7 +92,7 @@ def image_tiles_to_samples(
         )
 
         # Add modalities one by one.
-        for modality in MODALITIES:
+        for modality in MODALITIES.values():
             # We only use modalities that are at an equal or coarser resolution.
             if modality.tile_resolution_factor < sample.grid_tile.resolution_factor:
                 continue
@@ -132,7 +132,7 @@ def image_tiles_to_samples(
 
     return samples
 
-
+# TODO: add unit test for this image loader
 def load_image_for_sample(
     image_tile: ModalityTile, sample: SampleInformation
 ) -> npt.NDArray:
@@ -159,7 +159,6 @@ def load_image_for_sample(
     factor = (
         image_tile.grid_tile.resolution_factor // sample.grid_tile.resolution_factor
     )
-
     # Read the modality image one band set at a time.
     # For now we resample all bands to the grid resolution of the modality.
     band_set_images = []
@@ -198,7 +197,6 @@ def load_image_for_sample(
                     downscale_factor = subtile_size // desired_subtile_size
                     image = image[:, ::downscale_factor, ::downscale_factor]
                 elif desired_subtile_size > subtile_size:
-                    # TODO: add test for this image loader
                     # This is the more common case, where we need to upscale because we
                     # stored some bands at a lower resolution, e.g. for Sentinel-2 or
                     # Landsat.

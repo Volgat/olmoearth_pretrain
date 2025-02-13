@@ -8,6 +8,7 @@ from enum import Enum
 from upath import UPath
 
 from helios.data.constants import (
+    MODALITIES,
     BASE_RESOLUTION,
     BandSet,
     Modality,
@@ -186,9 +187,9 @@ def parse_helios_dataset(
     tiles: dict[Modality, dict[TimeSpan, list[ModalityTile]]] = {}
 
     for modality in MODALITIES.values():
+        # TODO: there's N/A in the image_idx column for openstreetmap
         if modality.name == "latlon":
             continue
-        # TODO: there's N/A in the image_idx column for openstreetmap
         if modality.name == "openstreetmap":
             continue
         if modality.is_multitemporal:

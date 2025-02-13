@@ -102,13 +102,17 @@ MODALITIES = {
     "naip": Modality(
         name="naip",
         tile_resolution_factor=1,
-        band_sets=[BandSet(["R", "G", "B", "IR"], 1)],
+        band_sets=[
+            BandSet(["R", "G", "B", "IR"], 1)
+        ],
         is_multitemporal=False,
     ),
     "sentinel1": Modality(
         name="sentinel1",
         tile_resolution_factor=16,
-        band_sets=[BandSet(["VV", "VH"], 16)],
+        band_sets=[
+            BandSet(["VV", "VH"], 16)
+        ],
         is_multitemporal=True,
     ),
     "sentinel2": Modality(
@@ -138,15 +142,21 @@ MODALITIES = {
     "worldcover": Modality(
         name="worldcover",
         tile_resolution_factor=16,
-        band_sets=[BandSet(["B1"], 16)],
+        band_sets=[
+            BandSet(["B1"], 16)
+        ],
         is_multitemporal=False,
     ),
     "openstreetmap": Modality(
         name="openstreetmap",
         tile_resolution_factor=16,
-        band_sets=[BandSet(["aerialway_pylon", "aerodrome", "airstrip", "amenity_fuel", "building", "chimney", "communications_tower", "crane", "flagpole", "fountain", "generator_wind", "helipad", "highway", "leisure", "lighthouse", "obelisk", "observatory", "parking", "petroleum_well", "power_plant", "power_substation", "power_tower", "river", "runway", "satellite_dish", "silo", "storage_tank", "taxiway", "water_tower", "works"], 4)],
+        band_sets=[
+            BandSet(["aerialway_pylon", "aerodrome", "airstrip", "amenity_fuel", "building", "chimney", "communications_tower", "crane", "flagpole", "fountain", "generator_wind", "helipad", "highway", "leisure", "lighthouse", "obelisk", "observatory", "parking", "petroleum_well", "power_plant", "power_substation", "power_tower", "river", "runway", "satellite_dish", "silo", "storage_tank", "taxiway", "water_tower", "works"], 4)
+        ],
         is_multitemporal=False,
     ),
+    # TODO: decide if we want to include latlon as a modality
+    # The issue is that parse_modality_csv will search for the csv file and relevant ModalityTile
     "latlon": Modality(
         name="latlon",
         tile_resolution_factor=0,
@@ -155,6 +165,7 @@ MODALITIES = {
     ),
 }
 
-# TODO: should latlon be a modality?
-SUPPORTED_MODALITIES = ["sentinel1", "sentinel2", "worldcover", "latlon"]
+# TODO: change this to other name to avoid confusion
+SUPPORTED_MODALITIES = ["sentinel1", "sentinel2", "worldcover"]
+LATLON = ["lat", "lon"]
 TIMESTAMPS = ["day", "month", "year"]

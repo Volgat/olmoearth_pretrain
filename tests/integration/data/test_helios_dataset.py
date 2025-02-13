@@ -55,8 +55,6 @@ def prepare_dataset(data_path: Path) -> HeliosDataset:
     create_geotiff(data_path / "s1_10m.tif", 256, 256, 10, crs, 2 * 12)
     # Create one WorldCover tile
     create_geotiff(data_path / "worldcover.tif", 256, 256, 10, crs, 1 * 1)
-    # Create one latlon tile
-    create_geotiff(data_path / "latlon.tif", 256, 256, 10, crs, 2 * 1)
 
     images = []
     # Create a list of ModalityImage objects for the year 2020
@@ -132,5 +130,5 @@ def test_helios_dataset(tmp_path: Path) -> None:
     assert dataset[0].sentinel2.shape == (256, 256, 12, 13)  # type: ignore
     assert dataset[0].sentinel1.shape == (256, 256, 12, 2)  # type: ignore
     assert dataset[0].worldcover.shape == (256, 256, 1, 1)  # type: ignore
-    assert dataset[0].latlon.shape == (256, 256, 1, 2)  # type: ignore
+    assert dataset[0].latlon.shape == (2,)  # type: ignore
     assert dataset[0].timestamps.shape == (12, 3)  # type: ignore

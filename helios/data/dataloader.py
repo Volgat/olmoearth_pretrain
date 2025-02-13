@@ -15,7 +15,7 @@ from olmo_core.distributed.utils import barrier
 from olmo_core.utils import roundrobin, threaded_generator
 from torch.utils.data import default_collate
 from upath import UPath
-
+from einops import rearrange
 from helios.data.dataset import HeliosDataset, HeliosSample
 
 logger = logging.getLogger(__name__)
@@ -251,9 +251,8 @@ class HeliosDataLoader(DataLoaderBase):
         days = torch.randint(0, 25, (1, 1, 12), dtype=torch.long)
         months = torch.randint(0, 12, (1, 1, 12), dtype=torch.long)
         years = torch.randint(2018, 2020, (1, 1, 12), dtype=torch.long)
-        timestamps = torch.cat([days, months, years], dim=1)  # Shape: (B, T, 3)
-        # TODO: update to rearrange
-        timestamps = timestamps.permute(0, 2, 1)  # Shape: (B, 3, T)
+        timestamps = torch.cat([days, months, years], dim=1)
+        timestamps = rearrange(timestamps, "b t c -> b c t")
         return HeliosSample(
             sentinel2=mock_sentinel2,
             sentinel1=mock_sentinel1,
