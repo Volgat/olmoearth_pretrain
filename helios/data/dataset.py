@@ -311,7 +311,7 @@ class HeliosDataset(Dataset):
             # https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD#description
             if modality == Modality.SENTINEL1:
                 image = 10 * np.log10(image)
-            # Normalize the data
+            # Normalize the data, maybe we can add strategy to the ModalitySpec
             normalizer = Normalizer(modality, Strategy.PREDEFINED)
             sample_dict[modality.name] = normalizer.normalize(image)
             # Get latlon and timestamps from Sentinel2 data
