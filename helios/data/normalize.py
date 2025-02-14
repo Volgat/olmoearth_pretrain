@@ -21,21 +21,18 @@ class Normalizer:
 
     def __init__(
         self,
-        modality: ModalitySpec,
         strategy: Strategy,
         std_multiplier: float | None = 2,
     ) -> None:
         """Initialize the normalizer.
 
         Args:
-            modality: The modality to normalize.
             strategy: The strategy to use for normalization (predefined or computed).
             std_multiplier: The multiplier for the standard deviation when using computed values.
 
         Returns:
             None
         """
-        self.modality = modality
         self.strategy = strategy
         self.std_multiplier = std_multiplier
         self.norm_config = self._load_config()
@@ -59,17 +56,18 @@ class Normalizer:
         with open("data/norm_configs/computed.json") as f:
             return json.load(f)
 
-    def normalize(self, data: np.ndarray) -> np.ndarray:
+    def normalize(self, modality: ModalitySpec, data: np.ndarray) -> np.ndarray:
         """Normalize the data.
 
         Args:
+            modality: The modality to normalize.
             data: The data to normalize.
 
         Returns:
             The normalized data.
         """
-        modality_bands = self.modality.band_order
-        modality_norm_values = self.norm_config[self.modality.name]
+        modality_bands = modality.band_order
+        modality_norm_values = self.norm_config[modality.name]
         # When using predefined values, we have the min and max values for each band
         if self.strategy == Strategy.PREDEFINED:
             min_vals = []

@@ -179,6 +179,9 @@ class HeliosDataset(Dataset):
         self.samples = self._filter_samples(list(samples))
         self.path = path
         self.dtype = dtype
+        # Initialize two normalizers for different modalities
+        self.normalizer_predefined = Normalizer(Strategy.PREDEFINED)
+        self.normalizer_computed = Normalizer(Strategy.COMPUTED)
         self._fs_local_rank = get_fs_local_rank()
         self._work_dir: Path | None = None  # type: ignore
         self._work_dir_set = False
@@ -295,7 +298,7 @@ class HeliosDataset(Dataset):
         """Load the sample."""
         image = load_image_for_sample(sample_modality, sample)
         modality_data = rearrange(image, "t c h w -> h w t c")
-        return modality_data.astype(dtype)
+        return modality_data
 
     def __getitem__(self, index: int) -> HeliosSample:
         """Get the item at the given index."""
@@ -311,9 +314,10 @@ class HeliosDataset(Dataset):
             # https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD#description
             if modality == Modality.SENTINEL1:
                 image = 10 * np.log10(image)
-            # Normalize the data, maybe we can add strategy to the ModalitySpec
-            normalizer = Normalizer(modality, Strategy.PREDEFINED)
-            sample_dict[modality.name] = normalizer.normalize(image)
+            # TODO: maybe we can add strategy to the ModalitySpec
+            sample_dict[modality.name] = self.normalizer_predefined.normalize(
+                modality, image
+            )
             # Get latlon and timestamps from Sentinel2 data
             if modality == Modality.SENTINEL2:
                 sample_dict["latlon"] = self._get_latlon(sample)
