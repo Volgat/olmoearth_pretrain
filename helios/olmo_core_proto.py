@@ -22,7 +22,8 @@ from olmo_core.optim import AdamWConfig
 from olmo_core.train import (prepare_training_environment,
                              teardown_training_environment)
 from olmo_core.train.callbacks import (GarbageCollectorCallback,
-                                       GPUMemoryMonitorCallback, WandBCallback)
+                                       GPUMemoryMonitorCallback,
+                                       ProfilerCallback, WandBCallback)
 from olmo_core.train.checkpoint import CheckpointerConfig
 from olmo_core.train.common import Duration, LoadStrategy
 from olmo_core.train.config import TrainerConfig
@@ -169,6 +170,7 @@ if __name__ == "__main__":
         .with_callback("wandb", wandb_callback)
         .with_callback("speed_monitor", HeliosSpeedMonitorCallback())
         .with_callback("gpu_memory_monitor", GPUMemoryMonitorCallback())
+        .with_callback("profiler", ProfilerCallback())
     )
     trainer = trainer_config.build(
         train_module=train_module,
