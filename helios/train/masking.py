@@ -192,10 +192,10 @@ class RandomMaskingStrategy(MaskingStrategy):
         t: int,
         encode_ratio: float,
         decode_ratio: float,
-        num_channels: int,
+        num_bands: int,
         return_tensor_device: torch.device | None = None,
     ) -> ArrayTensor:
-        num_tokens_per_instance = int(h * w * t * num_channels)
+        num_tokens_per_instance = int(h * w * t * num_bands)
         num_encode_tokens = int(num_tokens_per_instance * encode_ratio)
         num_decode_tokens = int(num_tokens_per_instance * decode_ratio)
         num_target_encode_tokens = int(
@@ -221,7 +221,7 @@ class RandomMaskingStrategy(MaskingStrategy):
             h=h,
             w=w,
             t=t,
-            c=num_channels,
+            c=num_bands,
         )
 
         if return_tensor_device:
@@ -270,7 +270,7 @@ class RandomMaskingStrategy(MaskingStrategy):
                 return_device = None
             logger.info(f"Modality name: {modality_name} shape: {modality.shape}")
             # TODO: Make this decions based on modlaity spec
-            num_channels = Modality.get(modality_name).num_channels
+            num_bands = Modality.get(modality_name).num_bands
             if len(modality.shape) == 5:
                 b, h, w, t, c = modality.shape
 
@@ -281,7 +281,7 @@ class RandomMaskingStrategy(MaskingStrategy):
                     t,
                     encode_ratio,
                     decode_ratio,
-                    num_channels,
+                    num_bands,
                     return_device,
                 )
             elif len(modality.shape) == 2:
@@ -290,7 +290,7 @@ class RandomMaskingStrategy(MaskingStrategy):
                     b,
                     encode_ratio,
                     decode_ratio,
-                    num_channels,
+                    num_bands,
                     return_device,
                 )
             else:

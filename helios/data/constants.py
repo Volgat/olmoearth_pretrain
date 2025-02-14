@@ -107,18 +107,19 @@ class ModalitySpec:
         return get_resolution(self.tile_resolution_factor)
 
     def bandsets_as_indices(self) -> list[list[int]]:
-        """Return the band sets as indices."""
-        # TODO: Add Integration test that we actually load the data in the correct order from the band sets
-        band_specs_as_indices = []
+        """Return band sets as indices."""
+        indices = []
+        offset = 0
         for band_set in self.band_sets:
-            # TODO: I think the bands are not actually in the order of the old constant but stacked succesively from band sets
-            band_specs_as_indices.append(list(range(len(band_set.bands))))
-        return band_specs_as_indices
+            num_bands = len(band_set.bands)
+            indices.append(list(range(offset, offset + num_bands)))
+            offset += num_bands
+        return indices
 
     @property
     def band_order(self) -> list[str]:
-        """Get the band order."""
-        return [b for band_set in self.band_sets for b in band_set.bands]
+        """Get band order."""
+        return sum((list(band_set.bands) for band_set in self.band_sets), [])
 
     @property
     def num_band_sets(self) -> int:
@@ -126,7 +127,7 @@ class ModalitySpec:
         return len(self.band_sets)
 
     @property
-    def num_channels(self) -> int:
+    def num_bands(self) -> int:
         """Get the number of channels.
 
         The number of channels is the sum of the number of bands in all the band sets.
@@ -227,8 +228,6 @@ class Modality:
         is_multitemporal=False,
     )
 
-    # TODO: decide if we want to include latlon as a modality
-    # The issue is that parse_modality_csv will search for the csv file and relevant ModalityTile
     LATLON = ModalitySpec(
         name="latlon",
         tile_resolution_factor=0,
@@ -255,11 +254,13 @@ class Modality:
         return modalities
 
 
-# TODO: change this to other name to avoid confusion
+# Modalities to ingest image tiles
 SUPPORTED_MODALITIES = [
     Modality.SENTINEL1,
     Modality.SENTINEL2,
     Modality.WORLDCOVER,
 ]
+
+# Latlon and timestamps
 LATLON = ["lat", "lon"]
 TIMESTAMPS = ["day", "month", "year"]

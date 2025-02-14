@@ -29,7 +29,7 @@ def modality_band_set_len_and_total_bands(
     return {
         modality: (
             len(Modality.get(modality).band_sets),
-            Modality.get(modality).num_channels,
+            Modality.get(modality).num_bands,
         )
         for modality in supported_modalities
     }
@@ -66,9 +66,9 @@ class TestFlexiHeliosPatchEmbeddings:
         latlon_num_band_sets, latlon_num_bands = modality_band_set_len_and_total_bands[
             "latlon"
         ]
-        B, H, W, T, num_channels = 1, 16, 16, 3, sentinel_2_num_bands
-        sentinel2 = torch.randn((B, H, W, T, num_channels))
-        sentinel2_mask = torch.zeros((B, H, W, T, num_channels), dtype=torch.long)
+        B, H, W, T, num_bands = 1, 16, 16, 3, sentinel_2_num_bands
+        sentinel2 = torch.randn((B, H, W, T, num_bands))
+        sentinel2_mask = torch.zeros((B, H, W, T, num_bands), dtype=torch.long)
         patch_size = 4
 
         latlon = torch.randn(B, latlon_num_bands)
@@ -194,17 +194,17 @@ class TestEncoder:
         In this scenario we do not provide a token exit configuration so that all transformer
         layers are executed normally.
         """
-        sentinel2_num_band_sets, sentinel2_num_channels = (
+        sentinel2_num_band_sets, sentinel2_num_bands = (
             modality_band_set_len_and_total_bands["sentinel2"]
         )
-        latlon_num_band_sets, latlon_num_channels = (
-            modality_band_set_len_and_total_bands["latlon"]
-        )
-        B, H, W, T, C = 1, 8, 8, 4, sentinel2_num_channels
+        latlon_num_band_sets, latlon_num_bands = modality_band_set_len_and_total_bands[
+            "latlon"
+        ]
+        B, H, W, T, C = 1, 8, 8, 4, sentinel2_num_bands
         sentinel2 = torch.randn(B, H, W, T, C)
         sentinel2_mask = torch.zeros(B, H, W, T, C, dtype=torch.long)
-        latlon = torch.randn(B, latlon_num_channels)
-        latlon_mask = torch.randint(0, 2, (B, latlon_num_channels), dtype=torch.float32)
+        latlon = torch.randn(B, latlon_num_bands)
+        latlon_mask = torch.randint(0, 2, (B, latlon_num_bands), dtype=torch.float32)
         days = torch.randint(0, 25, (B, T, 1), dtype=torch.long)
         months = torch.randint(0, 12, (B, T, 1), dtype=torch.long)
         years = torch.randint(2018, 2020, (B, T, 1), dtype=torch.long)
@@ -265,17 +265,17 @@ class TestEncoder:
 
         In this scenario (with an exit configuration) we set tokens in each modality for early exit.
         """
-        sentinel2_num_band_sets, sentinel2_num_channels = (
+        sentinel2_num_band_sets, sentinel2_num_bands = (
             modality_band_set_len_and_total_bands["sentinel2"]
         )
-        latlon_num_band_sets, latlon_num_channels = (
-            modality_band_set_len_and_total_bands["latlon"]
-        )
-        B, H, W, T, C = 1, 8, 8, 4, sentinel2_num_channels
+        latlon_num_band_sets, latlon_num_bands = modality_band_set_len_and_total_bands[
+            "latlon"
+        ]
+        B, H, W, T, C = 1, 8, 8, 4, sentinel2_num_bands
         sentinel2 = torch.randn(B, H, W, T, C)
         sentinel2_mask = torch.zeros(B, H, W, T, C, dtype=torch.long)
-        latlon = torch.randn(B, latlon_num_channels)
-        latlon_mask = torch.zeros((B, latlon_num_channels), dtype=torch.float32)
+        latlon = torch.randn(B, latlon_num_bands)
+        latlon_mask = torch.zeros((B, latlon_num_bands), dtype=torch.float32)
         # Generate valid timestamps with month in [1, 12]
         days = torch.randint(0, 25, (B, T, 1), dtype=torch.long)
         months = torch.randint(0, 12, (B, T, 1), dtype=torch.long)
@@ -334,15 +334,15 @@ class TestEncoder:
         modality_band_set_len_and_total_bands: dict[str, tuple[int, int]],
     ) -> None:
         """Test that when an entire modality is masked."""
-        sentinel2_num_band_sets, sentinel2_num_channels = (
+        sentinel2_num_band_sets, sentinel2_num_bands = (
             modality_band_set_len_and_total_bands["sentinel2"]
         )
-        latlon_num_band_sets, latlon_num_channels = (
-            modality_band_set_len_and_total_bands["latlon"]
-        )
-        B, H, W, T, C = 1, 8, 8, 4, sentinel2_num_channels
+        latlon_num_band_sets, latlon_num_bands = modality_band_set_len_and_total_bands[
+            "latlon"
+        ]
+        B, H, W, T, C = 1, 8, 8, 4, sentinel2_num_bands
         sentinel2 = torch.randn(B, H, W, T, C)
-        latlon = torch.randn(B, latlon_num_channels)
+        latlon = torch.randn(B, latlon_num_bands)
         # Mask the entirety of each modality
         sentinel2_mask = torch.ones(B, H, W, T, C, dtype=torch.long)
         # Make 1 token in 1 channel group in S2 visible
@@ -572,10 +572,10 @@ def test_end_to_end_with_exit_config(
     modality_band_set_len_and_total_bands: dict[str, tuple[int, int]],
 ) -> None:
     """Test the full end to end forward pass of the model with an exit configuration."""
-    sentinel2_num_band_sets, sentinel2_num_channels = (
+    sentinel2_num_band_sets, sentinel2_num_bands = (
         modality_band_set_len_and_total_bands["sentinel2"]
     )
-    latlon_num_band_sets, latlon_num_channels = modality_band_set_len_and_total_bands[
+    latlon_num_band_sets, latlon_num_bands = modality_band_set_len_and_total_bands[
         "latlon"
     ]
     B, H, W, T, C = (
@@ -583,15 +583,15 @@ def test_end_to_end_with_exit_config(
         8,
         8,
         4,
-        sentinel2_num_channels,
+        sentinel2_num_bands,
     )
     # Create dummy sentinel2 data: shape (B, H, W, T, C)
     sentinel2 = torch.randn(B, H, W, T, C)
     # Here we assume 0 (ONLINE_ENCODER) means the token is visible.
     sentinel2_mask = torch.zeros(B, H, W, T, C, dtype=torch.long)
     # Dummy latitude-longitude data.
-    latlon = torch.randn(B, latlon_num_channels)
-    latlon_mask = torch.ones(B, latlon_num_channels, dtype=torch.float32)
+    latlon = torch.randn(B, latlon_num_bands)
+    latlon_mask = torch.ones(B, latlon_num_bands, dtype=torch.float32)
     # Generate valid timestamps:
     # - days: range 1..31,
     # - months: range 1..13,
