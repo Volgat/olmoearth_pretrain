@@ -268,6 +268,7 @@ class GeobenchDataset(Dataset):
         """Length of dataset."""
         return len(self.dataset)
 
+
     @staticmethod
     def collate_fn(
         batch: Sequence[tuple[MaskedHeliosSample, torch.Tensor]],

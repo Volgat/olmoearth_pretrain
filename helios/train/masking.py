@@ -11,10 +11,11 @@ import numpy as np
 import torch
 from class_registry import ClassRegistry
 from einops import rearrange, repeat
+from olmo_core.config import Config
+
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.types import ArrayTensor
-from olmo_core.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -119,18 +120,20 @@ class MaskedHeliosSample(NamedTuple):
             if key == "timestamps":
                 # lets assume timestamps is not None
                 masked_sample_dict[key] = t
-            elif key == "latlon" or key == "sentinel2":
+            else:
                 if t is None:
-                    masked_sample_dict[key] = torch.empty(sample.shape(key))
-                    masked_sample_dict[f"{key}_mask"] = (
-                        torch.ones(sample.shape(key, mask=True))
-                        * MaskValue.MISSING.value
-                    )
+                    masked_sample_dict[key] = None
+                    masked_sample_dict[
+                        MaskedHeliosSample.get_masked_modality_name(key)
+                    ] = None
                 else:
                     masked_sample_dict[key] = t
-                    masked_sample_dict[f"{key}_mask"] = (
+                    masked_sample_dict[
+                        MaskedHeliosSample.get_masked_modality_name(key)
+                    ] = (
                         torch.ones(sample.shape(key, mask=False))
-                    ) * MaskValue.ONLINE_ENCODER.value
+                        * MaskValue.ONLINE_ENCODER.value
+                    )
 
         return MaskedHeliosSample(**masked_sample_dict)
 

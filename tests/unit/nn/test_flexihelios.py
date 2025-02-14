@@ -4,7 +4,8 @@ import pytest
 import torch
 from einops import repeat
 
-from helios.nn.flexihelios import Encoder, FlexiHeliosBase, Predictor, TokensAndMasks
+from helios.nn.flexihelios import (Encoder, FlexiHeliosBase, Predictor,
+                                   TokensAndMasks)
 from helios.train.masking import MaskValue
 
 
@@ -268,13 +269,12 @@ class TestPredictor:
         latlon = torch.randn(B, 1, D)
         latlon_mask = torch.randint(0, 2, (B, 1)).float()
 
-        tokens_and_masks = TokensAndMasks(
-            sentinel2=sentinel2_tokens,
-            sentinel2_mask=sentinel2_mask,
-            latlon=latlon,
-            latlon_mask=latlon_mask,
-        )
-
+        tokens_and_masks = {
+            "sentinel2": sentinel2_tokens,
+            "sentinel2_mask": sentinel2_mask,
+            "latlon": latlon,
+            "latlon_mask": latlon_mask,
+        }
         replaced_dict = predictor.add_masks(tokens_and_masks)
 
         # We expect replaced_dict to have the key "sentinel2", shaped like sentinel2_tokens

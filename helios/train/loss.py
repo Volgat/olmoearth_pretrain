@@ -9,11 +9,12 @@ import torch
 import torch.nn.functional as F
 from class_registry import ClassRegistry
 from einops import rearrange
-from helios.data.constants import ModalitySpec
-from helios.nn.flexihelios import TokensAndMasks
-from helios.train.masking import MaskValue
 from olmo_core.config import Config
 from torch import Tensor
+
+from helios.data.constants import Modality, ModalitySpec
+from helios.nn.flexihelios import TokensAndMasks
+from helios.train.masking import MaskedHeliosSample, MaskValue
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,27 @@ logger = logging.getLogger(__name__)
 class Loss(ABC):
     """Abstract base class for loss functions."""
 
+    def __init__(self, supported_modalities: list[ModalitySpec] = Modality.values()):
+        self.supported_modality_names = [m.name for m in supported_modalities]
+
     @abstractmethod
     def compute(self, predictions: Any, targets: Any, **kwargs: Any) -> float:
         """Compute the loss between predictions and targets."""
         pass
+
+    @staticmethod
+    def _flatten(x: Tensor) -> Tensor:
+        return rearrange(x, "b ... d -> b (...) d")
+
+    @staticmethod
+    def _expand_and_reciprocate(t: Tensor) -> Tensor:
+        """As described in the name.
+
+        >>> _expand_and_reciprocate(torch.tensor([1, 2, 3]))
+        tensor([1.0000, 0.5000, 0.5000, 0.3333, 0.3333, 0.3333])
+        """
+        reciprocals = torch.reciprocal(t.float())
+        return torch.repeat_interleave(reciprocals, t)
 
 
 LOSS_REGISTRY = ClassRegistry[Loss]()
@@ -50,24 +68,10 @@ class PatchDiscriminationLoss(Loss):
                 from within a sample (True) or using all other instances in a batch (False).
                 If this is False, then this is the AllDisc loss from the Galileo paper
         """
+        super().__init__(supported_modalities=supported_modalities)
         self.tau = tau
         self.pred2unit = pred2unit
         self.mask_other_samples = mask_other_samples
-        self.supported_modality_names = [m.name for m in supported_modalities]
-
-    @staticmethod
-    def _flatten(x: Tensor) -> Tensor:
-        return rearrange(x, "b ... d -> b (...) d")
-
-    @staticmethod
-    def _expand_and_reciprocate(t: Tensor) -> Tensor:
-        """As described in the name.
-
-        >>> _expand_and_reciprocate(torch.tensor([1, 2, 3]))
-        tensor([1.0000, 0.5000, 0.5000, 0.3333, 0.3333, 0.3333])
-        """
-        reciprocals = torch.reciprocal(t.float())
-        return torch.repeat_interleave(reciprocals, t)
 
     def compute(
         self, predictions: TokensAndMasks, targets: TokensAndMasks, **kwargs: Any

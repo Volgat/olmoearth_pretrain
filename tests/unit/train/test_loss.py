@@ -2,6 +2,7 @@
 
 import torch
 
+from helios.data.constants import Modality
 from helios.nn.flexihelios import TokensAndMasks
 from helios.train.loss import PatchDiscriminationLoss
 
@@ -22,7 +23,8 @@ def test_patch_disc_loss() -> None:
         latlon=torch.ones((b, 1, d)),
         latlon_mask=torch.zeros((b, 1)),
     )
-    loss = PatchDiscriminationLoss()
+    supported_modalities = [Modality.SENTINEL2, Modality.LATLON]
+    loss = PatchDiscriminationLoss(supported_modalities=supported_modalities)
     loss_value = loss.compute(preds, targets)
     # not very good! since they are all the same
     # predictions and values

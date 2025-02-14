@@ -616,7 +616,14 @@ def test_end_to_end_with_exit_config(
     years = torch.randint(2018, 2020, (B, T, 1), dtype=torch.long)
     timestamps = torch.cat([days, months, years], dim=-1)  # Shape: (B, T, 3)
 
-    x = MaskedHeliosSample(sentinel2, sentinel2_mask, latlon, latlon_mask, timestamps)
+    masked_sample_dict = {
+        "sentinel2": sentinel2,
+        "sentinel2_mask": sentinel2_mask,
+        "latlon": latlon,
+        "latlon_mask": latlon_mask,
+        "timestamps": timestamps,
+    }
+    x = MaskedHeliosSample(**masked_sample_dict)
 
     patch_size = 4
     input_res = 1

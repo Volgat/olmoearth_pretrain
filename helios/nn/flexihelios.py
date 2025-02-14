@@ -12,9 +12,11 @@ from torch import Tensor, nn
 from helios.constants import BASE_GSD
 from helios.data.constants import Modality, ModalitySpec
 from helios.nn.attention import Block
-from helios.nn.encodings import (get_1d_sincos_pos_encoding,
-                                 get_2d_sincos_pos_encoding_with_resolution,
-                                 get_month_encoding_table)
+from helios.nn.encodings import (
+    get_1d_sincos_pos_encoding,
+    get_2d_sincos_pos_encoding_with_resolution,
+    get_month_encoding_table,
+)
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample, MaskValue
 
@@ -1139,7 +1141,6 @@ class Predictor(FlexiHeliosBase):
         Returns:
             TokensAndMasks containing the predicted tokens and their masks
         """
-
         decoder_emedded_dict = x._asdict()
         # Apply Input Norms and encoder to decoder embeds to each modality
         for modality in self.supported_modality_names:
