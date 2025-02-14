@@ -193,8 +193,6 @@ class Modality:
         is_multitemporal=False,
     )
 
-    # TODO: decide if we want to include latlon as a modality
-    # The issue is that parse_modality_csv will search for the csv file and relevant ModalityTile
     LATLON = ModalitySpec(
         name="latlon",
         tile_resolution_factor=0,
@@ -221,11 +219,13 @@ class Modality:
         return modalities
 
 
-# TODO: change this to other name to avoid confusion
+# Modalities to ingest image tiles
 SUPPORTED_MODALITIES = [
     Modality.SENTINEL1,
     Modality.SENTINEL2,
     Modality.WORLDCOVER,
 ]
+
+# Latlon and timestamps
 LATLON = ["lat", "lon"]
 TIMESTAMPS = ["day", "month", "year"]
