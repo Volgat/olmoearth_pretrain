@@ -94,7 +94,7 @@ class TestFlexiHeliosPatchEmbeddings:
         sample = MaskedHeliosSample(**masked_sample_dict)
         output = patch_embeddings.forward(sample, patch_size)
         embedding_size = patch_embeddings.embedding_size
-        assert output.get("sentinel2").shape == (
+        assert output["sentinel2"].shape == (
             B,
             H // patch_size,
             W // patch_size,
@@ -102,19 +102,19 @@ class TestFlexiHeliosPatchEmbeddings:
             sentinel_2_num_band_sets,  # of band sets
             embedding_size,
         )
-        assert output.get("sentinel2_mask").shape == (
+        assert output["sentinel2_mask"].shape == (
             B,
             H // patch_size,
             W // patch_size,
             T,
             sentinel_2_num_band_sets,  # of band sets
         )
-        assert output.get("latlon").shape == (
+        assert output["latlon"].shape == (
             B,
             latlon_num_band_sets,
             embedding_size,
         )  # B, C_G , D
-        assert output.get("latlon_mask").shape == (B, latlon_num_band_sets)  # B, C_G
+        assert output["latlon_mask"].shape == (B, latlon_num_band_sets)  # B, C_G
 
 
 class TestEncoder:
@@ -180,17 +180,15 @@ class TestEncoder:
 
         # Ensure shape is preserved in the output tokens.
         assert (
-            output.get("sentinel2").shape == sentinel2_tokens.shape
-        ), f"Expected output 'sentinel2' shape {sentinel2_tokens.shape}, got {output.get('sentinel2').shape}."
+            output["sentinel2"].shape == sentinel2_tokens.shape
+        ), f"Expected output 'sentinel2' shape {sentinel2_tokens.shape}, got {output['sentinel2'].shape}."
 
         # Confirm the mask was preserved and that masked tokens are zeroed out in the output.
         assert (
-            output.get("sentinel2_mask") == sentinel2_mask
+            output["sentinel2_mask"] == sentinel2_mask
         ).all(), "Mask should be preserved in output"
         assert (
-            output.get("sentinel2")[
-                sentinel2_mask >= MaskValue.TARGET_ENCODER_ONLY.value
-            ]
+            output["sentinel2"][sentinel2_mask >= MaskValue.TARGET_ENCODER_ONLY.value]
             == 0
         ).all(), "Masked tokens should be 0 in output"
 
@@ -250,6 +248,10 @@ class TestEncoder:
             sentinel2_num_band_sets,
             expected_embedding_size,
         )
+        assert output.sentinel2 is not None
+        assert output.sentinel2_mask is not None
+        assert output.latlon is not None
+        assert output.latlon_mask is not None
         assert (
             output.sentinel2.shape == expected_shape
         ), f"Expected output sentinel2 shape {expected_shape}, got {output.sentinel2.shape}"
@@ -331,6 +333,10 @@ class TestEncoder:
             sentinel2_num_band_sets,
             expected_embedding_size,
         )
+        assert output.sentinel2 is not None
+        assert output.sentinel2_mask is not None
+        assert output.latlon is not None
+        assert output.latlon_mask is not None
         assert (
             output.sentinel2.shape == expected_shape_sentinel2
         ), f"Expected output sentinel2 shape {expected_shape_sentinel2}, got {output.sentinel2.shape}"
@@ -402,6 +408,10 @@ class TestEncoder:
             sentinel2_num_band_sets,
             expected_embedding_size,
         )
+        assert output.sentinel2 is not None
+        assert output.sentinel2_mask is not None
+        assert output.latlon is not None
+        assert output.latlon_mask is not None
         assert (
             output.sentinel2.shape == expected_shape
         ), f"Expected output sentinel2 shape {expected_shape}, got {output.sentinel2.shape}"
@@ -428,7 +438,7 @@ class TestPredictor:
     """Integration tests for the Predictor class."""
 
     @pytest.fixture
-    def predictor(self, supported_modalities: list[str]) -> Predictor:
+    def predictor(self, supported_modalities: list[ModalitySpec]) -> Predictor:
         """Create predictor fixture for testing.
 
         Returns:
@@ -503,6 +513,10 @@ class TestPredictor:
             sentinel2_num_band_sets,
             predictor.output_embedding_size,
         )
+        assert output.sentinel2 is not None
+        assert output.sentinel2_mask is not None
+        assert output.latlon is not None
+        assert output.latlon_mask is not None
         assert (
             output.sentinel2.shape == expected_token_shape
         ), f"Expected tokens shape {expected_token_shape}, got {output.sentinel2.shape}"
@@ -576,6 +590,10 @@ class TestPredictor:
             sentinel2_num_band_sets,
             predictor.output_embedding_size,
         )
+        assert output.sentinel2 is not None
+        assert output.sentinel2_mask is not None
+        assert output.latlon is not None
+        assert output.latlon_mask is not None
         assert (
             output.sentinel2.shape == expected_token_shape
         ), f"Expected tokens shape {expected_token_shape}, got {output.sentinel2.shape}"
@@ -593,7 +611,7 @@ class TestPredictor:
 
 
 def test_end_to_end_with_exit_config(
-    supported_modalities: list[str],
+    supported_modalities: list[ModalitySpec],
     modality_band_set_len_and_total_bands: dict[str, tuple[int, int]],
 ) -> None:
     """Test the full end to end forward pass of the model with an exit configuration."""
@@ -680,6 +698,10 @@ def test_end_to_end_with_exit_config(
     output = predictor.forward(output, timestamps, patch_size, input_res)
     patched_H = H // patch_size
     patched_W = W // patch_size
+    assert output.sentinel2 is not None
+    assert output.sentinel2_mask is not None
+    assert output.latlon is not None
+    assert output.latlon_mask is not None
     assert output.sentinel2.shape == (
         B,
         patched_H,
