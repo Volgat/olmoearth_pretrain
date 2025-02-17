@@ -69,7 +69,7 @@ if __name__ == "__main__":
     encoder_config = EncoderConfig(
         supported_modalities=SUPPORTED_MODALITIES,
         embedding_size=16,
-        max_patch_size=8,
+        base_patch_size=8,
         num_heads=2,
         depth=2,
         mlp_ratio=1.0,

@@ -11,12 +11,7 @@ from einops import rearrange, repeat
 from olmo_core.config import Config
 from torch import Tensor, nn
 
-<<<<<<< HEAD
-from helios.constants import BASE_GSD
 from helios.data.constants import Modality, ModalitySpec
-=======
-from helios.data.constants import Modality
->>>>>>> remove unused BASE_GSD
 from helios.nn.attention import Block
 from helios.nn.encodings import (
     get_1d_sincos_pos_encoding,

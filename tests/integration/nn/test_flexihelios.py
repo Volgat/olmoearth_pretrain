@@ -57,7 +57,7 @@ class TestFlexiHeliosPatchEmbeddings:
         return FlexiHeliosPatchEmbeddings(
             supported_modality_names=supported_modality_names,
             embedding_size=16,
-            max_patch_size=8,
+            base_patch_size=8,
         )
 
     def test_forward(
@@ -129,7 +129,7 @@ class TestEncoder:
         """
         return Encoder(
             embedding_size=16,
-            max_patch_size=8,
+            base_patch_size=8,
             num_heads=2,
             mlp_ratio=4.0,
             depth=2,
@@ -451,7 +451,6 @@ class TestPredictor:
             mlp_ratio=4.0,
             num_heads=2,
             max_sequence_length=12,
-            max_patch_size=8,
             drop_path=0.1,
             learnable_channel_embeddings=True,
             output_embedding_size=8,
@@ -655,7 +654,7 @@ def test_end_to_end_with_exit_config(
     patch_size = 4
     input_res = 1
     # Shared constants for encoder and predictor
-    MAX_PATCH_SIZE = 8
+    BASE_PATCH_SIZE = 8
     NUM_HEADS = 2
     MLP_RATIO = 4.0
     MAX_SEQ_LENGTH = 12
@@ -667,7 +666,7 @@ def test_end_to_end_with_exit_config(
     encoder = Encoder(
         supported_modalities=supported_modalities,
         embedding_size=ENCODER_EMBEDDING_SIZE,
-        max_patch_size=MAX_PATCH_SIZE,
+        base_patch_size=BASE_PATCH_SIZE,
         num_heads=NUM_HEADS,
         mlp_ratio=MLP_RATIO,
         max_sequence_length=MAX_SEQ_LENGTH,
@@ -683,7 +682,6 @@ def test_end_to_end_with_exit_config(
         mlp_ratio=MLP_RATIO,
         num_heads=NUM_HEADS,
         max_sequence_length=MAX_SEQ_LENGTH,
-        max_patch_size=MAX_PATCH_SIZE,
         drop_path=DROP_PATH,
     )
     output = encoder.forward(
