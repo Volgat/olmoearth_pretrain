@@ -221,9 +221,8 @@ class HeliosSample(NamedTuple):
         of timesteps allowable so that the total tokens (per instance) is >=
         max_tokens_per_instance
         """
-        max_height_width_tokens = int(
-            max([self.height / patch_size, self.width / patch_size])
-        )
+        max_height_width = max(self.height, self.width)
+        max_height_width_tokens = int(max_height_width / patch_size)
         hw_to_sample = [x for x in hw_to_sample if x <= max_height_width_tokens]
         if len(hw_to_sample) == 0:
             raise ValueError(
@@ -234,13 +233,19 @@ class HeliosSample(NamedTuple):
         max_t = self._t_from_hw(sampled_hw_p, max_tokens_per_instance)
         sampled_hw = sampled_hw_p * patch_size
 
-        start_h = np.random.choice(self.height - sampled_hw)
-        start_w = np.random.choice(self.width - sampled_hw)
-        start_t = np.random.choice(self.time - max_t)
+        start_h = np.random.choice(
+            (self.height - min(sampled_hw, max_height_width)) + 1
+        )
+        start_w = np.random.choice((self.width - min(sampled_hw, max_height_width)) + 1)
+        start_t = np.random.choice((self.time - min(self.time, max_t)) + 1)
 
         new_data_dict: dict[str, ArrayTensor] = {}
         for attribute, modality in self.as_dict(ignore_nones=True).items():
             assert modality is not None
+            if attribute == "timestamps":
+                new_data_dict[attribute] = modality[:, start_t : start_t + max_t]
+                continue
+
             modality_spec = Modality.get(attribute)
             if (modality_spec.get_tile_resolution() > 0) and (
                 modality_spec.is_multitemporal
