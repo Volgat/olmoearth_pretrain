@@ -11,8 +11,12 @@ from einops import rearrange, repeat
 from olmo_core.config import Config
 from torch import Tensor, nn
 
+<<<<<<< HEAD
 from helios.constants import BASE_GSD
 from helios.data.constants import Modality, ModalitySpec
+=======
+from helios.data.constants import Modality
+>>>>>>> remove unused BASE_GSD
 from helios.nn.attention import Block
 from helios.nn.encodings import (
     get_1d_sincos_pos_encoding,
@@ -23,6 +27,10 @@ from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample, MaskValue
 
 logger = logging.getLogger(__name__)
+
+
+# Resolution of the input data in meters
+BASE_GSD = 10
 
 
 class TokensAndMasks(NamedTuple):
@@ -934,7 +942,6 @@ class Predictor(FlexiHeliosBase):
         mlp_ratio: float = 2.0,
         num_heads: int = 8,
         max_sequence_length: int = 24,
-        max_patch_size: int = 8,
         drop_path: float = 0.0,
         learnable_channel_embeddings: bool = False,
         output_embedding_size: int | None = None,
@@ -949,7 +956,6 @@ class Predictor(FlexiHeliosBase):
             mlp_ratio: Ratio for MLP hidden dimension
             num_heads: Number of attention heads
             max_sequence_length: Maximum sequence length
-            max_patch_size: Maximum patch size
             drop_path: Drop path rate
             learnable_channel_embeddings: Whether to use learnable channel embeddings
             output_embedding_size: Size of output embeddings
@@ -960,7 +966,10 @@ class Predictor(FlexiHeliosBase):
             mlp_ratio=mlp_ratio,
             num_heads=num_heads,
             max_sequence_length=max_sequence_length,
+<<<<<<< HEAD
             max_patch_size=max_patch_size,
+=======
+>>>>>>> remove unused BASE_GSD
             use_channel_embs=learnable_channel_embeddings,
             drop_path=drop_path,
             supported_modalities=supported_modalities,
@@ -979,7 +988,6 @@ class Predictor(FlexiHeliosBase):
         # THIS is the learnable mask token
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
-        self.max_patch_size = max_patch_size
         self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
         self.apply(self._init_weights)
@@ -1205,13 +1213,14 @@ class EncoderConfig(Config):
 
     supported_modalities: list[str]
     embedding_size: int = 16
+    # This is the base patch size for the patch embedder
+    # The actual patch size applied can be different
     max_patch_size: int = 8
     num_heads: int = 2
     mlp_ratio: float = 1.0
     depth: int = 2
     drop_path: float = 0.1
     max_sequence_length: int = 12
-    base_patch_size: int = 8
     use_channel_embs: bool = True
 
     def validate(self) -> None:
@@ -1225,6 +1234,7 @@ class EncoderConfig(Config):
 
     def build(self) -> "Encoder":
         """Build the encoder."""
+        self.validate()
         return Encoder(
             embedding_size=self.embedding_size,
             max_patch_size=self.max_patch_size,
@@ -1234,7 +1244,6 @@ class EncoderConfig(Config):
             drop_path=self.drop_path,
             supported_modalities=self.supported_modalities,
             max_sequence_length=self.max_sequence_length,
-            base_patch_size=self.base_patch_size,
             use_channel_embs=self.use_channel_embs,
         )
 
@@ -1250,7 +1259,6 @@ class PredictorConfig(Config):
     mlp_ratio: float = 1.0
     num_heads: int = 2
     max_sequence_length: int = 12
-    max_patch_size: int = 8
     drop_path: float = 0.0
     learnable_channel_embeddings: bool = False
     output_embedding_size: int | None = None
@@ -1266,6 +1274,7 @@ class PredictorConfig(Config):
 
     def build(self) -> "Predictor":
         """Build the predictor."""
+        self.validate()
         return Predictor(
             encoder_embedding_size=self.encoder_embedding_size,
             decoder_embedding_size=self.decoder_embedding_size,
@@ -1273,7 +1282,8 @@ class PredictorConfig(Config):
             mlp_ratio=self.mlp_ratio,
             num_heads=self.num_heads,
             max_sequence_length=self.max_sequence_length,
-            max_patch_size=self.max_patch_size,
             drop_path=self.drop_path,
+            learnable_channel_embeddings=self.learnable_channel_embeddings,
+            output_embedding_size=self.output_embedding_size,
             supported_modalities=self.supported_modalities,
         )

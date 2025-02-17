@@ -22,18 +22,13 @@ from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig, collate_helios
 from helios.nn.flexihelios import EncoderConfig, PredictorConfig
-from helios.nn.latent_predictor import LatentMIMConfig
+from helios.nn.latent_predictor import LatentPredictorConfig
 from helios.train.callbacks.speed_monitor import HeliosSpeedMonitorCallback
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskingConfig
 from helios.train.train_module import HeliosTrainModuleConfig
 
 logger = logging.getLogger(__name__)
-
-# THings that need a config
-# Data Loader
-# Model
-## OLD LOSS FUNCTION Keeping so pipeline runs until we have new integration
 
 
 if __name__ == "__main__":
@@ -94,7 +89,7 @@ if __name__ == "__main__":
         max_patch_size=8,
         supported_modalities=SUPPORTED_MODALITIES,
     )
-    model_config = LatentMIMConfig(
+    model_config = LatentPredictorConfig(
         encoder_config=encoder_config,
         decoder_config=decoder_config,
     )

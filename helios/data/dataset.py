@@ -528,6 +528,7 @@ class HeliosDatasetConfig(Config):
 
     def build(self) -> "HeliosDataset":
         """Build the dataset."""
+        self.validate()
         return HeliosDataset(
             *(self.samples or []),
             tile_path=self.tile_path,
