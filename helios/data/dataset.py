@@ -45,8 +45,8 @@ class HeliosSample(NamedTuple):
     """
 
     sentinel2: ArrayTensor  # [B, H, W, T, len(S2_bands)]
-    latlon: ArrayTensor  # [B, 2]
-    timestamps: ArrayTensor  # [B, T, D=3], where D=[day, month, year]
+    latlon: ArrayTensor | None = None  # [B, 2]
+    timestamps: ArrayTensor | None = None  # [B, T, D=3], where D=[day, month, year]
     sentinel1: ArrayTensor | None = None  # [B, H, W, T, len(S1_bands)]
     worldcover: ArrayTensor | None = None  # [B, H, W, len(WC_bands)]
 
@@ -151,6 +151,8 @@ class HeliosSample(NamedTuple):
     @property
     def time(self) -> int:
         """Get the number of time steps in the data."""
+        if self.timestamps is None:
+            raise ValueError("Timestamps are not present in the sample")
         return self.timestamps.shape[1]
 
     def _t_from_hw(self, h_w_p: int, max_tokens_per_instance: int) -> int:
