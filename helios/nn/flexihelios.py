@@ -343,9 +343,6 @@ class FlexiHeliosCompositeEncodings(nn.Module):
 
         # TODO: this access needs to be fixed more generally w.r.t issue and modality spec defined properties
         if modality == Modality.WORLDCOVER.name:
-            logger.info(
-                f"worldcover modality: {modality}, modality_tokens: {modality_tokens.shape}"
-            )
             b, h, w, t, b_s, _ = modality_tokens.shape
 
             # Channel embeddings

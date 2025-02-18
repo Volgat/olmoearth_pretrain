@@ -3,11 +3,13 @@
 Any methods that piece together multiple steps or are the entire forward pass for a module should be here
 """
 
+import logging
+
 import pytest
 import torch
 from einops import rearrange
 
-from helios.data.constants import ModalitySpec
+from helios.data.constants import Modality, ModalitySpec
 from helios.nn.flexihelios import (
     Encoder,
     FlexiHeliosPatchEmbeddings,
@@ -15,6 +17,8 @@ from helios.nn.flexihelios import (
     TokensAndMasks,
 )
 from helios.train.masking import MaskedHeliosSample, MaskValue
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -611,10 +615,11 @@ class TestPredictor:
 
 
 def test_end_to_end_with_exit_config(
-    supported_modalities: list[ModalitySpec],
     modality_band_set_len_and_total_bands: dict[str, tuple[int, int]],
 ) -> None:
     """Test the full end to end forward pass of the model with an exit configuration."""
+    supported_modalities = [Modality.SENTINEL2, Modality.LATLON, Modality.WORLDCOVER]
+    token_exit_cfg = {"sentinel2": 3, "latlon": 0, "worldcover": 0}
     sentinel2_num_band_sets, sentinel2_num_bands = (
         modality_band_set_len_and_total_bands["sentinel2"]
     )
@@ -635,6 +640,8 @@ def test_end_to_end_with_exit_config(
     # Dummy latitude-longitude data.
     latlon = torch.randn(B, latlon_num_bands)
     latlon_mask = torch.ones(B, latlon_num_bands, dtype=torch.float32)
+    worldcover = torch.randn(B, H, W, 1, 1)
+    worldcover_mask = torch.zeros(B, H, W, 1, 1, dtype=torch.float32)
     # Generate valid timestamps:
     # - days: range 1..31,
     # - months: range 1..13,
@@ -649,6 +656,8 @@ def test_end_to_end_with_exit_config(
         "sentinel2_mask": sentinel2_mask,
         "latlon": latlon,
         "latlon_mask": latlon_mask,
+        "worldcover": worldcover,
+        "worldcover_mask": worldcover_mask,
         "timestamps": timestamps,
     }
     x = MaskedHeliosSample(**masked_sample_dict)
@@ -664,7 +673,6 @@ def test_end_to_end_with_exit_config(
     DROP_PATH = 0.1
     ENCODER_EMBEDDING_SIZE = 16
     DECODER_EMBEDDING_SIZE = 16
-    token_exit_cfg = {"sentinel2": 3, "latlon": 0}
     encoder = Encoder(
         supported_modalities=supported_modalities,
         embedding_size=ENCODER_EMBEDDING_SIZE,
@@ -725,4 +733,21 @@ def test_end_to_end_with_exit_config(
     assert output.latlon_mask.shape == (
         B,
         latlon_num_band_sets,
+    )
+    assert output.worldcover is not None
+    assert output.worldcover_mask is not None
+    assert output.worldcover.shape == (
+        B,
+        patched_H,
+        patched_W,
+        1,
+        1,
+        predictor.output_embedding_size,
+    )
+    assert output.worldcover_mask.shape == (
+        B,
+        patched_H,
+        patched_W,
+        1,
+        1,
     )
