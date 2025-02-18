@@ -7,18 +7,15 @@ from typing import NamedTuple
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from torch import Tensor, nn
-
 from helios.constants import BASE_GSD
 from helios.data.constants import Modality, ModalitySpec
 from helios.nn.attention import Block
-from helios.nn.encodings import (
-    get_1d_sincos_pos_encoding,
-    get_2d_sincos_pos_encoding_with_resolution,
-    get_month_encoding_table,
-)
+from helios.nn.encodings import (get_1d_sincos_pos_encoding,
+                                 get_2d_sincos_pos_encoding_with_resolution,
+                                 get_month_encoding_table)
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample, MaskValue
+from torch import Tensor, nn
 
 logger = logging.getLogger(__name__)
 
@@ -341,37 +338,44 @@ class FlexiHeliosCompositeEncodings(nn.Module):
                 f"timestamps, patch_size and input_res required for modality {modality}"
             )
 
-        if modality_tokens.ndim == 5:
-            raise NotImplementedError(
-                f"Modality {modality} has no time dimension, not implemented"
+        # TODO: this access needs to be fixed more generally w.r.t issue and modality spec defined properties
+        if modality == Modality.WORLDCOVER.name:
+            logger.info(
+                f"worldcover modality: {modality}, modality_tokens: {modality_tokens.shape}"
             )
-            # # worldcover should have no time dimension
-            # b, h, w, b_s, _ = modality_tokens.shape
-            # modality_channel_embed = self.per_modality_channel_embeddings[modality]
-            # modality_channel_embed = repeat(
-            #     modality_channel_embed, "b_s d -> b h w b_s d", b=b, h=h, w=w
-            # )
-            # gsd_ratio = self.calculate_gsd_ratio(input_res, patch_size)
-            # current_device = modality_tokens.device
-            # spatial_embed = get_2d_sincos_pos_encoding_with_resolution(
-            #     grid_size=h,
-            #     res=torch.ones(b, device=current_device) * gsd_ratio,
-            #     encoding_dim=self.embedding_dim_per_embedding_type,
-            #     device=current_device,
-            # )
-            # sp_zeros = torch.zeros(
-            #     b,
-            #     h,
-            #     w,
-            #     b_s,
-            #     self.embedding_dim_per_embedding_type * 2,
-            #     device=current_device,
-            # )
-            # spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
-            # spatial_embed = repeat(spatial_embed, "b h w d -> b h w b_s d", b_s=b_s)
-            # modality_embed = torch.cat(
-            #     [modality_channel_embed, sp_zeros, spatial_embed], dim=-1
-            # )
+            b, h, w, t, b_s, _ = modality_tokens.shape
+
+            # Channel embeddings
+            modality_channel_embed = self.per_modality_channel_embeddings[modality]
+            modality_channel_embed = repeat(
+                modality_channel_embed, "b_s d -> b h w t b_s d", b=b, h=h, w=w, t=t
+            )
+
+            # Spatial encodings
+            gsd_ratio = self.calculate_gsd_ratio(input_res, patch_size)
+            current_device = modality_tokens.device
+            spatial_embed = get_2d_sincos_pos_encoding_with_resolution(
+                grid_size=h,
+                res=torch.ones(b, device=current_device) * gsd_ratio,
+                encoding_dim=self.embedding_dim_per_embedding_type,
+                device=current_device,
+            )
+            spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
+            spatial_embed = repeat(
+                spatial_embed, "b h w d -> b h w t b_s d", b_s=b_s, t=t
+            )
+            sp_zeros = torch.zeros(
+                b,
+                h,
+                w,
+                t,
+                b_s,
+                self.embedding_dim_per_embedding_type * 2,
+                device=current_device,
+            )
+            modality_embed = torch.cat(
+                [modality_channel_embed, sp_zeros, spatial_embed], dim=-1
+            )
         elif modality_tokens.ndim == 6:
             b, h, w, t, b_s, _ = modality_tokens.shape
 
@@ -408,6 +412,9 @@ class FlexiHeliosCompositeEncodings(nn.Module):
             )
 
             # Combine all encodings
+            logger.info(
+                f" modality: {modality}, modality_channel_embed: {modality_channel_embed.shape}, modality_pos_embed: {modality_pos_embed.shape}, modality_month_embed: {modality_month_embed.shape}, spatial_embed: {spatial_embed.shape}"
+            )
             modality_embed = torch.cat(
                 [
                     modality_channel_embed,
