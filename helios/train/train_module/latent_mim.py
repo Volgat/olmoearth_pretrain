@@ -47,6 +47,8 @@ class LatentMIMTrainModuleConfig(HeliosTrainModuleConfig):
         default_factory=lambda: MaskingConfig(strategy_config={"type": "random"})
     )
     ema_decay: float = 0.99
+    # TODO: currently causes runs to fail
+    # max_grad_norm: float = 1.0
 
     def build(
         self,
@@ -108,7 +110,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
         device: torch.device | None = None,
         state_dict_save_opts: dist_cp_sd.StateDictOptions | None = None,
         state_dict_load_opts: dist_cp_sd.StateDictOptions | None = None,
-        ema_decay: float = 0.99,
+        ema_decay: float = 0.999,
     ):
         """Initialize the training module.
 
@@ -184,7 +186,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
         self.trainer.record_metric(
             TRAIN_PATCH_DISC_LOSS_METRIC,
             loss / get_world_size(self.dp_process_group),
-            ReduceType.sum,
+            ReduceType.mean,
         )
 
         # Backpropagate and optimize
@@ -192,6 +194,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
             loss.backward()
         # Update target encoder with EMA this should be a callback
         with torch.no_grad():
+            logger.info(f"Using ema decay {self.ema_decay}")
             for param, target_param in zip(
                 self.model.encoder.parameters(), self.model.target_encoder.parameters()
             ):
