@@ -7,23 +7,19 @@ from typing import Any
 import numpy as np
 import torch
 import torch.distributed.checkpoint.state_dict as dist_cp_sd
+from helios.data.dataset import HeliosSample
+from helios.train.loss import LossConfig
+from helios.train.masking import MaskedHeliosSample, MaskingConfig
+from helios.train.train_module.train_module import (HeliosTrainModule,
+                                                    HeliosTrainModuleConfig)
 from olmo_core.distributed.parallel import DataParallelConfig
 from olmo_core.distributed.utils import get_world_size
 from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import ReduceType
-from olmo_core.train.train_module.transformer import (
-    TransformerActivationCheckpointingConfig,
-)
-
-from helios.data.dataset import HeliosSample
-from helios.train.loss import LossConfig
-from helios.train.masking import MaskedHeliosSample, MaskingConfig
-from helios.train.train_module.train_module import (
-    HeliosTrainModule,
-    HeliosTrainModuleConfig,
-)
+from olmo_core.train.train_module.transformer import \
+    TransformerActivationCheckpointingConfig
 
 logger = getLogger(__name__)
 
@@ -173,14 +169,15 @@ class LatentMIMTrainModule(HeliosTrainModule):
         h_w_to_sample = list(
             range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
         )
-
+        logger.info(f"Batch: {batch.as_dict().keys()}")
         patch_size = np.random.choice(np.arange(1, self.model.encoder.max_patch_size))
         logger.info(f"Patch size: {patch_size}")
         subsampled_batch = batch.subset(patch_size, token_budget, h_w_to_sample)
-
+        logger.info(f"Subsampled batch: {subsampled_batch.as_dict().keys()}")
         subsampled_batch = subsampled_batch.to_device(self.device)
         logger.info(f"subsampled batch: input {subsampled_batch.sentinel2.shape}")
         masked_batch = self.masking_strategy.apply_mask(subsampled_batch)
+        logger.info(f"masked batch: {masked_batch.modalities}")
         logger.info(
             f"masked batch: input {masked_batch.sentinel2.shape} and mask {masked_batch.sentinel2_mask.shape}"
         )

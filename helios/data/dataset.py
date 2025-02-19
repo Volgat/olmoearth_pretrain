@@ -14,30 +14,21 @@ import numpy as np
 import pandas as pd
 import torch
 from einops import rearrange
+from helios.data.constants import (BASE_RESOLUTION, IMAGE_TILE_SIZE,
+                                   TIMESTAMPS, Modality, ModalitySpec,
+                                   TimeSpan)
+from helios.data.normalize import NORMALIZE_STRATEGY, Normalizer, Strategy
+from helios.data.utils import convert_to_db
+from helios.dataset.parse import ModalityTile, parse_helios_dataset
+from helios.dataset.sample import (SampleInformation, image_tiles_to_samples,
+                                   load_image_for_sample)
+from helios.types import ArrayTensor
 from olmo_core.aliases import PathOrStr
 from olmo_core.config import Config
 from olmo_core.distributed.utils import get_fs_local_rank
 from pyproj import Transformer
 from torch.utils.data import Dataset
 from upath import UPath
-
-from helios.data.constants import (
-    BASE_RESOLUTION,
-    IMAGE_TILE_SIZE,
-    TIMESTAMPS,
-    Modality,
-    ModalitySpec,
-    TimeSpan,
-)
-from helios.data.normalize import NORMALIZE_STRATEGY, Normalizer, Strategy
-from helios.data.utils import convert_to_db
-from helios.dataset.parse import ModalityTile, parse_helios_dataset
-from helios.dataset.sample import (
-    SampleInformation,
-    image_tiles_to_samples,
-    load_image_for_sample,
-)
-from helios.types import ArrayTensor
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +263,7 @@ def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
     # Stack tensors while handling None values
     def stack_or_none(attr: str) -> torch.Tensor | None:
         """Stack the tensors while handling None values."""
-        if batch[0].__getattribute__(attr) is None:
+        if getattr(batch[0], attr) is None:
             # TODO: THis will need to updated to handle sometimes missing modalities
             return None
         return torch.stack(
@@ -282,7 +273,7 @@ def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
     return HeliosSample(
         sentinel2=stack_or_none("sentinel2"),
         sentinel1=stack_or_none("sentinel1"),
-        # worldcover=stack_or_none("worldcover"),
+        worldcover=stack_or_none("worldcover"),
         latlon=stack_or_none("latlon"),
         timestamps=stack_or_none("timestamps"),
     )
@@ -377,12 +368,46 @@ class HeliosDataset(Dataset):
         """Prepare the dataset."""
         len(self)
 
+    def _log_modality_distribution(self, samples: list[SampleInformation]) -> None:
+        """Log the modality distribution."""
+        # Log modality distribution
+        modality_counts = {}
+        modality_combinations = {}
+
+        for sample in samples:
+            # Count individual modalities
+            for modality in sample.modalities:
+                modality_counts[modality.name] = (
+                    modality_counts.get(modality.name, 0) + 1
+                )
+
+            # Count modality combinations
+            combination = frozenset(m.name for m in sample.modalities)
+            modality_combinations[combination] = (
+                modality_combinations.get(combination, 0) + 1
+            )
+
+        # Log individual modality counts
+        for modality, count in modality_counts.items():
+            percentage = (count / len(samples)) * 100
+            logger.info(f"Modality {modality}: {count} samples ({percentage:.1f}%)")
+
+        # Log modality combinations
+        logger.info("\nModality combinations:")
+        for combination, count in modality_combinations.items():
+            percentage = (count / len(samples)) * 100
+            logger.info(
+                f"{'+'.join(sorted(combination))}: {count} samples ({percentage:.1f}%)"
+            )
+
     def _get_samples(self) -> list[SampleInformation]:
         """Get the samples from the raw dataset (image tile directory)."""
         tiles = parse_helios_dataset(self.tile_path)
         logger.info(f"Total tiles: {len(tiles)}")
         samples = image_tiles_to_samples(tiles)
         logger.info(f"Total samples: {len(samples)}")
+        logger.info(f"Distribution of samples before filtering:\n")
+        self._log_modality_distribution(samples)
         return samples
 
     def _filter_samples(
@@ -402,6 +427,12 @@ class HeliosDataset(Dataset):
                 modality in sample.modalities
                 for modality in self.supported_modalities
                 if not modality.ignore_when_parsing
+            ):
+                continue
+            if not all(
+                modality in sample.modalities
+                for modality in self.supported_modalities
+                if modality != Modality.LATLON
             ):
                 continue
             # check if sample modalities have s1 and s2
@@ -427,6 +458,8 @@ class HeliosDataset(Dataset):
                 continue
             filtered_samples.append(sample)
         logger.info(f"Number of samples after filtering: {len(filtered_samples)}")
+        logger.info(f"Distribution of samples after filtering:")
+        self._log_modality_distribution(filtered_samples)
         return filtered_samples
 
     def _get_latlon(self, sample: SampleInformation) -> np.ndarray:
@@ -482,6 +515,8 @@ class HeliosDataset(Dataset):
         """Get the item at the given index."""
         sample = self.samples[index]
         sample_dict = {}
+        if Modality.WORLDCOVER not in sample.modalities:
+            raise ValueError("Worldcover is not present in the sample")
         for modality in sample.modalities:
             sample_modality = sample.modalities[modality]
             image = self.load_sample(sample_modality, sample)
@@ -496,6 +531,13 @@ class HeliosDataset(Dataset):
                 sample_dict["latlon"] = self._get_latlon(sample).astype(self.dtype)
                 sample_dict["timestamps"] = self._get_timestamps(sample)
 
+        for modality, data in sample_dict.items():
+            if data is None:
+                logger.info(f"{modality} is None")
+                raise ValueError(f"{modality} is None")
+            if modality == Modality.WORLDCOVER:
+                logger.info(f"{modality.name} shape: {data.shape}")
+        logger.info(f"Sample dict: {sample_dict.keys()}")
         return HeliosSample(**sample_dict)
 
 
@@ -523,6 +565,30 @@ class HeliosDatasetConfig(Config):
             raise ValueError("Supported modalities are not set")
 
     def build(self) -> "HeliosDataset":
+        """Build the dataset."""
+        self.validate()
+        return HeliosDataset(
+            tile_path=self.tile_path,
+            supported_modalities=self.supported_modalities,
+            samples=self.samples,
+            dtype=self.dtype,
+        )
+        """Build the dataset."""
+        self.validate()
+        return HeliosDataset(
+            tile_path=self.tile_path,
+            supported_modalities=self.supported_modalities,
+            samples=self.samples,
+            dtype=self.dtype,
+        )
+        """Build the dataset."""
+        self.validate()
+        return HeliosDataset(
+            tile_path=self.tile_path,
+            supported_modalities=self.supported_modalities,
+            samples=self.samples,
+            dtype=self.dtype,
+        )
         """Build the dataset."""
         self.validate()
         return HeliosDataset(
