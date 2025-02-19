@@ -38,7 +38,7 @@ if __name__ == "__main__":
     WANDB_USERNAME = "eai-ai2"  # nosec
     WANDB_PROJECT = "helios-debug"
     # PER EXPERIMENT Variables
-    LR = 1e-4
+    LR = .0001
     GLOBAL_BATCH_SIZE = 32
     RANK_BATCH_SIZE = 32
     MAX_DURATION = Duration.epochs(10)
