@@ -10,7 +10,6 @@ from olmo_core.optim import AdamWConfig
 from olmo_core.optim.scheduler import ConstantWithWarmup
 from olmo_core.train import prepare_training_environment, teardown_training_environment
 from olmo_core.train.callbacks import (
-    CheckpointerCallback,
     GPUMemoryMonitorCallback,
     WandBCallback,
 )
@@ -192,19 +191,11 @@ if __name__ == "__main__":
             cancel_check_interval=CANCEL_CHECK_INTERVAL,
             metrics_collect_interval=METRICS_COLLECT_INTERVAL,
             max_duration=MAX_DURATION,
-            # checkpointer=checkpointer_config,
+            checkpointer=checkpointer_config,
         )
         .with_callback("wandb", wandb_callback)
         .with_callback("speed_monitor", HeliosSpeedMonitorCallback())
         .with_callback("gpu_memory_monitor", GPUMemoryMonitorCallback())
-        .with_callback(
-            "checkpoint",
-            CheckpointerCallback(
-                save_interval=10,
-                ephemeral_save_interval=5,
-            ),
-        )
-        # .with_callback("profiler", ProfilerCallback())
     )
     trainer = trainer_config.build(
         train_module=train_module,
@@ -221,7 +212,7 @@ if __name__ == "__main__":
     from helios.evals.embeddings import get_embeddings
     from helios.evals.knn import run_knn
 
-    geobench_dir = UPath("/weka/skylight-default/presto-geobench/dataset/geobench")
+    geobench_dir = UPath("/weka/dfive-default/presto-geobench/dataset/geobench")
 
     common_args = {"geobench_dir": geobench_dir, "dataset": "m-eurosat"}
     train_ds = GeobenchDataset(geobench_dir, "m-eurosat", "train", "default")
