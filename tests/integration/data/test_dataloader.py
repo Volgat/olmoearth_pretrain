@@ -14,13 +14,11 @@ def test_helios_dataloader(
     """Test the HeliosDataloader class."""
     prepare_samples, supported_modalities = prepare_samples_and_supported_modalities
     samples = prepare_samples(tmp_path)
-<<<<<<< HEAD
     dataset = HeliosDataset(
-        *samples, path=tmp_path, supported_modalities=supported_modalities
+        samples=samples,
+        tile_path=tmp_path,
+        supported_modalities=supported_modalities,
     )
-=======
-    dataset = HeliosDataset(*samples, tile_path=tmp_path)
->>>>>>> mypy
     assert isinstance(dataset, HeliosDataset)
     dataloader = HeliosDataLoader(
         dataset=dataset,

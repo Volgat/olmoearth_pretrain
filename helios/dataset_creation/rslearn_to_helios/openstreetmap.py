@@ -22,10 +22,7 @@ from rslearn.utils.vector_format import GeojsonCoordinateMode, GeojsonVectorForm
 from upath import UPath
 
 from helios.data.constants import Modality, TimeSpan
-<<<<<<< HEAD
 from helios.dataset.util import get_modality_fname
-=======
->>>>>>> finish s1/s2
 
 from ..constants import METADATA_COLUMNS
 from ..util import get_modality_temp_meta_fname, get_window_metadata
@@ -71,11 +68,7 @@ def convert_openstreetmap(window_path: UPath, helios_path: UPath) -> None:
     # Upload the data.
     dst_fname = get_modality_fname(
         helios_path,
-<<<<<<< HEAD
         Modality.OPENSTREETMAP,
-=======
-        Modality.OSM,
->>>>>>> finish s1/s2
         TimeSpan.STATIC,
         window_metadata,
         RESOLUTION,
@@ -90,11 +83,7 @@ def convert_openstreetmap(window_path: UPath, helios_path: UPath) -> None:
 
     # Create the metadata file for this data.
     metadata_fname = get_modality_temp_meta_fname(
-<<<<<<< HEAD
         helios_path, Modality.OPENSTREETMAP, TimeSpan.STATIC, window.name
-=======
-        helios_path, Modality.OSM, TimeSpan.STATIC, window.name
->>>>>>> finish s1/s2
     )
     metadata_fname.parent.mkdir(parents=True, exist_ok=True)
     with metadata_fname.open("w") as f:

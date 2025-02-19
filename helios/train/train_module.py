@@ -496,13 +496,11 @@ class HeliosTrainModule(TrainModule):
         """Run a forward pass."""
         with self._model_forward_context():
             decoded = self.model.forward(batch, patch_size=patch_size)
-
             with torch.no_grad():
                 logger.info("target encoder running here")
                 target_output = self.model.target_encoder.forward(
                     batch.unmask(), patch_size=patch_size
                 )
-
             loss = self.loss_fn(decoded, target_output)
             return decoded, loss
 

@@ -17,15 +17,11 @@ def test_helios_dataset(
     """Test the HeliosDataset class."""
     prepare_samples, supported_modalities = prepare_samples_and_supported_modalities
     samples = prepare_samples(tmp_path)
-<<<<<<< HEAD
     dataset = HeliosDataset(
-        *samples,
-        path=tmp_path,
+        samples=samples,
+        tile_path=tmp_path,
         supported_modalities=supported_modalities,
     )
-=======
-    dataset = HeliosDataset(*samples, tile_path=tmp_path)
->>>>>>> mypy
     dataset.prepare()
 
     assert len(dataset) == 1

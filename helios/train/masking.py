@@ -198,13 +198,6 @@ MASKING_STRATEGY_REGISTRY = ClassRegistry[MaskingStrategy]()
 class RandomMaskingStrategy(MaskingStrategy):
     """Randomly masks the input data."""
 
-<<<<<<< HEAD
-    def __init__(self) -> None:
-        """Create a new RandomMaskingStrategy."""
-        # Use fixed seed for reproducibility.
-        self.generator = np.random.default_rng(0)
-
-=======
     def __init__(
         self,
         encode_ratio: float = 0.5,
@@ -213,20 +206,17 @@ class RandomMaskingStrategy(MaskingStrategy):
         """Initialize the masking strategy."""
         self.encode_ratio = encode_ratio
         self.decode_ratio = decode_ratio
+        self.generator = np.random.default_rng(0)
 
-    @staticmethod
->>>>>>> fix encoder and decoder ratio
     def _create_mask_per_static_modality(
         self,
         b: int,
-        encode_ratio: float,
-        decode_ratio: float,
         num_band_sets: int,
         return_tensor_device: torch.device | None = None,
     ) -> ArrayTensor:
         num_tokens_per_instance = int(b * num_band_sets)
-        num_encode_tokens = int(num_tokens_per_instance * encode_ratio)
-        num_decode_tokens = int(num_tokens_per_instance * decode_ratio)
+        num_encode_tokens = int(num_tokens_per_instance * self.encode_ratio)
+        num_decode_tokens = int(num_tokens_per_instance * self.decode_ratio)
         num_target_encode_tokens = int(
             num_tokens_per_instance - (num_encode_tokens + num_decode_tokens)
         )
@@ -253,14 +243,12 @@ class RandomMaskingStrategy(MaskingStrategy):
         h: int,
         w: int,
         t: int,
-        encode_ratio: float,
-        decode_ratio: float,
         num_bands: int,
         return_tensor_device: torch.device | None = None,
     ) -> ArrayTensor:
         num_tokens_per_instance = int(h * w * t * num_bands)
-        num_encode_tokens = int(num_tokens_per_instance * encode_ratio)
-        num_decode_tokens = int(num_tokens_per_instance * decode_ratio)
+        num_encode_tokens = int(num_tokens_per_instance * self.encode_ratio)
+        num_decode_tokens = int(num_tokens_per_instance * self.decode_ratio)
         num_target_encode_tokens = int(
             num_tokens_per_instance - (num_encode_tokens + num_decode_tokens)
         )
@@ -296,15 +284,13 @@ class RandomMaskingStrategy(MaskingStrategy):
         b: int,
         h: int,
         w: int,
-        encode_ratio: float,
-        decode_ratio: float,
         num_bands: int,
         return_tensor_device: torch.device | None = None,
     ) -> ArrayTensor:
         """Create a mask for a space modality."""
         num_tokens_per_instance = int(h * w * num_bands)
-        num_encode_tokens = int(num_tokens_per_instance * encode_ratio)
-        num_decode_tokens = int(num_tokens_per_instance * decode_ratio)
+        num_encode_tokens = int(num_tokens_per_instance * self.encode_ratio)
+        num_decode_tokens = int(num_tokens_per_instance * self.decode_ratio)
         num_target_encode_tokens = int(
             num_tokens_per_instance - (num_encode_tokens + num_decode_tokens)
         )
@@ -354,58 +340,15 @@ class RandomMaskingStrategy(MaskingStrategy):
         Returns:
             MaskedHeliosSample containing the masked data and mask
         """
-<<<<<<< HEAD
-        # should these not be kwargs but instead be explicitly
-        encode_ratio: float = kwargs["encode_ratio"]
-        decode_ratio: float = kwargs["decode_ratio"]
-
         output_dict: dict[str, ArrayTensor | None] = {}
-=======
-        output_dict = {}
->>>>>>> fix encoder and decoder ratio
         for modality_name in batch._fields:
             modality = getattr(batch, modality_name)
-<<<<<<< HEAD
             if modality is None:
                 # set modality and mask to None
                 output_dict[modality_name] = None
                 output_dict[
                     MaskedHeliosSample.get_masked_modality_name(modality_name)
                 ] = None
-=======
-            if modality_name == "timestamps":
-                output_dict[modality_name] = modality
-                continue
-
-            if isinstance(modality, torch.Tensor):
-                return_device: torch.device | None = modality.device
-            else:
-                return_device = None
-            logger.info(f"Modality name: {modality_name} shape: {modality.shape}")
-            num_bands = Modality.get(modality_name).num_bands
-            if len(modality.shape) == 5:
-                b, h, w, t, c = modality.shape
-
-                mask = self._create_mask_per_space_time_modality(
-                    b,
-                    h,
-                    w,
-                    t,
-                    self.encode_ratio,
-                    self.decode_ratio,
-                    num_bands,
-                    return_device,
-                )
-            elif len(modality.shape) == 2:
-                b = modality.shape[0]
-                mask = self._create_mask_per_static_modality(
-                    b,
-                    self.encode_ratio,
-                    self.decode_ratio,
-                    num_bands,
-                    return_device,
-                )
->>>>>>> fix encoder and decoder ratio
             else:
                 if modality_name == "timestamps":
                     output_dict[modality_name] = modality
@@ -423,8 +366,6 @@ class RandomMaskingStrategy(MaskingStrategy):
                         b,
                         h,
                         w,
-                        encode_ratio,
-                        decode_ratio,
                         num_bands,
                         return_device,
                     )
@@ -435,8 +376,6 @@ class RandomMaskingStrategy(MaskingStrategy):
                         h,
                         w,
                         t,
-                        encode_ratio,
-                        decode_ratio,
                         num_bands,
                         return_device,
                     )
@@ -444,8 +383,6 @@ class RandomMaskingStrategy(MaskingStrategy):
                     b = modality.shape[0]
                     mask = self._create_mask_per_static_modality(
                         b,
-                        encode_ratio,
-                        decode_ratio,
                         num_bands,
                         return_device,
                     )

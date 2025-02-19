@@ -4,8 +4,8 @@ import hashlib
 import logging
 import tempfile
 from collections.abc import Sequence
-from math import floor
 from dataclasses import dataclass
+from math import floor
 from pathlib import Path
 from random import choice
 from typing import NamedTuple
@@ -208,7 +208,7 @@ class HeliosSample(NamedTuple):
         patch_size: the patch size being applied to this sample
         max_tokens_per_instance: the token budget when subsetting. This is used
             to determine the maximum number of timesteps possible for a given
-            height and width
+            height and width.
         hw_to_sample: possible values for the number of tokens in the height and width
             dimensions.
 
@@ -293,10 +293,10 @@ class HeliosDataset(Dataset):
 
     def __init__(
         self,
-        supported_modalities: list[ModalitySpec],
         tile_path: UPath,
-        *samples: SampleInformation | None,
+        supported_modalities: list[ModalitySpec],
         dtype: np.dtype = np.float32,
+        samples: list[SampleInformation] | None = None,
     ):
         """Initialize the dataset.
 
@@ -306,18 +306,19 @@ class HeliosDataset(Dataset):
             :meth:`prepare()` in the main process before doing anything else.
 
         Args:
-            samples: The samples to include in the dataset.
+            supported_modalities: The modalities to include in the dataset.
             tile_path: The path to the raw dataset (image tile directory).
+            samples: The samples to include in the dataset.
             dtype: The dtype of the data.
         """
         self.tile_path = tile_path
-        # If no samples are provided, get them from the tile directory
+        self.supported_modalities = supported_modalities
+        # Note: if samples are provided, use them, if not, get them from the tile directory
         if not samples:
             samples = self._get_samples()  # type: ignore
         if len(samples) == 0:
             raise ValueError("No samples provided")
         self.samples = self._filter_samples(samples)  # type: ignore
-        self.supported_modalities = supported_modalities
         self.dtype = dtype
 
         # Initialize both normalizers for different modalities
@@ -503,6 +504,7 @@ class HeliosDatasetConfig(Config):
     """Configuration for the HeliosDataset."""
 
     tile_path: UPath
+    supported_modalities: list[ModalitySpec]
     samples: list[SampleInformation] | None = None
     dtype: np.dtype = np.float32
 
@@ -517,12 +519,15 @@ class HeliosDatasetConfig(Config):
             raise ValueError("Tile directory is not set")
         if not self.tile_path.exists():
             raise ValueError("Tile directory does not exist")
+        if not self.supported_modalities:
+            raise ValueError("Supported modalities are not set")
 
     def build(self) -> "HeliosDataset":
         """Build the dataset."""
         self.validate()
         return HeliosDataset(
-            *(self.samples or []),
             tile_path=self.tile_path,
+            supported_modalities=self.supported_modalities,
+            samples=self.samples,
             dtype=self.dtype,
         )

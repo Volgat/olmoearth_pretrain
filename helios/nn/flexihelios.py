@@ -470,7 +470,6 @@ class FlexiHeliosBase(nn.Module):
     def __init__(
         self,
         embedding_size: int,
-        max_patch_size: int,
         max_sequence_length: int,
         use_channel_embs: bool,
         num_heads: int,
@@ -478,7 +477,7 @@ class FlexiHeliosBase(nn.Module):
         depth: int,
         drop_path: float,
         supported_modalities: list[ModalitySpec],
-    ):
+    ) -> None:
         """Initialize the FlexiHeliosBase class."""
         super().__init__()
 
@@ -488,7 +487,6 @@ class FlexiHeliosBase(nn.Module):
 
         self.max_sequence_length = max_sequence_length
         self.use_channel_embs = use_channel_embs
-        self.max_patch_size = max_patch_size
 
         self.blocks = nn.ModuleList(
             [
@@ -652,7 +650,6 @@ class Encoder(FlexiHeliosBase):
         """
         super().__init__(
             embedding_size=embedding_size,
-            max_patch_size=max_patch_size,
             depth=depth,
             mlp_ratio=mlp_ratio,
             num_heads=num_heads,
@@ -961,12 +958,8 @@ class Predictor(FlexiHeliosBase):
             mlp_ratio=mlp_ratio,
             num_heads=num_heads,
             max_sequence_length=max_sequence_length,
-<<<<<<< HEAD
-            max_patch_size=max_patch_size,
-=======
->>>>>>> remove unused BASE_GSD
-            use_channel_embs=learnable_channel_embeddings,
             drop_path=drop_path,
+            use_channel_embs=learnable_channel_embeddings,
             supported_modalities=supported_modalities,
         )
         self.learnable_channel_embeddings = learnable_channel_embeddings
@@ -1206,7 +1199,7 @@ class Predictor(FlexiHeliosBase):
 class EncoderConfig(Config):
     """Configuration for the Encoder."""
 
-    supported_modalities: list[str]
+    supported_modalities: list[ModalitySpec]
     embedding_size: int = 16
     # This is the base patch size for the patch embedder
     # The actual patch size applied can be different
@@ -1247,7 +1240,7 @@ class EncoderConfig(Config):
 class PredictorConfig(Config):
     """Configuration for the Predictor."""
 
-    supported_modalities: list[str]
+    supported_modalities: list[ModalitySpec]
     encoder_embedding_size: int = 16
     decoder_embedding_size: int = 16
     depth: int = 2
