@@ -14,21 +14,30 @@ import numpy as np
 import pandas as pd
 import torch
 from einops import rearrange
-from helios.data.constants import (BASE_RESOLUTION, IMAGE_TILE_SIZE,
-                                   TIMESTAMPS, Modality, ModalitySpec,
-                                   TimeSpan)
-from helios.data.normalize import NORMALIZE_STRATEGY, Normalizer, Strategy
-from helios.data.utils import convert_to_db
-from helios.dataset.parse import ModalityTile, parse_helios_dataset
-from helios.dataset.sample import (SampleInformation, image_tiles_to_samples,
-                                   load_image_for_sample)
-from helios.types import ArrayTensor
 from olmo_core.aliases import PathOrStr
 from olmo_core.config import Config
 from olmo_core.distributed.utils import get_fs_local_rank
 from pyproj import Transformer
 from torch.utils.data import Dataset
 from upath import UPath
+
+from helios.data.constants import (
+    BASE_RESOLUTION,
+    IMAGE_TILE_SIZE,
+    TIMESTAMPS,
+    Modality,
+    ModalitySpec,
+    TimeSpan,
+)
+from helios.data.normalize import NORMALIZE_STRATEGY, Normalizer, Strategy
+from helios.data.utils import convert_to_db
+from helios.dataset.parse import ModalityTile, parse_helios_dataset
+from helios.dataset.sample import (
+    SampleInformation,
+    image_tiles_to_samples,
+    load_image_for_sample,
+)
+from helios.types import ArrayTensor
 
 logger = logging.getLogger(__name__)
 
@@ -516,8 +525,6 @@ class HeliosDataset(Dataset):
         """Get the item at the given index."""
         sample = self.samples[index]
         sample_dict = {}
-        if Modality.WORLDCOVER not in sample.modalities:
-            raise ValueError("Worldcover is not present in the sample")
         for modality in sample.modalities:
             sample_modality = sample.modalities[modality]
             image = self.load_sample(sample_modality, sample)
