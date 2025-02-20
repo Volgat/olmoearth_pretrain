@@ -1,12 +1,12 @@
 version: v2
 budget: ai2/d5
-description: Helios test pre-empt
+description: Helios no warmup
 tasks:
   # We only have one step in our experiment, so there's only one entry in this list
   - name: training
     image:
       # You will want to replace `username` below with your Beaker username
-      beaker: henryh/henryh-helios-9-20250219
+      beaker: henryh/henryh-helios-20250219-real-model-size-2
     command: [ torchrun , latent_mim.py ]
     result:
       # Beaker will capture anything that's written to this location and store it in the results
