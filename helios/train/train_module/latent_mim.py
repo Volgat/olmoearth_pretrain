@@ -44,7 +44,7 @@ class LatentMIMTrainModuleConfig(HeliosTrainModuleConfig):
     masking_config: MaskingConfig = field(
         default_factory=lambda: MaskingConfig(strategy_config={"type": "random"})
     )
-    ema_decay: float = 0.999
+    ema_decay: tuple[float, float] = (0.996, 1.0)
     max_grad_norm: float = 1.0
 
     def build(
