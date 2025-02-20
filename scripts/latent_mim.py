@@ -43,6 +43,7 @@ if __name__ == "__main__":
     WANDB_USERNAME = "eai-ai2"  # nosec
     WANDB_PROJECT = "helios-debug"
     run_name = f"helios-test-no-worldcover-2M-{str(uuid.uuid4())[:8]}"
+
     # PER EXPERIMENT Variables
     LR = 0.0001
     GLOBAL_BATCH_SIZE = 32
@@ -77,6 +78,9 @@ if __name__ == "__main__":
     ENCODER_NUM_HEADS = 8
     DECODER_NUM_HEADS = 8
     MLP_RATIO = 4.0
+    MAX_SEQUENCE_LENGTH = 12
+    DROP_PATH = 0.1
+    MAX_GRAD_NORM = 1.0
 
     LOSS_TYPE = "patch_discrimination"
 
@@ -97,7 +101,6 @@ if __name__ == "__main__":
     logger.info("Starting Helios training")
 
     #################### Configs for model ####################
-    # TODO: build encoder_small, encoder_base, encoder_large, etc. Same for decoder
     encoder_config = EncoderConfig(
         supported_modalities=SUPPORTED_MODALITIES,
         embedding_size=ENCODER_EMBEDDING_SIZE,
@@ -105,8 +108,8 @@ if __name__ == "__main__":
         num_heads=ENCODER_NUM_HEADS,
         depth=ENCODER_DEPTH,
         mlp_ratio=MLP_RATIO,
-        drop_path=0.1,
-        max_sequence_length=12,
+        drop_path=DROP_PATH,
+        max_sequence_length=MAX_SEQUENCE_LENGTH,
         use_channel_embs=True,
     )
     decoder_config = PredictorConfig(
@@ -115,7 +118,7 @@ if __name__ == "__main__":
         depth=DECODER_DEPTH,
         mlp_ratio=MLP_RATIO,
         num_heads=DECODER_NUM_HEADS,
-        max_sequence_length=12,
+        max_sequence_length=MAX_SEQUENCE_LENGTH,
         supported_modalities=SUPPORTED_MODALITIES,
         learnable_channel_embeddings=True,
     )
@@ -154,7 +157,7 @@ if __name__ == "__main__":
         masking_config=masking_config,
         loss_config=loss_config,
         rank_batch_size=RANK_BATCH_SIZE,
-        max_grad_norm=1.0,
+        max_grad_norm=MAX_GRAD_NORM,
         scheduler=scheduler,
     )
     train_module = train_module_config.build(model=model)
