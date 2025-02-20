@@ -202,7 +202,7 @@ if __name__ == "__main__":
             "downstream_evaluator",
             DownstreamEvaluatorCallbackConfig(
                 tasks=["m-eurosat"],
-                eval_interval=50,
+                eval_interval=1,
             ),
         )
     )
