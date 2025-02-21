@@ -1,23 +1,41 @@
 """Transformations for the HeliosSample."""
 
 import random
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import torchvision.transforms.v2.functional as F
+from class_registry import ClassRegistry
 from einops import rearrange
+from olmo_core.config import Config
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.types import ArrayTensor
 
 
-class Transform:
+class Transform(ABC):
     """A transform that can be applied to a HeliosSample."""
+
+    @abstractmethod
+    def apply(self, batch: HeliosSample) -> "HeliosSample":
+        """Apply the transform to the batch."""
+        pass
+
+
+TRANSFORM_REGISTRY = ClassRegistry[Transform]()
+
+
+@TRANSFORM_REGISTRY.register("no_transform")
+class NoTransform(Transform):
+    """No transformation."""
 
     def apply(self, batch: HeliosSample) -> "HeliosSample":
         """Apply the transform to the batch."""
         return batch
 
 
+@TRANSFORM_REGISTRY.register("flip_and_rotate")
 class FlipAndRotateSpace(Transform):
     """Choose 1 of 8 transformations and apply it to data that is space varying."""
 
@@ -90,3 +108,14 @@ class FlipAndRotateSpace(Transform):
                 new_data_dict[attribute] = modality_data
         # Return the transformed sample
         return HeliosSample(**new_data_dict)
+
+
+@dataclass
+class TransformConfig(Config):
+    """Configuration for the transform."""
+
+    transform_type: str = "no_transform"
+
+    def build(self) -> Transform:
+        """Build the transform."""
+        return TRANSFORM_REGISTRY.get_class(self.transform_type)()
