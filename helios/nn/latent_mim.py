@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import torch.nn as nn
 from olmo_core.config import Config
 
+from helios.data.transform import Transform, TransformConfig
 from helios.nn.flexihelios import EncoderConfig, PredictorConfig, TokensAndMasks
 from helios.train.masking import MaskedHeliosSample
 
@@ -17,6 +18,7 @@ class LatentMIM(nn.Module):
         self,
         encoder: nn.Module,
         decoder: nn.Module,
+        transform: Transform,
         token_budget: int = 1500,
         h_w_to_sample_min: int = 2,
         h_w_to_sample_max: int = 13,
@@ -26,6 +28,7 @@ class LatentMIM(nn.Module):
         Args:
             encoder: The encoder to use.
             decoder: The decoder to use.
+            transform: The transform to use.
             token_budget: The token budget to use.
             h_w_to_sample_min: The minimum height and width to sample.
             h_w_to_sample_max: The maximum height and width to sample.
@@ -37,6 +40,7 @@ class LatentMIM(nn.Module):
         for p in self.target_encoder.parameters():
             p.requires_grad = False
         self.token_budget = token_budget
+        self.transform = transform
         self.h_w_to_sample_min = h_w_to_sample_min
         self.h_w_to_sample_max = h_w_to_sample_max
 
@@ -54,6 +58,7 @@ class LatentMIMConfig(Config):
 
     encoder_config: "EncoderConfig"
     decoder_config: "PredictorConfig"
+    transform_type: str = "no_transform"
     token_budget: int = 1500
     h_w_to_sample_min: int = 2
     h_w_to_sample_max: int = 13
@@ -83,7 +88,9 @@ class LatentMIMConfig(Config):
         self.validate()
         encoder = self.encoder_config.build()
         decoder = self.decoder_config.build()
+        transform = TransformConfig(transform_type=self.transform_type).build()
         return LatentMIM(
             encoder=encoder,
             decoder=decoder,
+            transform=transform,
         )

@@ -287,13 +287,6 @@ class Modality:
         return [modality.name for modality in self.values()]
 
 
-# Modalities to ingest image tiles
-SUPPORTED_MODALITIES = [
-    Modality.SENTINEL1,
-    Modality.SENTINEL2,
-    Modality.WORLDCOVER,
-]
-
 # Latlon and timestamps
 LATLON = ["lat", "lon"]
 TIMESTAMPS = ["day", "month", "year"]

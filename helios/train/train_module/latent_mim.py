@@ -168,6 +168,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
             range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
         )
         patch_size = np.random.choice(np.arange(1, self.model.encoder.max_patch_size))
+        batch = self.model.transform.apply(batch)
         subsampled_batch = batch.subset(patch_size, token_budget, h_w_to_sample)
         subsampled_batch = subsampled_batch.to_device(self.device)
         masked_batch = self.masking_strategy.apply_mask(subsampled_batch)
