@@ -135,6 +135,17 @@ class TokensAndMasks(NamedTuple):
         masks = torch.cat(flattened_masks, dim=1)[:, :, 0]
         return x, masks
 
+    def average_unmasked_tokens(self) -> Tensor:
+        """Returns an average of all unmasked tokens.
+
+        The return tensor will have shape [B, D].
+        """
+        x, mask = self.flatten_tokens_and_masks()
+        # 1s for online encoder, 0s elsewhere
+        mask = mask == MaskValue.ONLINE_ENCODER
+        x_for_mean = x * (1 - mask.unsqueeze(-1))
+        return x_for_mean.sum(dim=1) / torch.sum(1 - mask, -1, keepdim=True)
+
 
 class FlexiHeliosPatchEmbeddings(nn.Module):
     """Module that patchifies and encodes the input data."""

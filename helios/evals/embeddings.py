@@ -39,9 +39,7 @@ def get_embeddings(
                 batch_embeddings = model(
                     masked_helios_sample, patch_size=patch_size
                 )  # (bsz, dim)
-            logger.warning("Only using S2 tokens when computing embeddings")
-            logger.info(f"S1 in eval: {batch_embeddings.sentinel1_mask}")
-            embeddings.append(batch_embeddings.sentinel2.cpu().flatten(1, -2).mean(1))
+            embeddings.append(batch_embeddings.average_unmasked_tokens().cpu())
             labels.append(label)
 
     embeddings = torch.cat(embeddings, dim=0)  # (N, dim)
