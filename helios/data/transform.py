@@ -1,7 +1,6 @@
 """Transformations for the HeliosSample."""
 
 import random
-from abc import ABC
 
 import torchvision.transforms.v2.functional as F
 from einops import rearrange
@@ -11,7 +10,7 @@ from helios.data.dataset import HeliosSample
 from helios.types import ArrayTensor
 
 
-class Transform(ABC):
+class Transform:
     """A transform that can be applied to a HeliosSample."""
 
     def apply(self, batch: HeliosSample) -> "HeliosSample":
