@@ -1,25 +1,30 @@
 """Code for configuring and running Helios experiments."""
 
 import logging
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import cast
 
-from olmo_core.config import Config, StrEnum
-from olmo_core.train import (
-    TrainerConfig,
-    prepare_training_environment,
-    teardown_training_environment,
-)
-from olmo_core.train.callbacks import ConfigSaverCallback, WandBCallback
-from olmo_core.utils import get_default_device, prepare_cli_environment, seed_all
-
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from helios.data.constants import ModalitySpec
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig, collate_helios
+from helios.data.visualize import visualize_sample
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
+from olmo_core.config import Config, StrEnum
+from olmo_core.train import (TrainerConfig, prepare_training_environment,
+                             teardown_training_environment)
+from olmo_core.train.callbacks import ConfigSaverCallback, WandBCallback
+from olmo_core.utils import (get_default_device, prepare_cli_environment,
+                             seed_all)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +45,14 @@ class CommonComponents(Config):
 
 
 @dataclass
+class HeliosVisualizeConfig(Config):
+    """Configuration for visualizing the dataset."""
+
+    output_dir: str
+    num_samples: int = 10
+
+
+@dataclass
 class HeliosExperimentConfig(Config):
     """Configuration for a Helios experiment."""
 
@@ -50,6 +63,7 @@ class HeliosExperimentConfig(Config):
     data_loader: HeliosDataLoaderConfig  # will likely be fixed for us
     train_module: LatentMIMTrainModuleConfig  # we will want to support different train module model combinations
     trainer: TrainerConfig
+    visualize_config: HeliosVisualizeConfig | None = None
     init_seed: int = 12536
 
 
@@ -64,6 +78,9 @@ def build_config(
         LatentMIMTrainModuleConfig,
     ],
     overrides: list[str],
+    visualize_config_builder: (
+        Callable[[CommonComponents], HeliosVisualizeConfig] | None
+    ) = None,
 ) -> HeliosExperimentConfig:
     """Build a Helios experiment configuration."""
     model_config = model_config_builder(common)
@@ -71,6 +88,9 @@ def build_config(
     dataloader_config = dataloader_config_builder(common)
     trainer_config = trainer_config_builder(common)
     train_module_config = train_module_config_builder(common)
+    visualize_config = (
+        visualize_config_builder(common) if visualize_config_builder else None
+    )
     config = HeliosExperimentConfig(
         run_name=common.run_name,
         model=model_config,
@@ -78,6 +98,7 @@ def build_config(
         data_loader=dataloader_config,
         train_module=train_module_config,
         trainer=trainer_config,
+        visualize_config=visualize_config,
     )
     logger.info("Config: %s", config)
     logger.info("Overrides: %s", overrides)
@@ -114,6 +135,24 @@ def train(config: HeliosExperimentConfig) -> None:
     trainer.fit()
 
 
+def visualize(config: HeliosExperimentConfig) -> None:
+    """Visualize the dataset for an experiment"""
+    logger.info("Visualizing the dataset")
+    if config.visualize_config is None:
+        raise ValueError("visualize_config is not set")
+    # Create a visualization of the dataset
+    # It could just be some files to click through
+    # It could be a bunch of tiles next to each other of these plots
+    # we also might want to save the entire geographic distribution as well
+    dataset = config.dataset.build()
+    sample_indices = np.random.randint(
+        0, len(dataset), config.visualize_config.num_samples
+    )
+    for sample_index in sample_indices:
+        visualize_sample(dataset, sample_index)
+    logger.info("Done visualizing the dataset")
+
+
 class SubCmd(StrEnum):
     """Subcommands for Helios experiments.
 
@@ -126,10 +165,17 @@ class SubCmd(StrEnum):
     prep = "prep"
     launch_prep = "launch_prep"
     dry_run = "dry_run"
+    visualize = "visualize"
 
     def prepare_environment(self) -> None:
         """Prepare the environment for the given subcommand."""
-        if self in (SubCmd.launch, SubCmd.dry_run, SubCmd.prep, SubCmd.launch_prep):
+        if self in (
+            SubCmd.launch,
+            SubCmd.dry_run,
+            SubCmd.prep,
+            SubCmd.launch_prep,
+            SubCmd.visualize,
+        ):
             prepare_cli_environment()
         elif self == SubCmd.train:
             prepare_training_environment()
@@ -152,6 +198,8 @@ class SubCmd(StrEnum):
             raise NotImplementedError
         elif self == SubCmd.dry_run:
             pass
+        elif self == SubCmd.visualize:
+            visualize(config)
         elif self == SubCmd.train:
             try:
                 train(config)
@@ -186,6 +234,9 @@ def main(
     train_module_config_builder: Callable[
         [CommonComponents], LatentMIMTrainModuleConfig
     ],
+    visualize_config_builder: (
+        Callable[[CommonComponents], HeliosVisualizeConfig] | None
+    ) = None,
 ) -> None:
     """Main entry point for Helios experiments.
 
@@ -227,6 +278,7 @@ $ [i]python {sys.argv[0]} {SubCmd.launch} run01 ai2/pluto-cirrascale --launch.nu
         dataloader_config_builder=dataloader_config_builder,
         trainer_config_builder=trainer_config_builder,
         train_module_config_builder=train_module_config_builder,
+        visualize_config_builder=visualize_config_builder,
         overrides=overrides,
     )
 

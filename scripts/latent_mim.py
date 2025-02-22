@@ -7,7 +7,8 @@ import numpy as np
 from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
-from helios.internal.experiment import CommonComponents, main
+from helios.internal.experiment import (CommonComponents,
+                                        HeliosVisualizeConfig, main)
 from helios.nn.flexihelios import EncoderConfig, PredictorConfig
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.callbacks import (DownstreamEvaluatorCallbackConfig,
@@ -197,7 +198,7 @@ def build_common_components() -> CommonComponents:
     """Build the common components for an experiment."""
     run_name = "test_run"
     # Variables to be changed per user
-    workdir = UPath("/temp/helios/workdir")  # nosec
+    workdir = UPath("./output")  # nosec
     # This allows pre-emptible jobs to save their workdir in the output folder
     SUPPORTED_MODALITIES = [
         Modality.SENTINEL2,
@@ -214,6 +215,13 @@ def build_common_components() -> CommonComponents:
     )
 
 
+def build_visualize_config(common: CommonComponents) -> HeliosVisualizeConfig:
+    """Build the visualize config for an experiment."""
+    return HeliosVisualizeConfig(
+        output_dir=common.save_folder / "visualizations",
+    )
+
+
 if __name__ == "__main__":
     main(
         common_components_builder=build_common_components,
@@ -222,4 +230,5 @@ if __name__ == "__main__":
         dataset_config_builder=build_dataset_config,
         dataloader_config_builder=build_dataloader_config,
         trainer_config_builder=build_trainer_config,
+        visualize_config_builder=build_visualize_config,
     )
