@@ -1,20 +1,21 @@
 """GeoBench datasets, returning data in the Helios format."""
 
+import os
 from collections.abc import Sequence
 from pathlib import Path
 from types import MethodType
 from typing import NamedTuple
 
 import geobench
+import matplotlib.pyplot as plt
 import numpy as np
 import torch.multiprocessing
 from einops import repeat
 from geobench.dataset import Stats
-from torch.utils.data import Dataset, default_collate
-
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.train.masking import MaskedHeliosSample
+from torch.utils.data import Dataset, default_collate
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -46,7 +47,7 @@ def _geobench_band_index_from_helios_name(helios_name: str) -> int:
 GEOBENCH_TO_HELIOS_S2_BANDS = [
     _geobench_band_index_from_helios_name(b) for b in Modality.SENTINEL2.band_order
 ]
-
+print(f"GEOBENCH_TO_HELIOS_S2_BANDS: {GEOBENCH_TO_HELIOS_S2_BANDS}")
 
 class GeoBenchConfig(NamedTuple):
     """GeoBench configs."""
@@ -113,7 +114,9 @@ class GeobenchDataset(Dataset):
             self.dataset[0].bands[i].band_info.name
             for i in range(len(self.dataset[0].bands))
         ]
+        print(f"Original band names: {original_band_names}")
         self.band_names = [x.name for x in task.bands_info]
+        print(f"Band names: {self.band_names}")
         self.band_indices = [
             original_band_names.index(band_name) for band_name in self.band_names
         ]
@@ -230,11 +233,15 @@ class GeobenchDataset(Dataset):
 
         x_list = []
         for band_idx in self.band_indices:
+            print(f"Band idx: {band_idx}")
             x_list.append(sample.bands[band_idx].data)
+
+        print(f"x_list:  len: {len(x_list)}")
 
         x_list = self._impute_bands(x_list, self.band_names, self.config.imputes)
 
         x = np.stack(x_list, axis=2)  # (h, w, 13)
+        self.visualize_sample_bands(x, "./output/geobench_bands_after_imputation")
         assert (
             x.shape[-1] == 13
         ), f"All datasets must have 13 channels, not {x.shape[-1]}"
@@ -280,3 +287,47 @@ class GeobenchDataset(Dataset):
         )
         collated_target = default_collate([t for t in targets])
         return MaskedHeliosSample(**collated_sample), collated_target
+
+    def visualize_sample_bands(self, x: np.ndarray, output_dir: str) -> None:
+        """
+        Visualize each band from a given array, saving each plot as a PNG file in the specified output_dir.
+
+        Args:
+            x (np.ndarray): Array of shape (H, W, #bands).
+            output_dir (str): Directory path where plots will be saved.
+        """
+        # Ensure the directory exists; if not, create it.
+        os.makedirs(output_dir, exist_ok=True)
+
+        # For each band in x
+        for band_idx in range(x.shape[-1]):
+            # Take the band slice
+            band_data = x[..., band_idx]
+            # If we have a name for this band, use it; otherwise provide a fallback
+            band_title = self.band_names[band_idx] if band_idx < len(self.band_names) else f"Band_{band_idx}"
+
+            plt.figure()
+            plt.imshow(band_data, cmap="gray")
+            plt.title(band_title)
+            plt.colorbar(label="Pixel Value")
+
+            # Create a filename-safe string for the band title
+            filename = f"{band_title.replace(' ', '_').replace('/', '_')}.png"
+            save_path = os.path.join(output_dir, filename)
+
+            # Save as PNG and close
+            plt.savefig(save_path, bbox_inches="tight")
+            plt.close()
+
+
+if __name__ == "__main__":
+    METRIC_NAME = "Top-1 Accuracy"
+    NAME_PREFIX = "Geobench"
+    from upath import UPath
+    GEOBENCH_DIR = UPath("/weka/dfive-default/presto-geobench/dataset/geobench")
+
+    # Normalization is norm no clip
+    dataset = GeobenchDataset(GEOBENCH_DIR, dataset="m-eurosat", split="train", partition="default")
+    sample, target = dataset[0]
+    print(sample)
+    print(target)

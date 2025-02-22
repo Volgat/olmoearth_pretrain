@@ -218,6 +218,7 @@ def build_common_components() -> CommonComponents:
 def build_visualize_config(common: CommonComponents) -> HeliosVisualizeConfig:
     """Build the visualize config for an experiment."""
     return HeliosVisualizeConfig(
+        num_samples=50,
         output_dir=common.save_folder / "visualizations",
     )
 
