@@ -188,8 +188,10 @@ class LatentMIMTrainModule(HeliosTrainModule):
         loss = torch.tensor(0.0, device=self.device)
         # Split into micro-batches.
         microbatches = split_batch(batch, self.rank_microbatch_size)
+        num_microbatches = len(microbatches)
         for microbatch_idx, microbatch in enumerate(microbatches):
             with self._train_microbatch_context(microbatch_idx, len(microbatches)):
+                logger.info(f"Training microbatch {microbatch_idx} of {len(microbatches)}")
                 # Smallest h /w must be bigger than the smallest patch size
                 h_w_to_sample = list(
                     range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
@@ -204,7 +206,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
 
                 # Run Encoder and decoder on the augmented input
                 decoded, target_output = self.model_forward(masked_batch, patch_size)
-                loss += self.loss_fn(decoded, target_output)
+                loss = self.loss_fn(decoded, target_output)
                 del decoded, target_output
                 loss.backward()
 

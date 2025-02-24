@@ -79,7 +79,6 @@ class PatchDiscriminationLoss(Loss):
         Returns:
             The computed loss value.
         """
-        # TODO: write a function that deals with this
         all_preds, all_masks = predictions.flatten_tokens_and_masks()
         all_targets = targets.flatten_tokens_and_masks()[0]
 
@@ -105,8 +104,8 @@ class PatchDiscriminationLoss(Loss):
                 end = start + c
                 logit_mask[:, start:end, start:end] = 0
                 start += c
-            logger.info(f"logit_mask: {logit_mask.shape}")
-            logger.info(f"scores: {scores.shape}")
+            logger.debug(f"logit_mask: {logit_mask.shape}")
+            logger.debug(f"scores: {scores.shape}")
             scores = scores + logit_mask
 
         labels = torch.arange(nt, dtype=torch.long, device=pred.device)[None].repeat(

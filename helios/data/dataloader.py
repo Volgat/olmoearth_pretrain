@@ -279,7 +279,7 @@ class HeliosDataLoader(DataLoaderBase):
 
 
 def iter_batched(
-    iterable: Iterable[HeliosSample], local_batch_size: int
+    iterable: Iterable[HeliosSample], batch_size: int
 ) -> Iterable[tuple[HeliosSample, ...]]:
     """Iterate over the dataset in batches.
 
@@ -288,7 +288,7 @@ def iter_batched(
 
     Args:
         iterable: The iterator of items to batch.
-        local_batch_size: The size of the batches to create for the local rank.
+        batch_size: The size of the batches to create for the local rank.
 
     Returns:
         An iterator of batches of items.
@@ -296,7 +296,7 @@ def iter_batched(
     batch: list[HeliosSample] = []
     instances = 0
     for x in iterable:
-        if instances > local_batch_size:
+        if instances > batch_size:
             yield tuple(batch)
             batch.clear()
             instances = 0
@@ -306,6 +306,7 @@ def iter_batched(
 
     if batch:
         yield tuple(batch)
+
 
 
 class _IterableDatasetWrapper(torch.utils.data.IterableDataset[HeliosSample]):

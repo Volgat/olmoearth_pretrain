@@ -87,8 +87,8 @@ def build_train_module_config(
 ) -> LatentMIMTrainModuleConfig:
     """Build the train module config for an experiment."""
     LR = 0.0001
-    RANK_BATCH_SIZE = (
-        16  # TODO: maybe this should be computed dynamically and not specified here
+    RANK_MICROBATCH_SIZE = (
+        64
     )
     ENCODE_RATIO = 0.1
     DECODE_RATIO = 0.5
@@ -115,7 +115,7 @@ def build_train_module_config(
         optim=optim_config,
         masking_config=masking_config,
         loss_config=loss_config,
-        rank_batch_size=RANK_BATCH_SIZE,
+        rank_microbatch_size=RANK_MICROBATCH_SIZE,
         max_grad_norm=1.0,
         dp_config=dp_config,
         scheduler=scheduler,
@@ -126,11 +126,10 @@ def build_train_module_config(
 def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     """Build the dataloader config for an experiment."""
     # things should be set during building
-    # TODO: handle dp_process_group internally
     # TODO: Include collate function here
-    NUM_WORKERS = 0
-    NUM_THREADS = 0
-    GLOBAL_BATCH_SIZE = 16
+    NUM_WORKERS = 4
+    NUM_THREADS = 4
+    GLOBAL_BATCH_SIZE = 512
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
