@@ -11,7 +11,7 @@ from helios.train.masking import MaskValue, RandomMaskingStrategy
 logger = logging.getLogger(__name__)
 
 
-def test_random_masking() -> None:
+def test_random_masking_and_unmask() -> None:
     """Test random masking ratios."""
     b, h, w, t = 100, 16, 16, 8
 
@@ -27,19 +27,22 @@ def test_random_masking() -> None:
         timestamps=timestamps,
     )
     encode_ratio, decode_ratio = 0.25, 0.5
-    masked_sample = RandomMaskingStrategy().apply_mask(
-        batch,
+    masked_sample = RandomMaskingStrategy(
         encode_ratio=encode_ratio,
         decode_ratio=decode_ratio,
+    ).apply_mask(
+        batch,
     )
     # check that each modality has the right masking ratio
     for modality_name in masked_sample._fields:
         if modality_name.endswith("mask"):
             mask = getattr(masked_sample, modality_name)
             logger.info(f"Mask name: {modality_name}")
+            if mask is None:
+                continue
             total_elements = mask.numel()
             num_encoder = len(mask[mask == MaskValue.ONLINE_ENCODER.value])
-            num_decoder = len(mask[mask == MaskValue.DECODER_ONLY.value])
+            num_decoder = len(mask[mask == MaskValue.DECODER.value])
             assert (
                 num_encoder / total_elements
             ) == encode_ratio, f"{modality_name} has incorrect encode mask ratio"
@@ -53,3 +56,10 @@ def test_random_masking() -> None:
                     masked_sample.get_unmasked_modality_name(modality_name),
                 ).shape
             ), f"{modality_name} has incorrect shape"
+
+    unmasked_sample = masked_sample.unmask()
+    for modality_name in unmasked_sample._fields:
+        if modality_name.endswith("mask"):
+            mask = getattr(unmasked_sample, modality_name)
+            if mask is not None:
+                assert (mask == 0).all()

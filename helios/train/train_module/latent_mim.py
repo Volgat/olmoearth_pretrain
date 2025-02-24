@@ -1,0 +1,239 @@
+"""Training and optimizer abstraction for Helios."""
+
+from dataclasses import dataclass, field
+from logging import getLogger
+from typing import Any
+
+import numpy as np
+import torch
+import torch.distributed.checkpoint.state_dict as dist_cp_sd
+from olmo_core.distributed.parallel import DataParallelConfig
+from olmo_core.distributed.utils import get_world_size
+from olmo_core.float8 import Float8Config
+from olmo_core.optim import OptimConfig
+from olmo_core.optim.scheduler import Scheduler
+from olmo_core.train.common import ReduceType
+from olmo_core.train.train_module.transformer import (
+    TransformerActivationCheckpointingConfig,
+)
+
+from helios.data.dataset import HeliosSample
+from helios.train.loss import LossConfig
+from helios.train.masking import MaskedHeliosSample, MaskingConfig
+from helios.train.train_module.train_module import (
+    HeliosTrainModule,
+    HeliosTrainModuleConfig,
+)
+
+logger = getLogger(__name__)
+
+
+@dataclass
+class LatentMIMTrainModuleConfig(HeliosTrainModuleConfig):
+    """A configuration class for building :class:`LatentMIMTrainModule` instances.
+
+    Args:
+        loss_config: The loss configuration for the model.
+        masking_config: The masking configuration for the model.
+        ema_decay: EMA decay rate for target encoder (default: 0.99).
+    """
+
+    loss_config: LossConfig = field(
+        default_factory=lambda: LossConfig(loss_config={"type": "patch_discrimination"})
+    )
+    masking_config: MaskingConfig = field(
+        default_factory=lambda: MaskingConfig(strategy_config={"type": "random"})
+    )
+    ema_decay: tuple[float, float] = (0.996, 1.0)
+    max_grad_norm: float = 1.0
+
+    def build(
+        self,
+        model: Any,
+        device: torch.device | None = None,
+    ) -> "LatentMIMTrainModule":
+        """Build the corresponding :class:`LatentMIMTrainModule`.
+
+        Args:
+            model: The model to train.
+            device: The device to train on.
+        """
+        kwargs = self.as_dict(exclude_none=True, recurse=False)
+        return LatentMIMTrainModule(
+            model=model,
+            device=device,
+            **kwargs,
+        )
+
+
+class LatentMIMTrainModule(HeliosTrainModule):
+    """A :class:`TrainModule`.
+
+    Initialize the training module.
+
+    Args:
+        model: The transformer model to train.
+        optim: The corresponding optimizer config.
+        rank_batch_size: The rank batch size in instances.
+        compile_model: Whether to compile to the model.
+        float8_config: Float8 configuration for the model.
+        dp_config: Data parallel configuration for the model.
+        ac_config: Activation checkpointing configuration for the model.
+        loss_fn: Loss function to use.
+        compile_loss: Whether to compile the loss function.
+        autocast_precision: Enable AMP with this data type.
+        max_grad_norm: Clip gradient norms to this value.
+        scheduler: Optional learning rate scheduler.
+        device: The device to train on.
+        state_dict_save_opts: Override state dict options for saving.
+        state_dict_load_opts: Override state dict options for loading.
+    """
+
+    def __init__(
+        self,
+        model: Any,
+        optim: OptimConfig,
+        masking_config: MaskingConfig,
+        loss_config: LossConfig,
+        rank_batch_size: int,
+        compile_model: bool = False,
+        float8_config: Float8Config | None = None,
+        dp_config: DataParallelConfig | None = None,
+        ac_config: TransformerActivationCheckpointingConfig | None = None,
+        compile_loss: bool = False,
+        autocast_precision: torch.dtype | None = None,
+        max_grad_norm: float | None = None,
+        scheduler: Scheduler | None = None,
+        device: torch.device | None = None,
+        state_dict_save_opts: dist_cp_sd.StateDictOptions | None = None,
+        state_dict_load_opts: dist_cp_sd.StateDictOptions | None = None,
+        ema_decay: tuple[float, float] = (0.996, 1.0),
+    ):
+        """Initialize the training module.
+
+        Args:
+            model: The transformer model to train.
+            optim: The corresponding optimizer config.
+            masking_config: The masking configuration for the model.
+            loss_config: The loss configuration for the model.
+            rank_batch_size: The rank batch size in instances.
+            compile_model: Whether to compile to the model.
+            float8_config: Float8 configuration for the model.
+            dp_config: Data parallel configuration for the model.
+            ac_config: Activation checkpointing configuration for the model.
+            loss_fn: Loss function to use.
+            compile_loss: Whether to compile the loss function.
+            autocast_precision: Enable AMP with this data type.
+            max_grad_norm: Clip gradient norms to this value.
+            scheduler: Optional learning rate scheduler.
+            device: The device to train on.
+            state_dict_save_opts: Override state dict options for saving.
+            state_dict_load_opts: Override state dict options for loading.
+            ema_decay: EMA decay rate for target encoder, as a tuple of (start_ema_decay, end_ema_decay)
+        """
+        super().__init__(
+            model=model,
+            optim=optim,
+            rank_batch_size=rank_batch_size,
+            compile_model=compile_model,
+            float8_config=float8_config,
+            dp_config=dp_config,
+            ac_config=ac_config,
+            compile_loss=compile_loss,
+            autocast_precision=autocast_precision,
+            max_grad_norm=max_grad_norm,
+            scheduler=scheduler,
+            device=device,
+            state_dict_save_opts=state_dict_save_opts,
+            state_dict_load_opts=state_dict_load_opts,
+        )
+        self.start_ema, self.end_ema = ema_decay
+        self.base_loss = loss_config.build()
+        self.masking_strategy = masking_config.build()
+
+    def loss_fn(self, pred: Any, targets: Any) -> torch.Tensor:
+        """Compute the loss between the predicted and target tensors."""
+        return self.base_loss.compute(pred, targets)
+
+    def eval_loss_fn(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """Compute the loss between the predicted and target tensors."""
+        raise NotImplementedError("eval loss fn not implemented")
+
+    def train_batch(self, batch: HeliosSample, dry_run: bool = False) -> None:
+        """Train a batch."""
+        self.model.train()
+        # Set the maximum number of tokens
+        token_budget = self.model.token_budget
+        # Smallest h /w must be bigger than the smallest patch size
+        h_w_to_sample = list(
+            range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
+        )
+        patch_size = np.random.choice(np.arange(1, self.model.encoder.max_patch_size))
+        batch = self.model.transform.apply(batch)
+        subsampled_batch = batch.subset(patch_size, token_budget, h_w_to_sample)
+        subsampled_batch = subsampled_batch.to_device(self.device)
+        masked_batch = self.masking_strategy.apply_mask(subsampled_batch)
+
+        # Update target encoder with EMA this should be a callback
+        cur_ema_value = (
+            self.start_ema
+            + self.trainer.global_step
+            * (self.end_ema - self.start_ema)
+            / self.trainer.max_steps
+        )
+        with torch.no_grad():
+            logger.info(f"Using ema decay {cur_ema_value}")
+            for (name, param), target_param in zip(
+                self.model.encoder.named_parameters(),
+                self.model.target_encoder.parameters(),
+            ):
+                if torch.allclose(param, target_param):
+                    logger.warning(
+                        f"Encoder and target encoder parameters close for {name}"
+                    )
+                target_param.data = (
+                    cur_ema_value * target_param.data + (1 - cur_ema_value) * param.data
+                )
+
+        # Run Encoder and decoder on the augmented input
+        decoded, loss = self.model_forward(masked_batch, patch_size)
+
+        self.trainer.record_metric(
+            f"train/{self.base_loss.name}",
+            loss / get_world_size(self.dp_process_group),
+            ReduceType.mean,
+        )
+
+        # Backpropagate and optimize
+        loss.backward()
+
+        del batch  # In case this helps with memory utilization.
+        if dry_run:
+            self._clear_loss_buffers()
+            return
+        self._clear_loss_buffers()
+
+    def eval_batch(
+        self, batch: dict[str, Any], labels: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        """Evaluate a batch."""
+        raise NotImplementedError("eval batch not implemented")
+
+    def model_forward(
+        self, batch: MaskedHeliosSample, patch_size: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Run a forward pass."""
+        with self._model_forward_context():
+            decoded = self.model.forward(batch, patch_size)
+            with torch.no_grad():
+                logger.info("target encoder running here")
+                target_output = self.model.target_encoder.forward(
+                    batch.unmask(),
+                    patch_size=patch_size,
+                    # token_exit_cfg={
+                    #     modality: 0
+                    #     for modality in self.model.encoder.supported_modality_names
+                    # },
+                )
+            loss = self.loss_fn(decoded, target_output)
+            return decoded, loss

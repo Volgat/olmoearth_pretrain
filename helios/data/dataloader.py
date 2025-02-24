@@ -3,20 +3,29 @@
 import logging
 import math
 from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import torch
+import torch.distributed as dist
 from einops import rearrange
+from olmo_core.config import Config
 from olmo_core.data.data_loader import DataLoaderBase
 from olmo_core.data.utils import get_rng, memmap_to_write
-from olmo_core.distributed.utils import barrier
+from olmo_core.distributed.utils import (
+    barrier,
+    get_fs_local_rank,
+    get_rank,
+    get_world_size,
+)
 from olmo_core.utils import roundrobin, threaded_generator
 from torch.utils.data import default_collate
 from upath import UPath
 
+from helios.data.constants import Modality
 from helios.data.dataset import HeliosDataset, HeliosSample
 
 logger = logging.getLogger(__name__)
@@ -245,22 +254,27 @@ class HeliosDataLoader(DataLoaderBase):
     def get_mock_batch(self) -> HeliosSample:
         """Get a mock batch, for dry-run of forward and backward pass."""
         logger.info("Getting mock batch NOT FROM DATASET")
-        mock_sentinel2 = torch.rand(1, 256, 256, 12, 13)
-        mock_sentinel1 = torch.rand(1, 256, 256, 12, 2)
-        mock_worldcover = torch.rand(1, 256, 256, 1)
-        mock_latlon = torch.rand(1, 2)
+        # TODO: This should be a feature of the modality spec
+        output_dict = {}
+        if Modality.SENTINEL2 in self.dataset.supported_modalities:
+            mock_sentinel2 = torch.rand(1, 256, 256, 12, 13)
+            output_dict["sentinel2"] = mock_sentinel2
+        if Modality.SENTINEL1 in self.dataset.supported_modalities:
+            mock_sentinel1 = torch.rand(1, 256, 256, 12, 2)
+            output_dict["sentinel1"] = mock_sentinel1
+        if Modality.WORLDCOVER in self.dataset.supported_modalities:
+            mock_worldcover = torch.rand(1, 256, 256, 1, 1)
+            output_dict["worldcover"] = mock_worldcover
+        if Modality.LATLON in self.dataset.supported_modalities:
+            mock_latlon = torch.rand(1, 2)
+            output_dict["latlon"] = mock_latlon
         days = torch.randint(0, 25, (1, 1, 12), dtype=torch.long)
         months = torch.randint(0, 12, (1, 1, 12), dtype=torch.long)
         years = torch.randint(2018, 2020, (1, 1, 12), dtype=torch.long)
         timestamps = torch.cat([days, months, years], dim=1)
         timestamps = rearrange(timestamps, "b t c -> b c t")
-        return HeliosSample(
-            sentinel2=mock_sentinel2,
-            sentinel1=mock_sentinel1,
-            worldcover=mock_worldcover,
-            latlon=mock_latlon,
-            timestamps=timestamps,
-        )
+        output_dict["timestamps"] = timestamps
+        return HeliosSample(**output_dict)
 
 
 def iter_batched(
@@ -356,4 +370,49 @@ class _IterableDatasetWrapper(torch.utils.data.IterableDataset[HeliosSample]):
         )
 
 
-# TODO: we will also need a configuration class for HeliosDataLoader
+@dataclass
+class HeliosDataLoaderConfig(Config):
+    """Configuration for the HeliosDataLoader."""
+
+    work_dir: UPath
+    global_batch_size: int
+    seed: int
+    shuffle: bool = True
+    num_threads: int | None = None
+    num_workers: int = 0
+    prefetch_factor: int | None = None
+    target_device_type: str = "cpu"
+
+    def validate(self) -> None:
+        """Validate the configuration."""
+        if self.work_dir is None:
+            raise ValueError("Work directory is not set")
+
+    def build(
+        self,
+        dataset: HeliosDataset,
+        collator: Callable,
+        dp_process_group: dist.ProcessGroup | None = None,
+    ) -> "HeliosDataLoader":
+        """Build the HeliosDataLoader."""
+        self.validate()
+
+        if not isinstance(dataset, HeliosDataset):
+            raise ValueError("Dataset must be a HeliosDataset")
+        dataset.prepare()
+
+        return HeliosDataLoader(
+            dataset=dataset,
+            work_dir=self.work_dir,
+            global_batch_size=self.global_batch_size,
+            dp_world_size=get_world_size(dp_process_group),
+            dp_rank=get_rank(dp_process_group),
+            fs_local_rank=get_fs_local_rank(),
+            seed=self.seed,
+            shuffle=self.shuffle,
+            num_threads=self.num_threads,
+            num_workers=self.num_workers,
+            prefetch_factor=self.prefetch_factor,
+            target_device_type=self.target_device_type,
+            collator=collator,
+        )

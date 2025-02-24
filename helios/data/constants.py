@@ -3,7 +3,6 @@
 Warning: this is only developed for raster data currently.
 """
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
@@ -15,6 +14,8 @@ BASE_RESOLUTION = 0.625
 # Some images may be smaller if they are stored at a coarser resolution compared to the
 # resolution that the grid is based on.
 IMAGE_TILE_SIZE = 256
+
+PROJECTION_CRS = "EPSG:4326"
 
 
 def get_resolution(resolution_factor: int) -> float | int:
@@ -39,7 +40,7 @@ class BandSet:
     """
 
     # List of band names.
-    bands: Sequence[str]
+    bands: list[str]
 
     # Resolution is BASE_RESOLUTION * resolution_factor.
     # If resolution == 0, this means the data
@@ -95,8 +96,9 @@ class ModalitySpec:
 
     name: str
     tile_resolution_factor: int
-    band_sets: Sequence[BandSet]
+    band_sets: list[BandSet]
     is_multitemporal: bool
+    ignore_when_parsing: bool  # If true this modality is not parsed from the csv file and not loaded form a file
 
     def __hash__(self) -> int:
         """Hash this Modality."""
@@ -134,6 +136,26 @@ class ModalitySpec:
         """
         return sum(len(band_set.bands) for band_set in self.band_sets)
 
+    @property
+    def is_spacetime_varying(self) -> bool:
+        """Does the modality vary in space and time."""
+        return self.get_tile_resolution() > 0 and self.is_multitemporal
+
+    @property
+    def is_space_only_varying(self) -> bool:
+        """Does the modality vary in space and not time."""
+        return self.get_tile_resolution() > 0 and not self.is_multitemporal
+
+    @property
+    def is_time_only_varying(self) -> bool:
+        """Does the modality vary in time and not space."""
+        return self.get_tile_resolution() == 0 and self.is_multitemporal
+
+    @property
+    def is_static_in_space_and_time(self) -> bool:
+        """Does the modality vary in neither space or space."""
+        return self.get_tile_resolution() == 0 and not self.is_multitemporal
+
 
 class Modality:
     """Enum-like access to ModalitySpecs."""
@@ -143,6 +165,7 @@ class Modality:
         tile_resolution_factor=1,
         band_sets=[BandSet(["R", "G", "B", "IR"], 1)],
         is_multitemporal=False,
+        ignore_when_parsing=False,
     )
 
     SENTINEL1 = ModalitySpec(
@@ -150,6 +173,7 @@ class Modality:
         tile_resolution_factor=16,
         band_sets=[BandSet(["vv", "vh"], 16)],
         is_multitemporal=True,
+        ignore_when_parsing=False,
     )
 
     SENTINEL2 = ModalitySpec(
@@ -164,6 +188,7 @@ class Modality:
             BandSet(["B01", "B09", "B10"], 64),
         ],
         is_multitemporal=True,
+        ignore_when_parsing=False,
     )
 
     SENTINEL2_L2A = ModalitySpec(
@@ -190,6 +215,7 @@ class Modality:
             BandSet(["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B9", "B10", "B11"], 32),
         ],
         is_multitemporal=True,
+        ignore_when_parsing=True,
     )
 
     WORLDCOVER = ModalitySpec(
@@ -197,6 +223,7 @@ class Modality:
         tile_resolution_factor=16,
         band_sets=[BandSet(["B1"], 16)],
         is_multitemporal=False,
+        ignore_when_parsing=False,
     )
 
     OPENSTREETMAP = ModalitySpec(
@@ -240,6 +267,7 @@ class Modality:
             )
         ],
         is_multitemporal=False,
+        ignore_when_parsing=True,
     )
 
     LATLON = ModalitySpec(
@@ -247,6 +275,7 @@ class Modality:
         tile_resolution_factor=0,
         band_sets=[BandSet(["lat", "lon"], 0)],
         is_multitemporal=False,
+        ignore_when_parsing=True,
     )
 
     @classmethod
@@ -267,13 +296,11 @@ class Modality:
             modalities.append(modality)
         return modalities
 
+    @classmethod
+    def names(self) -> list[str]:
+        """Get all of the modality names."""
+        return [modality.name for modality in self.values()]
 
-# Modalities to ingest image tiles
-SUPPORTED_MODALITIES = [
-    Modality.SENTINEL1,
-    Modality.SENTINEL2,
-    Modality.WORLDCOVER,
-]
 
 # Latlon and timestamps
 LATLON = ["lat", "lon"]

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from torch.utils.data import DataLoader
 
+from helios.data.constants import Modality
 from helios.evals.datasets import GeobenchDataset
 from helios.nn.flexihelios import Encoder
 
@@ -15,8 +16,9 @@ def geobench_dir() -> Path:
     return Path("tests/fixtures/sample_geobench")
 
 
-def test_geobench_dataset(geobench_dir: Path, supported_modalities: list[str]) -> None:
+def test_geobench_dataset(geobench_dir: Path) -> None:
     """Test forward pass from GeoBench data."""
+    supported_modalities = [Modality.SENTINEL2]
     d = DataLoader(
         GeobenchDataset(
             dataset="m-eurosat",
@@ -30,13 +32,12 @@ def test_geobench_dataset(geobench_dir: Path, supported_modalities: list[str]) -
     )
     encoder = Encoder(
         embedding_size=16,
-        max_patch_size=8,
+        max_patch_size=4,
         num_heads=2,
         depth=2,
         mlp_ratio=1.0,
         drop_path=0.1,
         max_sequence_length=12,
-        base_patch_size=8,
         use_channel_embs=True,
         supported_modalities=supported_modalities,
     )

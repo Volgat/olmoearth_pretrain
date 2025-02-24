@@ -1,18 +1,15 @@
-ai2-olmo-core @ git+https://github.com/allenai/olmo-core.git@v2
-cartopy
 class-registry
 einops==0.7.0
 gcsfs
 geobench
 interrogate
-matplotlib
 numpy
 pandas
 pandera
 pytest
 rasterio
 rioxarray
+rslearn @ git+https://github.com/allenai/rslearn.git@master
 torch>=2.5
-torchvision>=0.20
 universal_pathlib>=0.2.5
 wandb>=0.19.0
