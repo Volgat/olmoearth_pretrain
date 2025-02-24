@@ -199,8 +199,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
         )
 
         # Backpropagate and optimize
-        if loss is not None:
-            loss.backward()
+        loss.backward()
 
         del batch  # In case this helps with memory utilization.
         if dry_run:
@@ -216,14 +215,19 @@ class LatentMIMTrainModule(HeliosTrainModule):
 
     def model_forward(
         self, batch: MaskedHeliosSample, patch_size: int
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Run a forward pass."""
         with self._model_forward_context():
             decoded = self.model.forward(batch, patch_size)
             with torch.no_grad():
                 logger.info("target encoder running here")
                 target_output = self.model.target_encoder.forward(
-                    batch.unmask(), patch_size=patch_size
+                    batch.unmask(),
+                    patch_size=patch_size,
+                    token_exit_cfg={
+                        modality: 0
+                        for modality in self.model.encoder.supported_modality_names
+                    },
                 )
             loss = self.loss_fn(decoded, target_output)
             return decoded, loss
