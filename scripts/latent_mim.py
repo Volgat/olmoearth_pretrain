@@ -92,7 +92,7 @@ def build_train_module_config(
         16  # TODO: maybe this should be computed dynamically and not specified here
     )
     ENCODE_RATIO = 0.1
-    DECODE_RATIO = 0.5
+    DECODE_RATIO = 0.75
 
     optim_config = AdamWConfig(lr=LR, weight_decay=WD)
     masking_config = MaskingConfig(
@@ -129,7 +129,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     # things should be set during building
     # TODO: handle dp_process_group internally
     # TODO: Include collate function here
-    NUM_WORKERS = 0
+    NUM_WORKERS = 1
     NUM_THREADS = 0
     GLOBAL_BATCH_SIZE = 16
 
