@@ -90,8 +90,9 @@ def build_train_module_config(
     RANK_MICROBATCH_SIZE = 64
     ENCODE_RATIO = 0.1
     DECODE_RATIO = 0.5
+    WD = 0.02
 
-    optim_config = AdamWConfig(lr=LR)
+    optim_config = AdamWConfig(lr=LR, weight_decay=WD)
     masking_config = MaskingConfig(
         strategy_config={
             "type": "random",

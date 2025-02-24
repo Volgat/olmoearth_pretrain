@@ -188,10 +188,11 @@ class LatentMIMTrainModule(HeliosTrainModule):
         loss = torch.tensor(0.0, device=self.device)
         # Split into micro-batches.
         microbatches = split_batch(batch, self.rank_microbatch_size)
-        num_microbatches = len(microbatches)
         for microbatch_idx, microbatch in enumerate(microbatches):
             with self._train_microbatch_context(microbatch_idx, len(microbatches)):
-                logger.info(f"Training microbatch {microbatch_idx} of {len(microbatches)}")
+                logger.info(
+                    f"Training microbatch {microbatch_idx} of {len(microbatches)}"
+                )
                 # Smallest h /w must be bigger than the smallest patch size
                 h_w_to_sample = list(
                     range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
@@ -233,13 +234,18 @@ class LatentMIMTrainModule(HeliosTrainModule):
 
     def model_forward(
         self, batch: MaskedHeliosSample, patch_size: int
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Run a forward pass."""
         with self._model_forward_context():
             decoded = self.model.forward(batch, patch_size)
             with torch.no_grad():
                 logger.info("target encoder running here")
                 target_output = self.model.target_encoder.forward(
-                    batch.unmask(), patch_size=patch_size
+                    batch.unmask(),
+                    patch_size=patch_size,
+                    # token_exit_cfg={
+                    #     modality: 0
+                    #     for modality in self.model.encoder.supported_modality_names
+                    # },
                 )
             return decoded, target_output
