@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from einops import rearrange
 from matplotlib.figure import Figure
+from upath import UPath
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosDataset
@@ -20,7 +22,9 @@ logger = logging.getLogger(__name__)
 # TODO: Instead of dim checks, we should use the modality spec properties
 
 
-def visualize_sample(dataset: HeliosDataset, sample_index: int) -> Figure:
+def visualize_sample(
+    dataset: HeliosDataset, sample_index: int, out_dir: str | Path | UPath
+) -> Figure:
     """Visualize a sample from the Helios Dataset in a grid format.
 
     - Each modality is placed on its own row.
@@ -178,7 +182,6 @@ def visualize_sample(dataset: HeliosDataset, sample_index: int) -> Figure:
     fig.subplots_adjust(
         wspace=0.3, hspace=0.3, left=0.05, right=0.95, top=0.95, bottom=0.05
     )
-    out_dir = "/weka/dfive-default/henryh/helios/helios/test_afix/visualizations/"
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"sample_{sample_index}.png")
     fig.savefig(out_path)
