@@ -243,7 +243,6 @@ def main(
     """Main entry point for Helios experiments.
 
     overrides:  A list of field attributes with dot notation, e.g. ``foo.bar=1``.
-    Current usage: torchrun script.py train, python script.py visualize
 
     """
     usage = f"""
