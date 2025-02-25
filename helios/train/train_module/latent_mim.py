@@ -181,7 +181,18 @@ class LatentMIMTrainModule(HeliosTrainModule):
                 )
 
     def train_batch(self, batch: HeliosSample, dry_run: bool = False) -> None:
-        """Train a batch."""
+        """Train a batch.
+
+        NOTE: Gradient accumulation/microbatching is not invariant for all losses across the same global batch size.
+
+        - All Disc loss with same global batch size but different micro-batch sizes result in different gradients,
+        though this matches the implementation in gallileo.
+        - If the min hw is too low when subsampling, we may get micro-batches with uneven
+        numbers of tokens making the loss for token averaged losses
+        like l1 and l2 weight microbatches with less tokens relatively more.
+
+        NOTE: For contrastive losses, the loss is invariant to the global batch size across GPUS as well
+        """
         # Set the maximum number of tokens
         token_budget = self.model.token_budget
         h_w_to_sample = list(
