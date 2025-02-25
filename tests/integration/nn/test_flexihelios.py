@@ -657,9 +657,9 @@ def test_end_to_end_with_exit_config(
     ]
     B, H, W, T, C = (
         1,
-        8,
-        8,
         4,
+        4,
+        2,
         sentinel2_num_bands,
     )
     # Create dummy sentinel2 data: shape (B, H, W, T, C)
@@ -668,9 +668,13 @@ def test_end_to_end_with_exit_config(
     sentinel2_mask = torch.zeros(B, H, W, T, C, dtype=torch.long)
     # Dummy latitude-longitude data.
     latlon = torch.randn(B, latlon_num_bands)
-    latlon_mask = torch.ones(B, latlon_num_bands, dtype=torch.float32)
+    latlon_mask = (
+        torch.ones(B, latlon_num_bands, dtype=torch.float32) * MaskValue.DECODER.value
+    )
     worldcover = torch.randn(B, H, W, 1, 1)
-    worldcover_mask = torch.zeros(B, H, W, 1, 1, dtype=torch.float32)
+    worldcover_mask = (
+        torch.ones(B, H, W, 1, 1, dtype=torch.float32) * MaskValue.DECODER.value
+    )
     # Generate valid timestamps:
     # - days: range 1..31,
     # - months: range 1..13,
@@ -722,12 +726,13 @@ def test_end_to_end_with_exit_config(
         num_heads=NUM_HEADS,
         max_sequence_length=MAX_SEQ_LENGTH,
         drop_path=DROP_PATH,
+        learnable_channel_embeddings=True,
     )
     output = encoder.forward(
         x,
         patch_size,
         input_res,
-        exit_after_n_layers=1,
+        exit_after_n_layers=3,
         token_exit_cfg=token_exit_cfg,
     )
     output = predictor.forward(output, timestamps, patch_size, input_res)
@@ -778,3 +783,29 @@ def test_end_to_end_with_exit_config(
         1,
         1,
     )
+    output.worldcover.sum().backward()
+    for name, param in encoder.named_parameters():
+        # worldcover and latlons are masked from the encoder
+        if not any(
+            ignore_param in name
+            for ignore_param in [
+                "pos_embed",
+                "month_embed",
+                "composite_encodings.per_modality_channel_embeddings.latlon",
+                "composite_encodings.per_modality_channel_embeddings.worldcover",
+                "patch_embeddings.per_modality_embeddings.latlon",
+                "patch_embeddings.per_modality_embeddings.worldcover",
+            ]
+        ):
+            assert param.grad is not None, name
+    for name, param in predictor.named_parameters():
+        # sentinel2 is "masked" from the decoder
+        if not any(
+            ignore_param in name
+            for ignore_param in [
+                "pos_embed",
+                "month_embed",
+                "composite_encodings.per_modality_channel_embeddings.latlon",
+            ]
+        ):
+            assert param.grad is not None, name

@@ -519,7 +519,6 @@ class FlexiHeliosCompositeEncodings(nn.Module):
             raise ValueError(
                 f"Unsupported tokens shape {modality_tokens.shape} for {modality}"
             )
-
         return modality_tokens + modality_embed
 
     def forward(
@@ -1027,7 +1026,7 @@ class Predictor(FlexiHeliosBase):
         num_heads: int = 8,
         max_sequence_length: int = 24,
         drop_path: float = 0.0,
-        learnable_channel_embeddings: bool = False,
+        learnable_channel_embeddings: bool = True,
         output_embedding_size: int | None = None,
     ):
         """Initialize the predictor.
@@ -1205,8 +1204,8 @@ class Predictor(FlexiHeliosBase):
         tokens_dict = self.composite_encodings(
             tokens_only_dict, timestamps, patch_size, input_res
         )
-        x.update(tokens_dict)
-        x, mask = self.collapse_and_combine_hwtc(x)
+        tokens_dict.update(original_masks_dict)
+        x, mask = self.collapse_and_combine_hwtc(tokens_dict)
         x, y, x_mask, y_mask, indices = self.split_x_y(x, mask)
         for blk in self.blocks:
             # note that we are not taking the inverse of the mask, since split_x_y gives us
@@ -1262,7 +1261,6 @@ class Predictor(FlexiHeliosBase):
         tokens_and_masks = self.apply_attn(
             decoder_emedded_dict, timestamps, patch_size, input_res
         )
-
         # TODO: Factor this out into a more readable function
         output_dict = {}
         available_modalities = return_modalities_from_dict(tokens_and_masks)
