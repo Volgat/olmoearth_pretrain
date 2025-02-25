@@ -878,12 +878,12 @@ class Encoder(FlexiHeliosBase):
         # Values that were masked out are not returned but the values that are still there are returned to the original positions
         return out, full_mask
 
-    def create_exit_seqs_and_tokens(
+    def create_exit_seqs(
         self,
         tokens_only_dict: dict[str, Tensor],
         mask_only_dict: dict[str, Tensor],
         token_exit_cfg: dict[str, int] | None,
-    ) -> tuple[Tensor | None, Tensor | None]:
+    ) -> tuple[Tensor | None]:
         """Create the exit sequences and tokens."""
         # Check that tokens_only_dict doesn't contain any mask keys
         assert all(
@@ -893,16 +893,12 @@ class Encoder(FlexiHeliosBase):
             exit_ids_per_modality = self.create_token_exit_ids(
                 tokens_only_dict, token_exit_cfg
             )
-            mask_only_dict.update(exit_ids_per_modality)
-            exit_ids_per_modality = mask_only_dict
+            exit_ids_per_modality.update(mask_only_dict)
             # Exit ids seqs tells us which layer to exit each token
             exit_ids_seq, _ = self.collapse_and_combine_hwtc(exit_ids_per_modality)
-            # The exit tokens are the tensor that store tokens that exit early from the encoder
-            exited_tokens, _ = self.collapse_and_combine_hwtc(exit_ids_per_modality)
         else:
             exit_ids_seq = None
-            exited_tokens = None
-        return exit_ids_seq, exited_tokens
+        return exit_ids_seq
 
     def apply_attn(
         self,
@@ -917,10 +913,11 @@ class Encoder(FlexiHeliosBase):
         tokens_only_dict, original_masks_dict, modalities_to_dims_dict = (
             self.split_tokens_masks_and_dims(x)
         )
-
-        exit_ids_seq, exited_tokens = self.create_exit_seqs_and_tokens(
+        exit_ids_seq = self.create_exit_seqs(
             tokens_only_dict, original_masks_dict, token_exit_cfg
         )
+        # exited tokens are just the linear projection
+        exited_tokens, _ = self.collapse_and_combine_hwtc(x)
 
         tokens_dict = self.composite_encodings.forward(
             tokens_only_dict,
@@ -928,18 +925,16 @@ class Encoder(FlexiHeliosBase):
             patch_size,
             input_res,
         )
-        x.update(tokens_dict)
+        tokens_dict.update(original_masks_dict)
+        x, mask = self.collapse_and_combine_hwtc(tokens_dict)
 
-        x, mask = self.collapse_and_combine_hwtc(x)
-
-        new_mask = mask >= MaskValue.TARGET_ENCODER_ONLY.value
+        new_mask = mask != MaskValue.ONLINE_ENCODER.value
 
         tokens, indices, new_mask = self.remove_masked_tokens(x, new_mask)
         if exit_ids_seq is not None:
             exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, mask)
             # still linear projections
             exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, mask)
-
         # Apply attn with varying encoder depths
         for i_blk, blk in enumerate(self.blocks):
             if self.should_exit(i_blk, exit_after_n_layers):
@@ -947,15 +942,13 @@ class Encoder(FlexiHeliosBase):
                 # if exit_after is 0, then all layers are skipped
                 break
 
-            # skip the 0th block since this is just the linear
-            # projection
-            if (exit_ids_seq is not None) and (i_blk > 0):
+            if exit_ids_seq is not None:
                 assert exited_tokens is not None
                 # If a token should exit, then we update the exit token with the current token at the same position
                 exited_tokens = torch.where(
                     condition=(exit_ids_seq == i_blk),
-                    input=tokens.detach(),
-                    other=exited_tokens.detach(),
+                    input=tokens,
+                    other=exited_tokens,
                 )
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
@@ -969,10 +962,9 @@ class Encoder(FlexiHeliosBase):
             # IMPORTANT: write this to x
             tokens = torch.where(
                 condition=(exit_ids_seq == (i_blk + 1)),  # 2 for full depth
-                input=tokens.detach(),
-                other=exited_tokens.detach(),
+                input=tokens,
+                other=exited_tokens,
             )
-
         # we apply the norm before we add the removed tokens,
         # so that the norm is only computed against "real" tokens
         tokens = self.norm(tokens)
@@ -982,7 +974,6 @@ class Encoder(FlexiHeliosBase):
         tokens_per_modality_dict = self.split_and_expand_per_modality(
             tokens, modalities_to_dims_dict
         )
-
         # merge original masks and the processed tokens
         tokens_per_modality_dict.update(original_masks_dict)
         return tokens_per_modality_dict

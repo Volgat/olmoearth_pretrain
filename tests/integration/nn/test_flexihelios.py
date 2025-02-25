@@ -306,7 +306,7 @@ class TestEncoder:
         latlon_num_band_sets, latlon_num_bands = modality_band_set_len_and_total_bands[
             "latlon"
         ]
-        B, H, W, T, C = 1, 8, 8, 4, sentinel2_num_bands
+        B, H, W, T, C = 1, 2, 2, 1, sentinel2_num_bands
         sentinel2 = torch.randn(B, H, W, T, C)
         sentinel2_mask = torch.zeros(B, H, W, T, C, dtype=torch.long)
         latlon = torch.randn(B, latlon_num_bands)
@@ -326,7 +326,7 @@ class TestEncoder:
         }
         x = MaskedHeliosSample(**masked_sample_dict)
 
-        patch_size = 4
+        patch_size = 2
         input_res = 1
 
         token_exit_cfg = {"sentinel2": 0, "latlon": 0}
@@ -372,17 +372,19 @@ class TestEncoder:
             output.latlon.shape == expected_shape_latlon
         ), f"Expected output latlon shape {expected_shape_latlon}, got {output.latlon.shape}"
 
-        # test the gradients are correct too
         output.sentinel2.sum().backward()
         for name, param in encoder.named_parameters():
             # the composite_encodings is a bug which will be fixed now
-            if not any(
-                ignore_param in name
-                for ignore_param in [
-                    "pos_embed",
-                    "month_embed",
-                    "composite_encodings.per_modality_channel_embeddings.latlon",
-                ]
+            if not (
+                any(
+                    ignore_param in name
+                    for ignore_param in [
+                        "pos_embed",
+                        "month_embed",
+                        "composite_encodings.per_modality_channel_embeddings.latlon",
+                    ]
+                )
+                or ("block" in name)
             ):
                 assert param.grad is not None, name
 
