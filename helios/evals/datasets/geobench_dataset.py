@@ -48,7 +48,6 @@ def _geobench_band_index_from_helios_name(helios_name: str) -> int:
 GEOBENCH_TO_HELIOS_S2_BANDS = [
     _geobench_band_index_from_helios_name(b) for b in Modality.SENTINEL2.band_order
 ]
-print(f"GEOBENCH_TO_HELIOS_S2_BANDS: {GEOBENCH_TO_HELIOS_S2_BANDS}")
 
 
 class GeoBenchConfig(NamedTuple):
@@ -117,9 +116,7 @@ class GeobenchDataset(Dataset):
             self.dataset[0].bands[i].band_info.name
             for i in range(len(self.dataset[0].bands))
         ]
-        print(f"Original band names: {original_band_names}")
         self.band_names = [x.name for x in task.bands_info]
-        print(f"Band names: {self.band_names}")
         self.band_indices = [
             original_band_names.index(band_name) for band_name in self.band_names
         ]

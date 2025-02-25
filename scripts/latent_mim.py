@@ -19,6 +19,7 @@ from upath import UPath
 from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
+from helios.data.normalize import Strategy
 from helios.internal.experiment import CommonComponents, HeliosVisualizeConfig, main
 from helios.nn.flexihelios import EncoderConfig, PredictorConfig
 from helios.nn.latent_mim import LatentMIMConfig
@@ -222,7 +223,9 @@ def build_visualize_config(common: CommonComponents) -> HeliosVisualizeConfig:
     """Build the visualize config for an experiment."""
     return HeliosVisualizeConfig(
         num_samples=50,
-        output_dir=str(UPath(common.save_folder) / "visualizations"),
+        output_dir="./test_vis",  # str(UPath(common.save_folder) / "visualizations"),
+        normalize_strategy=Strategy.PREDEFINED,
+        std_multiplier=2.0,
     )
 
 

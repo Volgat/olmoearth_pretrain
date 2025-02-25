@@ -9,13 +9,14 @@ import cartopy.feature as cfeature
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-import numpy as np
 from einops import rearrange
 from matplotlib.figure import Figure
 from upath import UPath
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosDataset
+from helios.data.normalize import Normalizer
+from helios.data.utils import convert_to_db
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,10 @@ WORLDCOVER_LEGEND = {
 
 
 def visualize_sample(
-    dataset: HeliosDataset, sample_index: int, out_dir: str | Path | UPath
+    dataset: HeliosDataset,
+    sample_index: int,
+    normalizer: Normalizer,
+    out_dir: str | Path | UPath,
 ) -> Figure:
     """Visualize a sample from the Helios Dataset in a grid format.
 
@@ -112,6 +116,10 @@ def visualize_sample(
 
         # 4B. Plot other modalities
         modality_data = dataset.load_sample(modality_tile, sample)
+        if modality_spec == Modality.SENTINEL1:
+            modality_data = convert_to_db(modality_data)
+        if not modality_spec == Modality.WORLDCOVER:
+            modality_data = normalizer.normalize(modality_spec, modality_data)
         logger.info(f"Modality data shape (loaded): {modality_data.shape}")
 
         # If temporal [H, W, T, C], take first time step
@@ -151,15 +159,8 @@ def visualize_sample(
                 )
                 ax.axis("off")
 
-            #  For other modalities, do normal percentile-based scaling
             else:
-                valid_mask = ~np.isnan(channel_data)
-                if not np.any(valid_mask):
-                    vmin, vmax = 0, 1
-                else:
-                    vmin, vmax = np.nanpercentile(channel_data[valid_mask], [2, 98])
-
-                _ = ax.imshow(channel_data, cmap="viridis", vmin=vmin, vmax=vmax)
+                _ = ax.imshow(channel_data, cmap="viridis")
                 ax.set_title(f"{modality_spec.name.upper()} — {band_name}")
                 ax.axis("off")
 
