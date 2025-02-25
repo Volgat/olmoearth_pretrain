@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.distributed.checkpoint.state_dict as dist_cp_sd
 from olmo_core.distributed.parallel import DataParallelConfig
-from olmo_core.distributed.utils import get_world_size, get_local_tensor
+from olmo_core.distributed.utils import get_local_tensor, get_world_size
 from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
@@ -154,14 +154,9 @@ class LatentMIMTrainModule(HeliosTrainModule):
         self.base_loss = loss_config.build()
         self.masking_strategy = masking_config.build()
 
-    def loss_fn(
-        self, pred: Any, targets: Any, total_tokens: int | None = None
-    ) -> torch.Tensor:
+    def loss_fn(self, pred: Any, targets: Any) -> torch.Tensor:
         """Compute the loss between the predicted and target tensors."""
-        kwargs = {}
-        if total_tokens is not None and self.base_loss.reduce_by_total_tokens:
-            kwargs["total_tokens"] = total_tokens
-        return self.base_loss.compute(pred, targets, **kwargs)
+        return self.base_loss.compute(pred, targets)
 
     def eval_loss_fn(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """Compute the loss between the predicted and target tensors."""
@@ -190,7 +185,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
         # Set the maximum number of tokens
         token_budget = self.model.token_budget
         h_w_to_sample = list(
-                    range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
+            range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
         )
         total_batch_loss = torch.tensor(0.0, device=self.device)
         # Split into micro-batches.
@@ -209,7 +204,9 @@ class LatentMIMTrainModule(HeliosTrainModule):
                     np.arange(1, self.model.encoder.max_patch_size)
                 )
                 microbatch = self.model.transform.apply(microbatch)
-                subsampled_batch = microbatch.subset(patch_size, token_budget, h_w_to_sample)
+                subsampled_batch = microbatch.subset(
+                    patch_size, token_budget, h_w_to_sample
+                )
                 subsampled_batch = subsampled_batch.to_device(self.device)
                 # Each microbatch should have about the same number of encoded tokens if
                 # we mask here

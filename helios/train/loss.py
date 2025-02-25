@@ -172,12 +172,6 @@ class L2Loss(Loss):
         all_targets = targets.flatten_tokens_and_masks()[0]
         pred = all_preds[all_masks == MaskValue.DECODER.value]
         target = all_targets[all_masks == MaskValue.DECODER.value]
-        logger.info(f"pred: {pred.shape}, target: {target.shape}")
-        # During gradient accumulation, we need to divide by the total number of tokens in the batch
-        # to ensure that the loss is the same as if we were not accumulating gradients
-        # if (total_tokens := kwargs.get("total_tokens", None)) is not None:
-        #     loss = F.mse_loss(pred, target, reduction="none").sum(dim=-1)
-        #     return loss.sum() / total_tokens
         return F.mse_loss(pred, target)
 
 
