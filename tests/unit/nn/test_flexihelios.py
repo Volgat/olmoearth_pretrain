@@ -4,15 +4,111 @@ import pytest
 import torch
 from einops import repeat
 
-from helios.data.constants import ModalitySpec
+from helios.data.constants import Modality, ModalitySpec
 from helios.nn.flexihelios import (
     Encoder,
     FlexiHeliosBase,
+    FlexiHeliosCompositeEncodings,
     PoolingType,
     Predictor,
     TokensAndMasks,
 )
 from helios.train.masking import MaskValue
+
+
+class TestFlexiHeliosCompositeEncodings:
+    """Unit tests for the FlexiHeliosCompositeEncodings class."""
+
+    @pytest.fixture
+    def flexi_helios_composite_encodings(self) -> FlexiHeliosCompositeEncodings:
+        """Create composite encoder fixture for testing."""
+        flexi_helios_composite_encodings = FlexiHeliosCompositeEncodings(
+            embedding_size=16,
+            supported_modalities=[
+                Modality.SENTINEL2,
+                Modality.LATLON,
+                Modality.WORLDCOVER,
+            ],
+            max_sequence_length=12,
+            use_channel_embs=True,
+            random_channel_embs=True,
+        )
+        return flexi_helios_composite_encodings
+
+    def test_apply_encodings_per_modality_latlon(
+        self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
+    ) -> None:
+        """Test applying encodings to different modalities."""
+        B, D = 4, 16
+        patch_size = 4
+        input_res = 10
+        latlon_tokens = torch.randn(B, 1, D)
+        ll_enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
+            "latlon", latlon_tokens, None, patch_size, input_res
+        )
+        assert not (ll_enc == 0).all()
+        assert not (ll_enc == latlon_tokens).all()
+        assert latlon_tokens.shape == ll_enc.shape
+
+    def test_apply_encodings_per_modality_sentinel2(
+        self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
+    ) -> None:
+        """Test applying encodings to different modalities."""
+        B, H, W, T, C, D = 4, 4, 4, 3, 3, 16
+        patch_size = 4
+        input_res = 10
+        timestamps = torch.tensor(
+            [[15, 7, 2023], [15, 8, 2023], [15, 9, 2023]], dtype=torch.long
+        )
+        timestamps = repeat(timestamps, "... -> b ...", b=B)
+        sentinel2_tokens = torch.zeros(B, H, W, T, C, D)
+        enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
+            "sentinel2", sentinel2_tokens, timestamps, patch_size, input_res
+        )
+        assert not (enc == 0).all()
+
+    def test_apply_encodings_per_modality_worldcover(
+        self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
+    ) -> None:
+        """Test applying encodings to different modalities."""
+        B, H, W, C, D = 4, 4, 4, 1, 16
+        patch_size = 4
+        input_res = 10
+        worldcover_tokens = torch.zeros(B, H, W, C, D)
+        wc_enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
+            "worldcover", worldcover_tokens, None, patch_size, input_res
+        )
+        assert not (wc_enc == 0).all()
+
+    def test_apply_encodings_per_modality_grad(
+        self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
+    ) -> None:
+        """Test applying encodings to different modalities."""
+        B, H, W, T, C, D = 4, 4, 4, 3, 3, 16
+        patch_size = 4
+        input_res = 10
+        timestamps = torch.tensor(
+            [[15, 7, 2023], [15, 8, 2023], [15, 9, 2023]], dtype=torch.long
+        )
+        timestamps = repeat(timestamps, "... -> b ...", b=B)
+        sentinel2_tokens = torch.zeros(B, H, W, T, C, D)
+        assert (
+            flexi_helios_composite_encodings.per_modality_channel_embeddings[
+                "sentinel2"
+            ].grad
+            is None
+        )
+        enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
+            "sentinel2", sentinel2_tokens, timestamps, patch_size, input_res
+        )
+        loss = enc.sum()
+        loss.backward()
+        assert (
+            flexi_helios_composite_encodings.per_modality_channel_embeddings[
+                "sentinel2"
+            ].grad
+            is not None
+        )
 
 
 # TODO: Add tests for when the inputs are completely masked or different dims or something
