@@ -30,13 +30,11 @@ class HeliosWandBCallback(WandBCallback):
 
             wandb_dir = Path(self.trainer.save_folder) / "wandb"
             wandb_dir.mkdir(parents=True, exist_ok=True)
-
+            resume_id = None
             if self.restart_on_same_run:
                 runid_file = wandb_dir / "wandb_runid.txt"
                 if runid_file.exists():
                     resume_id = runid_file.read_text().strip()
-            else:
-                resume_id = None
 
             self.wandb.init(
                 dir=wandb_dir,
