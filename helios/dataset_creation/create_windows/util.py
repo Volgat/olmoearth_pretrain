@@ -21,7 +21,7 @@ from rslearn.utils.get_utm_ups_crs import get_utm_ups_projection
 from rslearn.utils.mp import StarImapUnorderedWrapper
 from upath import UPath
 
-from helios.dataset.util import WindowMetadata
+from helios.dataset.utils import WindowMetadata
 
 from ..constants import WINDOW_DURATION, WINDOW_RESOLUTIONS, WINDOW_SIZE
 

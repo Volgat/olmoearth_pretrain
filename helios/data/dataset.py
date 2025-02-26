@@ -15,7 +15,7 @@ import pandas as pd
 import torch
 from einops import rearrange
 from olmo_core.aliases import PathOrStr
-from olmo_core.config import Config
+from olmo_core.config import Config, DType
 from olmo_core.distributed.utils import get_fs_local_rank
 from pyproj import Transformer
 from torch.utils.data import Dataset
@@ -38,6 +38,7 @@ from helios.dataset.sample import (
     image_tiles_to_samples,
     load_image_for_sample,
 )
+from helios.dataset.utils import get_modality_specs_from_names
 from helios.types import ArrayTensor
 
 logger = logging.getLogger(__name__)
@@ -299,7 +300,7 @@ class HeliosDataset(Dataset):
         self,
         tile_path: UPath,
         supported_modalities: list[ModalitySpec],
-        dtype: np.dtype = np.float32,
+        dtype: DType,
         samples: list[SampleInformation] | None = None,
     ):
         """Initialize the dataset.
@@ -564,31 +565,40 @@ class HeliosDataset(Dataset):
 class HeliosDatasetConfig(Config):
     """Configuration for the HeliosDataset."""
 
-    tile_path: UPath
-    supported_modalities: list[ModalitySpec]
+    tile_path: str
+    supported_modality_names: list[str]
     samples: list[SampleInformation] | None = None
-    dtype: np.dtype = np.float32
+    dtype: DType = DType.float32
 
     def validate(self) -> None:
-        """Validate the configuration.
+        """Validate the configuration and build kwargs.
+
+        Args:
+            kwargs: Dictionary of arguments to validate
 
         Raises:
-            ValueError: If the configuration is invalid.
+            ValueError: If any arguments are invalid
         """
-        # Check if not or not exists
-        if self.tile_path is None:
-            raise ValueError("Tile directory is not set")
+        # Validate tile_path
+        if not isinstance(self.tile_path, UPath):
+            raise ValueError("tile_path must be a UPath")
         if not self.tile_path.exists():
-            raise ValueError("Tile directory does not exist")
-        if not self.supported_modalities:
-            raise ValueError("Supported modalities are not set")
+            raise ValueError(f"tile_path {self.tile_path} does not exist")
+
+        # Validate supported_modalities
+        if not isinstance(self.supported_modalities, list):
+            raise ValueError("supported_modalities must be a list")
+        if not all(isinstance(m, ModalitySpec) for m in self.supported_modalities):
+            raise ValueError(
+                "All elements in supported_modalities must be ModalitySpec"
+            )
 
     def build(self) -> "HeliosDataset":
         """Build the dataset."""
+        self.tile_path = UPath(self.tile_path)
         self.validate()
-        return HeliosDataset(
-            tile_path=self.tile_path,
-            supported_modalities=self.supported_modalities,
-            samples=self.samples,
-            dtype=self.dtype,
+        self.supported_modalities = get_modality_specs_from_names(
+            self.supported_modality_names
         )
+        kwargs = self.as_dict(exclude_none=True, recurse=False)
+        return HeliosDataset(**kwargs)

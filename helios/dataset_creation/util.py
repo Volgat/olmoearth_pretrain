@@ -4,7 +4,7 @@ from rslearn.dataset import Window
 from upath import UPath
 
 from helios.data.constants import ModalitySpec, TimeSpan
-from helios.dataset.util import WindowMetadata, get_modality_dir
+from helios.dataset.utils import WindowMetadata, get_modality_dir
 
 from .constants import WINDOW_DURATION
 

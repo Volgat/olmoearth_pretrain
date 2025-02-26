@@ -374,7 +374,7 @@ class _IterableDatasetWrapper(torch.utils.data.IterableDataset[HeliosSample]):
 class HeliosDataLoaderConfig(Config):
     """Configuration for the HeliosDataLoader."""
 
-    work_dir: UPath
+    work_dir: str
     global_batch_size: int
     seed: int
     shuffle: bool = True
@@ -399,6 +399,8 @@ class HeliosDataLoaderConfig(Config):
 
         if not isinstance(dataset, HeliosDataset):
             raise ValueError("Dataset must be a HeliosDataset")
+
+        self.work_dir = UPath(self.work_dir)
         dataset.prepare()
 
         return HeliosDataLoader(

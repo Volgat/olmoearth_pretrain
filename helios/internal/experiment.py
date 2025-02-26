@@ -8,6 +8,7 @@ from typing import cast
 
 import numpy as np
 from olmo_core.config import Config, StrEnum
+from olmo_core.distributed.utils import get_local_rank
 from olmo_core.train import (
     TrainerConfig,
     prepare_training_environment,
@@ -16,7 +17,7 @@ from olmo_core.train import (
 from olmo_core.train.callbacks import ConfigSaverCallback, WandBCallback
 from olmo_core.utils import get_default_device, prepare_cli_environment, seed_all
 
-from helios.data.constants import ModalitySpec
+from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig, collate_helios
 from helios.data.normalize import Normalizer, Strategy
@@ -38,8 +39,19 @@ class CommonComponents(Config):
 
     run_name: str
     save_folder: str
-    supported_modalities: list[ModalitySpec]
+    supported_modality_names: list[str]
     # callbacks: dict[str, Callback]
+
+    def validate(self) -> None:
+        """Validate the common components."""
+        if not isinstance(self.supported_modality_names, list):
+            raise ValueError("supported_modality_names must be a list")
+        if not all(
+            modality in Modality.names() for modality in self.supported_modality_names
+        ):
+            raise ValueError(
+                "supported_modality_names must contain only valid modality names"
+            )
 
 
 @dataclass
@@ -67,6 +79,19 @@ class HeliosExperimentConfig(Config):
     init_seed: int = 12536
 
 
+def split_common_overrides(overrides: list[str]) -> tuple[list[str], list[str]]:
+    """Split the common overrides from the command line."""
+    common_overrides = [
+        dotfield.replace("common.", "")
+        for dotfield in overrides
+        if "common." in dotfield
+    ]
+    non_common_overrides = [
+        dotfield for dotfield in overrides if "common." not in dotfield
+    ]
+    return common_overrides, non_common_overrides
+
+
 def build_config(
     common: CommonComponents,
     model_config_builder: Callable[[CommonComponents], LatentMIMConfig],
@@ -83,6 +108,10 @@ def build_config(
     ) = None,
 ) -> HeliosExperimentConfig:
     """Build a Helios experiment configuration."""
+    # Overide common components
+    common_overrides, overrides = split_common_overrides(overrides)
+    logger.info("Common overrides: %s", common_overrides)
+    common.merge(common_overrides)
     model_config = model_config_builder(common)
     dataset_config = dataset_config_builder(common)
     dataloader_config = dataloader_config_builder(common)
@@ -100,7 +129,6 @@ def build_config(
         trainer=trainer_config,
         visualize_config=visualize_config,
     )
-    logger.info("Config: %s", config)
     logger.info("Overrides: %s", overrides)
     if len(overrides) > 0:
         # also there are some unerlying dataclasses we don't want to be able to overide and are not actually part of config
@@ -188,13 +216,13 @@ class SubCmd(StrEnum):
 
     def run(self, config: HeliosExperimentConfig) -> None:
         """Run the given subcommand."""
-        # if get_local_rank() == 0:
-        #     print(config)
-        #     print(
-        #         "\n"
-        #         f"[b blue]Total parameters:[/]                {config.model.num_params:,d}\n"
-        #         f"[b blue]Non-embedding parameters:[/]        {config.model.num_non_embedding_params:,d}"
-        #     )
+        if get_local_rank() == 0:
+            print(config)
+            # print(
+            #     "\n"
+            #     f"[b blue]Total parameters:[/]                {config.model.num_params:,d}\n"
+            #     f"[b blue]Non-embedding parameters:[/]        {config.model.num_non_embedding_params:,d}"
+            # )
 
         if self == SubCmd.launch:
             raise NotImplementedError
