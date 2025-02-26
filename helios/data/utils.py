@@ -1,0 +1,110 @@
+"""Utils for the data module."""
+
+import math
+
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+def to_cartesian(lat: float, lon: float) -> np.ndarray:
+    """Convert latitude and longitude to Cartesian coordinates.
+
+    Args:
+        lat: Latitude in degrees as a float.
+        lon: Longitude in degrees as a float.
+
+    Returns:
+        A numpy array of Cartesian coordinates (x, y, z).
+    """
+
+    def validate_lat_lon(lat: float, lon: float) -> None:
+        """Validate the latitude and longitude.
+
+        Args:
+            lat: Latitude in degrees as a float.
+            lon: Longitude in degrees as a float.
+        """
+        assert (
+            -90 <= lat <= 90
+        ), f"lat out of range ({lat}). Make sure you are in EPSG:4326"
+        assert (
+            -180 <= lon <= 180
+        ), f"lon out of range ({lon}). Make sure you are in EPSG:4326"
+
+    def convert_to_radians(lat: float, lon: float) -> tuple:
+        """Convert the latitude and longitude to radians.
+
+        Args:
+            lat: Latitude in degrees as a float.
+            lon: Longitude in degrees as a float.
+
+        Returns:
+            A tuple of the latitude and longitude in radians.
+        """
+        return lat * math.pi / 180, lon * math.pi / 180
+
+    def compute_cartesian(lat: float, lon: float) -> tuple:
+        """Compute the Cartesian coordinates.
+
+        Args:
+            lat: Latitude in degrees as a float.
+            lon: Longitude in degrees as a float.
+
+        Returns:
+            A tuple of the Cartesian coordinates (x, y, z).
+        """
+        x = math.cos(lat) * math.cos(lon)
+        y = math.cos(lat) * math.sin(lon)
+        z = math.sin(lat)
+
+        return x, y, z
+
+    validate_lat_lon(lat, lon)
+    lat, lon = convert_to_radians(lat, lon)
+    x, y, z = compute_cartesian(lat, lon)
+
+    return np.array([x, y, z])
+
+
+# According to the EE, we need to convert Sentinel1 data to dB using 10*log10(x)
+# https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD#description
+def convert_to_db(data: np.ndarray) -> np.ndarray:
+    """Convert the data to decibels.
+
+    Args:
+        data: The data to convert to decibels.
+
+    Returns:
+        The data in decibels.
+    """
+    # clip data to 1e-10 to avoid log(0)
+    data = np.clip(data, 1e-10, None)
+    result = 10 * np.log10(data)
+    return result
+
+
+def plot_latlon_distribution(latlons: np.ndarray, title: str) -> plt.Figure:
+    """Plot the geographic distribution of the data."""
+    fig = plt.figure(figsize=(12, 8))
+    ax = plt.axes(projection=ccrs.PlateCarree())
+
+    # Add map features
+    ax.add_feature(cfeature.COASTLINE)
+    ax.add_feature(cfeature.LAND, alpha=0.1)
+    ax.add_feature(cfeature.OCEAN, alpha=0.1)
+
+    # Plot the data points
+    ax.scatter(
+        latlons[:, 1],
+        latlons[:, 0],
+        transform=ccrs.PlateCarree(),
+        alpha=0.5,
+        s=1,
+    )
+
+    ax.set_global()  # Show the entire globe
+    ax.gridlines()
+    ax.set_title(title)
+    return fig

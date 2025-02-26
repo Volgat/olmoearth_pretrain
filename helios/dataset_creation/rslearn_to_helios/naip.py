@@ -11,22 +11,14 @@ from rslearn.utils.mp import star_imap_unordered
 from rslearn.utils.raster_format import GeotiffRasterFormat
 from upath import UPath
 
-from ..const import METADATA_COLUMNS
-from ..util import get_modality_fname, get_modality_temp_meta_fname
+from helios.data.constants import Modality, TimeSpan
+from helios.dataset.util import get_modality_fname
 
-GROUPS = ["naip"]
-BANDS = [
-    "R",
-    "G",
-    "B",
-    "IR",
-]
+from ..constants import METADATA_COLUMNS
+from ..util import get_modality_temp_meta_fname, get_window_metadata
 
 # Layer name in the input rslearn dataset.
 LAYER_NAME = "naip"
-
-# Modality in the output Helios dataset.
-MODALITY = "naip"
 
 
 def convert_naip(window_path: UPath, helios_path: UPath) -> None:
@@ -37,6 +29,7 @@ def convert_naip(window_path: UPath, helios_path: UPath) -> None:
         helios_path: Helios dataset path to write to.
     """
     window = Window.load(window_path)
+    window_metadata = get_window_metadata(window)
     layer_datas = window.load_layer_datas()
     raster_format = GeotiffRasterFormat()
 
@@ -60,9 +53,18 @@ def convert_naip(window_path: UPath, helios_path: UPath) -> None:
     # times should never be None.
     assert start_time is not None and end_time is not None  # nosec
 
-    raster_dir = window.get_raster_dir(LAYER_NAME, BANDS)
+    assert len(Modality.NAIP.band_sets) == 1
+    band_set = Modality.NAIP.band_sets[0]
+    raster_dir = window.get_raster_dir(LAYER_NAME, band_set.bands)
     image = raster_format.decode_raster(raster_dir, window.bounds)
-    dst_fname = get_modality_fname(helios_path, MODALITY, window.name, "tif")
+    dst_fname = get_modality_fname(
+        helios_path,
+        Modality.NAIP,
+        TimeSpan.STATIC,
+        window_metadata,
+        band_set.get_resolution(),
+        "tif",
+    )
     raster_format.encode_raster(
         path=dst_fname.parent,
         projection=window.projection,
@@ -70,13 +72,19 @@ def convert_naip(window_path: UPath, helios_path: UPath) -> None:
         array=image,
         fname=dst_fname.name,
     )
-    metadata_fname = get_modality_temp_meta_fname(helios_path, MODALITY, window.name)
+    metadata_fname = get_modality_temp_meta_fname(
+        helios_path, Modality.NAIP, TimeSpan.STATIC, window.name
+    )
+    metadata_fname.parent.mkdir(parents=True, exist_ok=True)
     with metadata_fname.open("w") as f:
         writer = csv.DictWriter(f, fieldnames=METADATA_COLUMNS)
         writer.writeheader()
         writer.writerow(
             dict(
-                example_id=window.name,
+                crs=window_metadata.crs,
+                col=window_metadata.col,
+                row=window_metadata.row,
+                tile_time=window_metadata.time.isoformat(),
                 image_idx="0",
                 start_time=start_time.isoformat(),
                 end_time=end_time.isoformat(),
@@ -113,16 +121,15 @@ if __name__ == "__main__":
     ds_path = UPath(args.ds_path)
     helios_path = UPath(args.helios_path)
 
+    metadata_fnames = ds_path.glob("windows/res_0.625/*/metadata.json")
     jobs = []
-    for group in GROUPS:
-        metadata_fnames = (ds_path / "windows" / group).glob("*/metadata.json")
-        for metadata_fname in metadata_fnames:
-            jobs.append(
-                dict(
-                    window_path=metadata_fname.parent,
-                    helios_path=helios_path,
-                )
+    for metadata_fname in metadata_fnames:
+        jobs.append(
+            dict(
+                window_path=metadata_fname.parent,
+                helios_path=helios_path,
             )
+        )
 
     p = multiprocessing.Pool(args.workers)
     outputs = star_imap_unordered(p, convert_naip, jobs)

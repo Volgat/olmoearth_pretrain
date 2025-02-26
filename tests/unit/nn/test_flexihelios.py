@@ -1,0 +1,389 @@
+"""Unit tests for the core model code."""
+
+import pytest
+import torch
+from einops import repeat
+
+from helios.data.constants import ModalitySpec
+from helios.nn.flexihelios import (
+    Encoder,
+    FlexiHeliosBase,
+    PoolingType,
+    Predictor,
+    TokensAndMasks,
+)
+from helios.train.masking import MaskValue
+
+
+# TODO: Add tests for when the inputs are completely masked or different dims or something
+class TestFlexiHeliosBase:
+    """Unit tests for the FlexiHeliosBase class."""
+
+    @pytest.fixture
+    def flexi_helios_base(
+        self, supported_modalities: list[ModalitySpec]
+    ) -> FlexiHeliosBase:
+        """Create encoder fixture for testing."""
+        flexi_helios_base = FlexiHeliosBase(
+            embedding_size=8,
+            num_heads=2,
+            mlp_ratio=4.0,
+            depth=2,
+            drop_path=0.1,
+            supported_modalities=supported_modalities,
+            max_sequence_length=12,
+            use_channel_embs=True,
+        )
+        return flexi_helios_base
+
+    def test_collapse_and_combine_hwtc(
+        self, flexi_helios_base: FlexiHeliosBase
+    ) -> None:
+        """Test collapsing tokens from different modalities into single tensor."""
+        B, D = 2, 4
+        sentinel2_tokens = torch.randn(B, 2, 1, 1, 2, D)
+        sentinel2_mask = torch.randint(0, 2, (B, 2, 1, 1, 2)).float()
+        latlon = torch.randn(B, 1, D)
+        latlon_mask = torch.randint(0, 2, (B, 1)).float()
+        x = {
+            "sentinel2": sentinel2_tokens,
+            "sentinel2_mask": sentinel2_mask,
+            "latlon": latlon,
+            "latlon_mask": latlon_mask,
+        }
+        tokens, masks = flexi_helios_base.collapse_and_combine_hwtc(x)
+        assert tokens.shape == (B, 5, D)
+        assert masks.shape == (B, 5)
+
+    def test_split_and_expand_per_modality(self) -> None:
+        """Test splitting combined tensor back into per-modality tensors."""
+        B, D = 2, 4  # Batch size and embedding dimension
+        modality_1_channel_groups = 3
+        modality_2_channel_groups = 5
+        modalities_to_dims_dict: dict[str, tuple[int, ...]] = {
+            "modality1": (B, 2, 2, 1, modality_1_channel_groups, D),
+            "modality2": (B, 1, 1, 2, modality_2_channel_groups, D),
+        }
+
+        modality1_data = torch.randn(B, 4 * modality_1_channel_groups, D)
+        modality2_data = torch.randn(B, 4 * modality_2_channel_groups, D)
+
+        x = torch.cat([modality1_data, modality2_data], dim=1)
+
+        # Now call the function
+        modality_tokens_dict = FlexiHeliosBase.split_and_expand_per_modality(
+            x, modalities_to_dims_dict
+        )
+
+        modality1_tokens = modality_tokens_dict["modality1"]
+        modality2_tokens = modality_tokens_dict["modality2"]
+        assert list(modality1_tokens.shape) == [
+            2,
+            2,
+            2,
+            1,
+            3,
+            4,
+        ], f"Incorrect shape for modality1 tokens: {modality1_tokens.shape}"
+        assert list(modality2_tokens.shape) == [
+            2,
+            1,
+            1,
+            2,
+            5,
+            4,
+        ], f"Incorrect shape for modality2 tokens: {modality2_tokens.shape}"
+
+
+class TestEncoder:
+    """Unit tests for the Encoder class."""
+
+    @pytest.fixture
+    def encoder(self, supported_modalities: list[ModalitySpec]) -> Encoder:
+        """Create encoder fixture for testing.
+
+        Returns:
+            Encoder: Test encoder instance with small test config
+        """
+        return Encoder(
+            embedding_size=8,
+            num_heads=2,
+            mlp_ratio=4.0,
+            depth=2,
+            drop_path=0.1,
+            supported_modalities=supported_modalities,
+            max_sequence_length=12,
+            max_patch_size=8,
+            use_channel_embs=True,
+        )
+
+    def test_create_token_exit_ids_normal_usage(self, encoder: Encoder) -> None:
+        """Test creating exit IDs for early token exiting - normal usage.
+
+        Tests normal usage with full token_exit_cfg.
+        """
+        B, H, W, T, D = 1, 2, 2, 2, 4
+        sentinel2_tokens = torch.zeros(B, H, W, T, D)
+        latlon_tokens = torch.randn(B, 1, D)
+        x = {"sentinel2": sentinel2_tokens, "latlon": latlon_tokens}
+
+        token_exit_cfg = {"sentinel2": 1, "latlon": 2}
+        exit_ids_dict = encoder.create_token_exit_ids(x, token_exit_cfg)
+        assert (
+            "sentinel2" in exit_ids_dict
+        ), "Expected 'sentinel2' key in the result dict"
+        sentinel2_exit_ids = exit_ids_dict["sentinel2"]
+        assert (
+            sentinel2_exit_ids.shape == sentinel2_tokens.shape
+        ), "Shape of exit IDs should match the shape of the modality tokens."
+
+        assert (exit_ids_dict["sentinel2"] == 1).all()
+        assert (exit_ids_dict["latlon"] == 2).all()
+
+    def test_create_token_exit_ids_missing_exit_cfg_band_group(
+        self, encoder: Encoder
+    ) -> None:
+        """Test creating exit IDs for early token exiting - error cases.
+
+        Tests error handling for:
+        - Missing band group in token_exit_cfg (KeyError)
+        """
+        B, H, W, T, D = 1, 2, 2, 2, 4
+        sentinel2_tokens = torch.zeros(B, H, W, T, D)
+        x = {"sentinel2": sentinel2_tokens}
+
+        with pytest.raises(KeyError):
+            incomplete_exit_cfg = {"rgb": 1}  # Missing the "nir" key
+            encoder.create_token_exit_ids(x, incomplete_exit_cfg)
+
+    def test_remove_masked_tokens(self) -> None:
+        """Test removing masked tokens and tracking indices."""
+        d = 2
+        x = torch.tensor([[0, 1, 0], [1, 0, 1]]).float()
+        x = repeat(x, "b n -> b n d", d=d)
+        print(f"x shape: {x.shape}")
+        mask = torch.tensor([[1, 0, 1], [0, 1, 0]]).float()
+
+        expected_tokens = torch.tensor(
+            [
+                [[1.0, 1.0], [0.0, 0.0]],
+                [[1.0, 1.0], [1.0, 1.0]],
+            ]
+        )
+        num_tokens_to_keep = torch.sum(~mask.bool())
+        expected_indices = torch.tensor([[1, 0, 2], [0, 2, 1]])
+        expected_updated_mask = torch.tensor([[0.0, 1.0], [0.0, 0.0]])
+        tokens, indices, updated_mask = Encoder.remove_masked_tokens(x, mask)
+        kept_unmasked_tokens = torch.sum(~updated_mask.bool())
+        assert torch.equal(tokens, expected_tokens)
+        assert torch.equal(indices, expected_indices)
+        assert torch.equal(updated_mask, expected_updated_mask)
+        assert kept_unmasked_tokens == num_tokens_to_keep
+
+    @pytest.mark.parametrize(
+        "block_idx,exit_after,expected",
+        [
+            (0, None, False),
+            (0, 1, False),
+            (1, 1, True),
+            (1, 2, False),
+            (2, 1, True),
+        ],
+    )
+    def test_should_exit(
+        self, block_idx: int, exit_after: int | None, expected: bool
+    ) -> None:
+        """Test exit condition logic.
+
+        Args:
+            block_idx: Current block index
+            exit_after: Number of layers after which to exit, or None
+            expected: Expected output
+        """
+        assert Encoder.should_exit(block_idx, exit_after) is expected
+
+    def test_add_removed_tokens(self) -> None:
+        """Test adding removed tokens back into tensor."""
+        partial_tokens = torch.tensor(
+            [
+                [[1.0, 11.0], [2.0, 22.0]],
+                [[5.0, 55.0], [6.0, 66.0]],
+            ]
+        )
+        indices = torch.tensor(
+            [
+                [0, 1, 2],
+                [1, 0, 2],
+            ]
+        )
+        partial_mask = torch.tensor(
+            [
+                [0.0, 0.0],
+                [0.0, 1.0],
+            ]
+        )
+
+        expected_out = torch.tensor(
+            [
+                [[1.0, 11.0], [2.0, 22.0], [0.0, 0.0]],
+                [[0.0, 0.0], [5.0, 55.0], [0.0, 0.0]],
+            ]
+        )
+        expected_mask = torch.tensor(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 1.0],
+            ]
+        )
+
+        out, full_mask = Encoder.add_removed_tokens(
+            partial_tokens, indices, partial_mask
+        )
+        assert torch.equal(out, expected_out)
+        assert torch.equal(full_mask, expected_mask)
+
+
+class TestPredictor:
+    """Unit tests for the Predictor class."""
+
+    @pytest.fixture
+    def predictor(self, supported_modalities: list[ModalitySpec]) -> Predictor:
+        """Create predictor fixture for testing."""
+        return Predictor(
+            supported_modalities=supported_modalities,
+            encoder_embedding_size=8,
+            decoder_embedding_size=8,
+            depth=2,
+            mlp_ratio=4.0,
+            num_heads=2,
+            max_sequence_length=12,
+            drop_path=0.1,
+            learnable_channel_embeddings=True,
+            output_embedding_size=8,
+        )
+
+    def test_add_masks(self, predictor: Predictor) -> None:
+        """Test that marked tokens are replaced with the learnable mask token."""
+        B, H, W, T, C_G, D = 1, 2, 2, 1, 5, 8
+        sentinel2_tokens = torch.randn(B, H, W, T, C_G, D)
+
+        sentinel2_mask = torch.zeros(B, H, W, T, C_G).float()
+        sentinel2_mask[0, 0, 0, 0, 0] = MaskValue.DECODER.value
+        latlon = torch.randn(B, 1, D)
+        latlon_mask = torch.randint(0, 2, (B, 1)).float()
+
+        tokens_and_masks = {
+            "sentinel2": sentinel2_tokens,
+            "sentinel2_mask": sentinel2_mask,
+            "latlon": latlon,
+            "latlon_mask": latlon_mask,
+        }
+        replaced_dict = predictor.add_masks(tokens_and_masks)
+
+        # We expect replaced_dict to have the key "sentinel2", shaped like sentinel2_tokens
+        assert (
+            "sentinel2" in replaced_dict
+        ), "Expected an output key for modality sentinel2"
+        replaced_sentinel2 = replaced_dict["sentinel2"]
+        assert replaced_sentinel2.shape == sentinel2_tokens.shape, (
+            f"Expected shape {sentinel2_tokens.shape} for replaced tokens, "
+            f"got {replaced_sentinel2.shape}"
+        )
+        replaced_location = replaced_sentinel2[
+            0, 0, 0, 0, 0, :
+        ]  # the single pixel & channel we set to 2
+
+        unchanged_location = replaced_sentinel2[0, 0, 0, 0, 1, :]
+
+        assert torch.allclose(
+            replaced_location, predictor.mask_token, atol=1e-6
+        ), "Tokens at masked=2 location were not replaced by the learnable mask token."
+
+        assert torch.allclose(
+            unchanged_location, sentinel2_tokens[0, 0, 0, 0, 1, :], atol=1e-6
+        ), "Tokens at non-masked location should remain the same."
+
+    def test_split_x_y(self) -> None:
+        """Test splitting the tokens into x and y."""
+        tokens = torch.tensor(
+            [[5, 6, 7, 8, 2, 13, 14, 15, 16], [5, 6, 7, 1, 2, 3, 4, 15, 16]]
+        ).unsqueeze(-1)
+        mask = torch.tensor([[0, 0, 0, 0, 1, 1, 2, 2, 2], [0, 0, 0, 1, 1, 1, 1, 2, 2]])
+
+        x, y, x_mask, y_mask, _ = Predictor.split_x_y(tokens, mask)
+        assert torch.equal(x, torch.tensor([[14, 15, 16], [15, 16, 1]]).unsqueeze(-1))
+        assert torch.equal(y, torch.tensor([[5, 6, 7, 8], [4, 5, 6, 7]]).unsqueeze(-1))
+        assert torch.equal(x_mask, torch.tensor([[1, 1, 1], [1, 1, 0]]))
+        assert torch.equal(y_mask, torch.tensor([[1, 1, 1, 1], [0, 1, 1, 1]]))
+
+    def test_combine_x_y(self) -> None:
+        """Test combining the x and y tokens."""
+        # x is the query (i.e. the masked tokens)
+        x = torch.tensor([[14, 15, 16], [15, 16, 1]]).unsqueeze(-1)
+        # y is the keys and values (i.e. the unmasked tokens)
+        y = torch.tensor([[5, 6, 7, 8], [4, 5, 6, 7]]).unsqueeze(-1)
+        x_mask = torch.tensor([[1, 1, 1], [1, 1, 0]])
+        y_mask = torch.tensor([[1, 1, 1, 1], [0, 1, 1, 1]])
+        indices = torch.tensor(
+            [[6, 7, 8, 4, 5, 0, 1, 2, 3], [7, 8, 3, 4, 5, 6, 0, 1, 2]]
+        )
+
+        tokens = Predictor.combine_x_y(x, y, x_mask, y_mask, indices)
+        assert torch.equal(
+            tokens,
+            torch.tensor(
+                [[5, 6, 7, 8, 0, 0, 14, 15, 16], [5, 6, 7, 0, 0, 0, 0, 15, 16]]
+            ).unsqueeze(-1),
+        )
+
+
+class TestTokensAndMasks:
+    """Test TestTokensAndMasks."""
+
+    def test_flatten_tokens_and_masks(self) -> None:
+        """Test TokensAndMasks.flatten_tokens_and_masks."""
+        b, h, w, t, d = 2, 4, 4, 3, 128
+        sentinel_2 = torch.ones((b, h, w, t, d))
+        sentinel_2[0, 0, 0, 0, :] = 0  # set one "token" to 0s
+        sentinel_2_mask = torch.zeros((b, h, w, t)).long()
+        sentinel_2_mask[0, 0, 0, 0] = 1  # set the same token's mask to 1
+        t_and_m = TokensAndMasks(sentinel2=sentinel_2, sentinel2_mask=sentinel_2_mask)
+        x, mask = t_and_m.flatten_tokens_and_masks()
+
+        assert x.shape == (b, h * w * t, d)
+        assert mask.shape == (b, h * w * t)
+        assert (x[mask.bool()] == 0).all()
+        assert (x[(1 - mask).bool()] == 1).all()
+
+    def test_pool_unmasked_tokens(self) -> None:
+        """Test TokensAndMasks.pool_unmasked_tokens."""
+        b, h, w, t, d = 2, 4, 4, 3, 128
+        # Setup for mean pooling
+        sentinel_2_mean = torch.ones((b, h, w, t, d))
+        sentinel_2_mean[0, 0, 0, 0, :] = 0  # set one "token" to 0s
+        sentinel_2_mask_mean = torch.zeros((b, h, w, t)).long()
+        sentinel_2_mask_mean[0, 0, 0, 0] = 1  # set the same token's mask to 1
+        t_and_m_mean = TokensAndMasks(
+            sentinel2=sentinel_2_mean, sentinel2_mask=sentinel_2_mask_mean
+        )
+        # Setup for max pooling
+        sentinel_2_max = torch.ones((b, h, w, t, d)) * 2  # set all tokens to 2
+        sentinel_2_max[0, 0, 0, 0, :] = 3  # set one "token" to 3s for max pooling
+        sentinel_2_mask_max = torch.zeros((b, h, w, t)).long()
+        sentinel_2_mask_max[0, 0, 0, 0] = 1  # set the same token's mask to 1
+        t_and_m_max = TokensAndMasks(
+            sentinel2=sentinel_2_max, sentinel2_mask=sentinel_2_mask_max
+        )
+
+        # Test max pooling
+        pooled_max = t_and_m_max.pool_unmasked_tokens(PoolingType.MAX)
+        assert pooled_max.shape == (b, d)
+        assert (pooled_max == 2).all()  # check the 3 tokens have been ignored
+
+        # Test mean pooling
+        pooled_mean = t_and_m_mean.pool_unmasked_tokens(PoolingType.MEAN)
+        assert pooled_mean.shape == (b, d)
+        assert (pooled_mean == 1).all()  # check the 0 tokens have been ignored
+
+
+# TODO: write a unit test for the FlexiPatchEmbeddings
