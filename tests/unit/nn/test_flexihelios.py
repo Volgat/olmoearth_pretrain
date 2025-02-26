@@ -35,7 +35,52 @@ class TestFlexiHeliosCompositeEncodings:
         )
         return flexi_helios_composite_encodings
 
-    def test_apply_encodings_per_modality(
+    def test_apply_encodings_per_modality_latlon(
+        self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
+    ) -> None:
+        """Test applying encodings to different modalities."""
+        B, D = 4, 16
+        patch_size = 4
+        input_res = 10
+        latlon_tokens = torch.randn(B, 1, D)
+        ll_enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
+            "latlon", latlon_tokens, None, patch_size, input_res
+        )
+        assert not (ll_enc == 0).all()
+        assert not (ll_enc == latlon_tokens).all()
+        assert latlon_tokens.shape == ll_enc.shape
+
+    def test_apply_encodings_per_modality_sentinel2(
+        self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
+    ) -> None:
+        """Test applying encodings to different modalities."""
+        B, H, W, T, C, D = 4, 4, 4, 3, 3, 16
+        patch_size = 4
+        input_res = 10
+        timestamps = torch.tensor(
+            [[15, 7, 2023], [15, 8, 2023], [15, 9, 2023]], dtype=torch.long
+        )
+        timestamps = repeat(timestamps, "... -> b ...", b=B)
+        sentinel2_tokens = torch.zeros(B, H, W, T, C, D)
+        enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
+            "sentinel2", sentinel2_tokens, timestamps, patch_size, input_res
+        )
+        assert not (enc == 0).all()
+
+    def test_apply_encodings_per_modality_worldcover(
+        self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
+    ) -> None:
+        """Test applying encodings to different modalities."""
+        B, H, W, C, D = 4, 4, 4, 1, 16
+        patch_size = 4
+        input_res = 10
+        worldcover_tokens = torch.zeros(B, H, W, C, D)
+        wc_enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
+            "worldcover", worldcover_tokens, None, patch_size, input_res
+        )
+        assert not (wc_enc == 0).all()
+
+    def test_apply_encodings_per_modality_grad(
         self, flexi_helios_composite_encodings: FlexiHeliosCompositeEncodings
     ) -> None:
         """Test applying encodings to different modalities."""
@@ -56,7 +101,6 @@ class TestFlexiHeliosCompositeEncodings:
         enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
             "sentinel2", sentinel2_tokens, timestamps, patch_size, input_res
         )
-        assert not (enc == 0).all()
         loss = enc.sum()
         loss.backward()
         assert (
@@ -65,18 +109,6 @@ class TestFlexiHeliosCompositeEncodings:
             ].grad
             is not None
         )
-        worldcover_tokens = torch.zeros(B, H, W, 1, D)
-        wc_enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
-            "worldcover", worldcover_tokens, None, patch_size, input_res
-        )
-        assert not (wc_enc == 0).all()
-        latlon_tokens = torch.randn(B, 1, D)
-        ll_enc = flexi_helios_composite_encodings._apply_encodings_per_modality(
-            "latlon", latlon_tokens, None, patch_size, input_res
-        )
-        assert not (ll_enc == 0).all()
-        assert not (ll_enc == latlon_tokens).all()
-        assert latlon_tokens.shape == ll_enc.shape
 
 
 # TODO: Add tests for when the inputs are completely masked or different dims or something

@@ -412,7 +412,6 @@ class FlexiHeliosCompositeEncodings(nn.Module):
 
         modality = Modality.get(modality_name)
         logger.debug(f"Applying encodings to modality {modality}")
-        d = self.embedding_dim_per_embedding_type
 
         if modality_tokens.ndim == 3:
             # modality_tokens = [B, Band_Sets, D]; static in space, static in time
@@ -434,23 +433,24 @@ class FlexiHeliosCompositeEncodings(nn.Module):
             raise ValueError(f"Unsupported tokens shape: {modality_tokens.shape}")
 
         modality_embed = torch.zeros(modality_tokens.shape)
+        n = self.embedding_dim_per_embedding_type
 
         # Channel embeddings
         channel_embed = self.per_modality_channel_embeddings[modality.name]
         channel_embed = repeat(channel_embed, f"b_s d -> {ein_string}", **ein_dict)
-        modality_embed[..., :d] += channel_embed
+        modality_embed[..., :n] += channel_embed
 
-        if modality.is_temporal:
+        if modality.is_multitemporal:
             # Time position encodings
             time_embed = repeat(self.pos_embed[:t], f"t d -> {ein_string}", **ein_dict)
-            modality_embed[..., d : d * 2] += time_embed
+            modality_embed[..., n : n * 2] += time_embed
 
             # Month encodings
             assert timestamps is not None
             months = timestamps[:, :, 1]
             month_embed = self.month_embed(months)
             month_embed = repeat(month_embed, f"b t d -> {ein_string}", **ein_dict)
-            modality_embed[..., d * 2 : d * 3] += month_embed
+            modality_embed[..., n * 2 : n * 3] += month_embed
         if modality.is_spatial:
             # Spatial encodings
             assert input_res is not None
@@ -467,7 +467,7 @@ class FlexiHeliosCompositeEncodings(nn.Module):
             spatial_embed = repeat(
                 spatial_embed, f"b h w d -> {ein_string}", **ein_dict
             )
-            modality_embed[..., d * 3 : d * 4] += spatial_embed
+            modality_embed[..., n * 3 : n * 4] += spatial_embed
         return modality_tokens + modality_embed
 
     def forward(
@@ -519,6 +519,7 @@ class FlexiHeliosBase(nn.Module):
         depth: int,
         drop_path: float,
         supported_modalities: list[ModalitySpec],
+        random_channel_embs: bool = False,
     ) -> None:
         """Initialize the FlexiHeliosBase class."""
         super().__init__()
@@ -530,6 +531,7 @@ class FlexiHeliosBase(nn.Module):
 
         self.max_sequence_length = max_sequence_length
         self.use_channel_embs = use_channel_embs
+        self.random_channel_embs = random_channel_embs
 
         self.blocks = nn.ModuleList(
             [
@@ -551,6 +553,7 @@ class FlexiHeliosBase(nn.Module):
             self.supported_modalities,
             max_sequence_length,
             use_channel_embs,
+            random_channel_embs,
         )
         self.apply(self._init_weights)
 
@@ -685,6 +688,7 @@ class Encoder(FlexiHeliosBase):
         supported_modalities: list[ModalitySpec],
         max_sequence_length: int,
         use_channel_embs: bool = True,
+        random_channel_embs: bool = False,
     ):
         """Initialize the encoder.
 
@@ -698,6 +702,7 @@ class Encoder(FlexiHeliosBase):
             supported_modalities: list documenting modalities used in a given model instantiation
             max_sequence_length: Maximum sequence length
             use_channel_embs: Whether to use learnable channel embeddings
+            random_channel_embs: Initialize channel embeddings randomly (zeros if False)
         """
         super().__init__(
             embedding_size=embedding_size,
@@ -708,6 +713,7 @@ class Encoder(FlexiHeliosBase):
             use_channel_embs=use_channel_embs,
             drop_path=drop_path,
             supported_modalities=supported_modalities,
+            random_channel_embs=random_channel_embs,
         )
         self.max_patch_size = max_patch_size
         self.embedding_size = embedding_size
@@ -981,6 +987,7 @@ class Predictor(FlexiHeliosBase):
         max_sequence_length: int = 24,
         drop_path: float = 0.0,
         learnable_channel_embeddings: bool = True,
+        random_channel_embeddings: bool = False,
         output_embedding_size: int | None = None,
     ):
         """Initialize the predictor.
@@ -995,6 +1002,7 @@ class Predictor(FlexiHeliosBase):
             max_sequence_length: Maximum sequence length
             drop_path: Drop path rate
             learnable_channel_embeddings: Whether to use learnable channel embeddings
+            random_channel_embeddings: Whether to randomly initialize channel embeddings
             output_embedding_size: Size of output embeddings
         """
         super().__init__(
@@ -1005,9 +1013,11 @@ class Predictor(FlexiHeliosBase):
             max_sequence_length=max_sequence_length,
             drop_path=drop_path,
             use_channel_embs=learnable_channel_embeddings,
+            random_channel_embs=random_channel_embeddings,
             supported_modalities=supported_modalities,
         )
         self.learnable_channel_embeddings = learnable_channel_embeddings
+        self.random_channel_embeddings = random_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size
         self.encoder_to_decoder_embed = nn.Linear(
             encoder_embedding_size, decoder_embedding_size, bias=True
@@ -1265,6 +1275,7 @@ class EncoderConfig(Config):
     drop_path: float = 0.1
     max_sequence_length: int = 12
     use_channel_embs: bool = True
+    random_channel_embs: bool = False
 
     def validate(self) -> None:
         """Validate the configuration."""
@@ -1288,6 +1299,7 @@ class EncoderConfig(Config):
             supported_modalities=self.supported_modalities,
             max_sequence_length=self.max_sequence_length,
             use_channel_embs=self.use_channel_embs,
+            random_channel_embs=self.random_channel_embs,
         )
 
 
@@ -1304,6 +1316,7 @@ class PredictorConfig(Config):
     max_sequence_length: int = 12
     drop_path: float = 0.0
     learnable_channel_embeddings: bool = True
+    random_channel_embeddings: bool = False
     output_embedding_size: int | None = None
 
     def validate(self) -> None:
@@ -1327,6 +1340,7 @@ class PredictorConfig(Config):
             max_sequence_length=self.max_sequence_length,
             drop_path=self.drop_path,
             learnable_channel_embeddings=self.learnable_channel_embeddings,
+            random_channel_embeddings=self.random_channel_embeddings,
             output_embedding_size=self.output_embedding_size,
             supported_modalities=self.supported_modalities,
         )
