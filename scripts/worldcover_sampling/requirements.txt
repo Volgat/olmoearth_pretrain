@@ -1,5 +1,5 @@
+geopandas
 numpy
 pandas
-geopandas
 rioxarray
 tqdm
