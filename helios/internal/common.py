@@ -29,7 +29,7 @@ def build_launch_config(
     name: str,
     root_dir: str,
     cmd: list[str],
-    cluster: str,
+    clusters: list[str] | str,
     task_name: str = "train",
     workspace: str = WORKSPACE,
     budget: str = BUDGET,
@@ -48,7 +48,7 @@ def build_launch_config(
         cmd=cmd,
         task_name=task_name,
         workspace=workspace,
-        clusters=[cluster],
+        clusters=clusters if isinstance(clusters, list) else [clusters],
         weka_buckets=weka_buckets,
         beaker_image=OLMoCoreBeakerImage.stable,
         num_nodes=1,
@@ -70,7 +70,7 @@ def build_launch_config(
         ],
         setup_steps=[
             # Clone repo.
-            'git clone "https://$GITHUB_PAT" .',
+            "git clone 'https://$GITHUB_PAT@github.com/$GITHUB_REPOSITORY' .",
             'git checkout "$GIT_REF"',
             "git submodule update --init --recursive",
             # Setup python environment.
