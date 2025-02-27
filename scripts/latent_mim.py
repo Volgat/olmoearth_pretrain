@@ -133,8 +133,8 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     """Build the dataloader config for an experiment."""
     # things should be set during building
     # TODO: Include collate function here
-    NUM_WORKERS = 4
-    NUM_THREADS = 4
+    NUM_WORKERS = 0
+    NUM_THREADS = 0
     GLOBAL_BATCH_SIZE = 32
 
     dataloader_config = HeliosDataLoaderConfig(
