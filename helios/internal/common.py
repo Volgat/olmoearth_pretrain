@@ -2,6 +2,7 @@
 
 import logging
 
+from olmo_core.internal.common import get_beaker_username
 from olmo_core.launch.beaker import (
     BeakerEnvSecret,
     BeakerEnvVar,
@@ -52,6 +53,7 @@ def build_launch_config(
     """
     weka_buckets: list[BeakerWekaBucket] = [DEFAULT_HELIOS_WEKA_BUCKET]
 
+    beaker_user = get_beaker_username()
     return BeakerLaunchConfig(
         name=f"{name}-{generate_uuid()[:8]}",
         budget=budget,
@@ -70,6 +72,7 @@ def build_launch_config(
             BeakerEnvVar(name="NCCL_DEBUG", value="INFO" if nccl_debug else "WARN")
         ],
         env_secrets=[
+            BeakerEnvSecret(name="BEAKER_TOKEN", secret=f"{beaker_user}_BEAKER_TOKEN"),
             BeakerEnvSecret(name="WANDB_API_KEY", secret="WANDB_API_KEY"),  # nosec
             BeakerEnvSecret(name="GITHUB_TOKEN", secret="GITHUB_TOKEN"),  # nosec
         ],
