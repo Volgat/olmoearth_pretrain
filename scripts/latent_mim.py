@@ -16,6 +16,7 @@ from olmo_core.train.common import Duration, LoadStrategy
 from olmo_core.train.config import TrainerConfig
 from upath import UPath
 
+from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
 from helios.data.normalize import Strategy
@@ -149,7 +150,6 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 
 def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     """Build the dataset config for an experiment."""
-
     TILE_PATH = UPath("/weka/dfive-default/helios/dataset/20250223/")
     return HeliosDatasetConfig(
         tile_path=TILE_PATH,
@@ -211,15 +211,15 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
 
 def build_common_components() -> CommonComponents:
     """Build the common components for an experiment."""
-    run_name = "restarted_run_oh_yeah"
+    run_name = "test_run"
     # Variables to be changed per user
     workdir = UPath("./output")  # nosec
     # This allows pre-emptible jobs to save their workdir in the output folder
     SUPPORTED_MODALITIES = [
-        "sentinel2",
-        "latlon",
-        "sentinel1",
-        "worldcover",
+        Modality.SENTINEL2_L2A.name,
+        Modality.LATLON.name,
+        Modality.SENTINEL1.name,
+        Modality.WORLDCOVER.name,
     ]
     if environ.get("USE_OUTPUT_FOLDER"):
         workdir = UPath(environ["USE_OUTPUT_FOLDER"]) / "helios" / "workdir"
