@@ -87,10 +87,10 @@ def build_launch_config(
             # Clone private repo.
             "conda install gh --channel conda-forge",
             # assumes that conda is installed, which is true for our beaker images.
-            "gh auth setup-git",
+            # "gh auth setup-git",
             "gh auth status",
             "gh repo clone $REPO_URL .",
-            f"git fetch origin {get_current_branch()}",
+            # f"git fetch origin {get_current_branch()}",
             'git checkout "$GIT_REF"',
             "git submodule update --init --recursive",
             # Setup python environment.
