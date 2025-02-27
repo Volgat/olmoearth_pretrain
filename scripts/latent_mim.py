@@ -241,7 +241,7 @@ def build_common_components(
         name=f"{run_name}-{cmd_to_launch}",
         root_dir=get_root_dir(cluster),
         cmd=[script, cmd_to_launch, run_name, cluster, *overrides],
-        cluster=cluster,
+        clusters=cluster,
         nccl_debug=False,
     )
     return CommonComponents(
