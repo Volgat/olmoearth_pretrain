@@ -41,7 +41,9 @@ def build_model_config(common: CommonComponents) -> LatentMIMConfig:
     """Build the model config for an experiment."""
     MAX_PATCH_SIZE = 8  # NOTE: actual patch_size <= max_patch_size
     TOKEN_BUDGET = 1500
-    H_W_TO_SAMPLE_MIN = 2
+    # IF HW MIN is too small , then we cna have microbatches with very uneven token budgets
+    # which may cause issues
+    H_W_TO_SAMPLE_MIN = 5
     H_W_TO_SAMPLE_MAX = 13
     ENCODER_EMBEDDING_SIZE = 256
     DECODER_EMBEDDING_SIZE = 256
@@ -87,14 +89,11 @@ def build_train_module_config(
     common: CommonComponents,
 ) -> LatentMIMTrainModuleConfig:
     """Build the train module config for an experiment."""
-    LR = 0.002
-    WD = 0.02
-    RANK_BATCH_SIZE = (
-        16  # TODO: maybe this should be computed dynamically and not specified here
-    )
+    LR = 0.0001
+    RANK_MICROBATCH_SIZE = 8
     ENCODE_RATIO = 0.1
     DECODE_RATIO = 0.75
-
+    WD = 0.02
     optim_config = AdamWConfig(lr=LR, weight_decay=WD)
     masking_config = MaskingConfig(
         strategy_config={
@@ -105,7 +104,7 @@ def build_train_module_config(
     )
     loss_config = LossConfig(
         loss_config={
-            "type": "patch_discrimination",
+            "type": "l2",
         }
     )
     token_exit_cfg = {modality: 0 for modality in common.supported_modality_names}
@@ -120,8 +119,8 @@ def build_train_module_config(
         optim_config=optim_config,
         masking_config=masking_config,
         loss_config=loss_config,
+        rank_microbatch_size=RANK_MICROBATCH_SIZE,
         token_exit_cfg=token_exit_cfg,
-        rank_batch_size=RANK_BATCH_SIZE,
         max_grad_norm=1.0,
         dp_config=dp_config,
         scheduler=scheduler,
@@ -132,11 +131,10 @@ def build_train_module_config(
 def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     """Build the dataloader config for an experiment."""
     # things should be set during building
-    # TODO: handle dp_process_group internally
     # TODO: Include collate function here
-    NUM_WORKERS = 1
+    NUM_WORKERS = 0
     NUM_THREADS = 0
-    GLOBAL_BATCH_SIZE = 16
+    GLOBAL_BATCH_SIZE = 32
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
@@ -151,7 +149,8 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 
 def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     """Build the dataset config for an experiment."""
-    TILE_PATH = "/weka/dfive-default/helios/dataset/20250212/"
+
+    TILE_PATH = UPath("/weka/dfive-default/helios/dataset/20250223/")
     return HeliosDatasetConfig(
         tile_path=TILE_PATH,
         supported_modality_names=common.supported_modality_names,
@@ -212,7 +211,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
 
 def build_common_components() -> CommonComponents:
     """Build the common components for an experiment."""
-    run_name = "test_run"
+    run_name = "restarted_run_oh_yeah"
     # Variables to be changed per user
     workdir = UPath("./output")  # nosec
     # This allows pre-emptible jobs to save their workdir in the output folder

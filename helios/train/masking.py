@@ -47,8 +47,8 @@ class MaskedHeliosSample(NamedTuple):
     timestamps: (
         ArrayTensor  # [B, T, D=3], where D=[day, month, year] (months are zero indexed)
     )
-    sentinel2: ArrayTensor
-    sentinel2_mask: ArrayTensor
+    sentinel2_l2a: ArrayTensor
+    sentinel2_l2a_mask: ArrayTensor
     sentinel1: ArrayTensor | None = None
     sentinel1_mask: ArrayTensor | None = None
     worldcover: ArrayTensor | None = None
@@ -104,16 +104,16 @@ class MaskedHeliosSample(NamedTuple):
     @property
     def height(self) -> int:
         """Get the height of the data."""
-        if self.sentinel2 is None:
-            raise ValueError("Sentinel2 is not present in this sample")
-        return self.sentinel2.shape[1]
+        if self.sentinel2_l2a is None:
+            raise ValueError("Sentinel2 L2A is not present in this sample")
+        return self.sentinel2_l2a.shape[1]
 
     @property
     def width(self) -> int:
         """Get the width of the data."""
-        if self.sentinel2 is None:
-            raise ValueError("Sentinel2 is not present in this sample")
-        return self.sentinel2.shape[2]
+        if self.sentinel2_l2a is None:
+            raise ValueError("Sentinel2 L2A is not present in this sample")
+        return self.sentinel2_l2a.shape[2]
 
     @property
     def time(self) -> int:

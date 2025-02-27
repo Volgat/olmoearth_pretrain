@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.distributed.checkpoint.state_dict as dist_cp_sd
 from olmo_core.distributed.parallel import DataParallelConfig
-from olmo_core.distributed.utils import get_world_size
+from olmo_core.distributed.utils import get_local_tensor, get_world_size
 from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
@@ -25,6 +25,7 @@ from helios.train.train_module.train_module import (
     HeliosTrainModule,
     HeliosTrainModuleConfig,
 )
+from helios.train.utils import split_batch
 
 logger = getLogger(__name__)
 
@@ -78,7 +79,9 @@ class LatentMIMTrainModule(HeliosTrainModule):
     Args:
         model: The transformer model to train.
         optim: The corresponding optimizer config.
-        rank_batch_size: The rank batch size in instances.
+        masking_config: The masking configuration for the model.
+        loss_config: The loss configuration for the model.
+        rank_microbatch_size: The rank microbatch size in instances.
         compile_model: Whether to compile to the model.
         float8_config: Float8 configuration for the model.
         dp_config: Data parallel configuration for the model.
@@ -100,8 +103,8 @@ class LatentMIMTrainModule(HeliosTrainModule):
         optim_config: OptimConfig,
         masking_config: MaskingConfig,
         loss_config: LossConfig,
+        rank_microbatch_size: int,
         token_exit_cfg: dict[str, int],
-        rank_batch_size: int,
         compile_model: bool = False,
         float8_config: Float8Config | None = None,
         dp_config: DataParallelConfig | None = None,
@@ -122,7 +125,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
             optim_config: The corresponding optimizer config.
             masking_config: The masking configuration for the model.
             loss_config: The loss configuration for the model.
-            rank_batch_size: The rank batch size in instances.
+            rank_microbatch_size: The rank microbatch size in instances.
             compile_model: Whether to compile to the model.
             float8_config: Float8 configuration for the model.
             dp_config: Data parallel configuration for the model.
@@ -140,8 +143,9 @@ class LatentMIMTrainModule(HeliosTrainModule):
         """
         super().__init__(
             model=model,
+
             optim_config=optim_config,
-            rank_batch_size=rank_batch_size,
+            rank_microbatch_size=rank_microbatch_size,
             compile_model=compile_model,
             float8_config=float8_config,
             dp_config=dp_config,
@@ -167,21 +171,8 @@ class LatentMIMTrainModule(HeliosTrainModule):
         """Compute the loss between the predicted and target tensors."""
         raise NotImplementedError("eval loss fn not implemented")
 
-    def train_batch(self, batch: HeliosSample, dry_run: bool = False) -> None:
-        """Train a batch."""
-        self.model.train()
-        # Set the maximum number of tokens
-        token_budget = self.model.token_budget
-        # Smallest h /w must be bigger than the smallest patch size
-        h_w_to_sample = list(
-            range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
-        )
-        patch_size = np.random.choice(np.arange(1, self.model.encoder.max_patch_size))
-        batch = self.model.transform.apply(batch)
-        subsampled_batch = batch.subset(patch_size, token_budget, h_w_to_sample)
-        subsampled_batch = subsampled_batch.to_device(self.device)
-        masked_batch = self.masking_strategy.apply_mask(subsampled_batch)
-
+    def update_target_encoder(self) -> None:
+        """Update the target encoder."""
         # Update target encoder with EMA this should be a callback
         cur_ema_value = (
             self.start_ema
@@ -191,37 +182,80 @@ class LatentMIMTrainModule(HeliosTrainModule):
         )
         with torch.no_grad():
             logger.info(f"Using ema decay {cur_ema_value}")
-            for (name, param), target_param in zip(
-                self.model.encoder.named_parameters(),
-                self.model.target_encoder.parameters(),
+            for param, target_param in zip(
+                self.model.encoder.parameters(), self.model.target_encoder.parameters()
             ):
-                if torch.allclose(param, target_param):
-                    logger.warning(
-                        f"Encoder and target encoder parameters close for {name}"
-                    )
                 target_param.data = (
                     cur_ema_value * target_param.data + (1 - cur_ema_value) * param.data
                 )
 
-        # Run Encoder and decoder on the augmented input
-        decoded, loss = self.model_forward(
-            masked_batch, patch_size, self.token_exit_cfg
+    def train_batch(self, batch: HeliosSample, dry_run: bool = False) -> None:
+        """Train a batch.
+
+        NOTE: Gradient accumulation/microbatching is not invariant for all losses across the same global batch size.
+
+        - All Disc loss with same global batch size but different micro-batch sizes result in different gradients,
+        though this matches the implementation in gallileo.
+        - If the min hw is too low when subsampling, we may get micro-batches with uneven
+        numbers of tokens making the loss for token averaged losses
+        like l1 and l2 weight microbatches with less tokens relatively more.
+
+        NOTE: For contrastive losses, the loss is invariant to the global batch size across GPUS as well
+        """
+        # Set the maximum number of tokens
+        token_budget = self.model.token_budget
+        h_w_to_sample = list(
+            range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
         )
+        total_batch_loss = torch.tensor(0.0, device=self.device)
+        # Split into micro-batches.
+        microbatches = split_batch(batch, self.rank_microbatch_size)
+        num_microbatches = len(microbatches)
+        for microbatch_idx, microbatch in enumerate(microbatches, start=1):
+            with self._train_microbatch_context(microbatch_idx, num_microbatches):
+                logger.info(
+                    f"Training microbatch {microbatch_idx} of {num_microbatches} with batch size {microbatch.batch_size}"
+                )
+                # Gallileo does this subsetting at the microbatch level so we follow that for now
+                # Smallest h /w must be bigger than the smallest patch size
+
+                patch_size = np.random.choice(
+                    np.arange(1, self.model.encoder.max_patch_size)
+                )
+                microbatch = self.model.transform.apply(microbatch)
+                subsampled_batch = microbatch.subset(
+                    patch_size, token_budget, h_w_to_sample
+                )
+                subsampled_batch = subsampled_batch.to_device(self.device)
+                # Each microbatch should have about the same number of encoded tokens if
+                # we mask here
+                masked_batch = self.masking_strategy.apply_mask(subsampled_batch)
+
+                # Run Encoder and decoder on the augmented input
+                decoded, target_output = self.model_forward(
+                    masked_batch, patch_size, self.token_exit_cfg
+                )
+                loss = self.loss_fn(decoded, target_output)
+                # Scale loss by number of microbatches
+                loss = loss / num_microbatches
+                loss_val = get_local_tensor(loss)
+                total_batch_loss += loss_val
+                del decoded, target_output
+                loss.backward()
 
         self.trainer.record_metric(
             f"train/{self.base_loss.name}",
-            loss / get_world_size(self.dp_process_group),
+            total_batch_loss / get_world_size(self.dp_process_group),
             ReduceType.mean,
         )
 
-        # Backpropagate and optimize
-        loss.backward()
+        if dry_run:
+            return
+
+        self.update_target_encoder()
 
         del batch  # In case this helps with memory utilization.
-        if dry_run:
-            self._clear_loss_buffers()
-            return
-        self._clear_loss_buffers()
+        del masked_batch
 
     def eval_batch(
         self, batch: dict[str, Any], labels: torch.Tensor | None = None
@@ -242,5 +276,4 @@ class LatentMIMTrainModule(HeliosTrainModule):
                     patch_size=patch_size,
                     token_exit_cfg=token_exit_cfg,
                 )
-            loss = self.loss_fn(decoded, target_output)
-            return decoded, loss
+            return decoded, target_output
