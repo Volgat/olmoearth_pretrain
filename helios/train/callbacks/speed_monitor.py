@@ -60,6 +60,7 @@ class HeliosSpeedMonitorCallback(SpeedMonitorCallback):
         self._total_steps += 1
         self._total_tokens_encoded += self._step_tokens_encoded
         self._total_tokens_decoded += self._step_tokens_decoded
+        self._total_tokens_target_encoder += self._step_tokens_target_encoder
 
     def post_step(self) -> None:
         """Post-step callback for the speed monitor."""
