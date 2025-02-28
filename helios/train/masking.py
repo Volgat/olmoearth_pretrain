@@ -471,7 +471,8 @@ class SpaceTimeMaskingStrategy(MaskingStrategy):
         self, batch: HeliosSample, patch_size: int = 1, **kwargs: Any
     ) -> MaskedHeliosSample:
         """Apply space or time masking to the input data."""
-        if self.generator.random() < 0.5:
+        has_enough_timesteps = batch.time >= 3
+        if (self.generator.random() < 0.5) or (not has_enough_timesteps):
             return self.space_strategy.apply_mask(batch, patch_size, **kwargs)
         else:
             return self.time_strategy.apply_mask(batch, patch_size, **kwargs)
