@@ -198,22 +198,21 @@ class MaskingStrategy(ABC):
     ) -> ArrayTensor:
         if modality.is_spatial or modality.is_multitemporal:
             b = shape[0]
-            num_tokens_per_instance = np.prod(shape[1:])
+            num_tokens = np.prod(shape[1:])
         else:
-            num_tokens_per_instance = np.prod(shape)
-        num_encode_tokens = int(num_tokens_per_instance * self.encode_ratio)
-        num_decode_tokens = int(num_tokens_per_instance * self.decode_ratio)
-        num_target_encode_tokens = int(
-            num_tokens_per_instance - (num_encode_tokens + num_decode_tokens)
-        )
+            num_tokens = np.prod(shape)
+        encode_tokens = int(num_tokens * self.encode_ratio)
+        decode_tokens = int(num_tokens * self.decode_ratio)
+        target_tokens = int(num_tokens - (encode_tokens + decode_tokens))
 
         # we do this as a numpy array to take advantage of
         # numpy's permuted function
         flat_mask_tokens = np.concatenate(
             (
-                np.ones(num_target_encode_tokens, dtype=np.int_),
-                np.ones(num_decode_tokens, dtype=np.int_) * 2,
-                np.zeros(num_encode_tokens, dtype=np.int_),
+                np.ones(target_tokens, dtype=np.int_)
+                * MaskValue.TARGET_ENCODER_ONLY.value,
+                np.ones(decode_tokens, dtype=np.int_) * MaskValue.DECODER.value,
+                np.ones(encode_tokens, dtype=np.int_) * MaskValue.ONLINE_ENCODER.value,
             )
         )
         if modality.is_spatial or modality.is_multitemporal:
@@ -260,25 +259,23 @@ class TimeMaskingStrategy(MaskingStrategy):
 
     def _create_temporal_mask(
         self,
-        modality: ModalitySpec,
         shape: torch.Size,
         device: torch.device | None = None,
     ) -> ArrayTensor:
-        if not modality.is_multitemporal:
-            raise ValueError("Non-temporal modality {modality}")
-
         b = shape[0]
         t = shape[-2]
+        assert t >= 3
 
-        encode_times = int(self.encode_ratio * t)
-        decode_times = int(self.decode_ratio * t)
+        encode_times = max(int(self.encode_ratio * t), 1)
+        decode_times = max(int(self.decode_ratio * t), 1)
         target_times = t - encode_times - decode_times
 
         flat_mask = np.concatenate(
             (
-                np.ones(target_times, dtype=np.int_),
-                np.ones(decode_times, dtype=np.int_) * 2,
-                np.zeros(encode_times, dtype=np.int_),
+                np.ones(target_times, dtype=np.int_)
+                * MaskValue.TARGET_ENCODER_ONLY.value,
+                np.ones(decode_times, dtype=np.int_) * MaskValue.DECODER.value,
+                np.ones(encode_times, dtype=np.int_) * MaskValue.ONLINE_ENCODER.value,
             )
         )
 
@@ -329,10 +326,8 @@ class TimeMaskingStrategy(MaskingStrategy):
                     mask = self._create_random_mask(modality, shape, device)
                 else:
                     if temporal_mask is None:
-                        temporal_mask = self._create_temporal_mask(
-                            Modality.get(modality_name), shape, device
-                        )
-                    t, b_s = shape[-2:]
+                        temporal_mask = self._create_temporal_mask(shape, device)
+                    b_s = shape[-1]
                     b, h, w = list(shape[:-2]) + [1] * (3 - len(shape[:-2]))
                     mask = repeat(
                         temporal_mask, "b t -> b h w t b_s", h=h, w=w, b_s=b_s
@@ -383,9 +378,10 @@ class SpaceMaskingStrategy(MaskingStrategy):
 
         flat_mask = np.concatenate(
             (
-                np.ones(target_patches, dtype=np.int_),
-                np.ones(decode_patches, dtype=np.int_) * 2,
-                np.zeros(encode_patches, dtype=np.int_),
+                np.ones(target_patches, dtype=np.int_)
+                * MaskValue.TARGET_ENCODER_ONLY.value,
+                np.ones(decode_patches, dtype=np.int_) * MaskValue.DECODER.value,
+                np.ones(encode_patches, dtype=np.int_) * MaskValue.ONLINE_ENCODER.value,
             )
         )
 
