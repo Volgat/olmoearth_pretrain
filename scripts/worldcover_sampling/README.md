@@ -26,5 +26,6 @@ Two strategies are adopted - one where we sample 50 points per tile (this is sav
 cd /weka/dfive-default/helios/dataset_creation/worldcover_histogram_csvs/
 { head -n 1 N00E006.csv; tail -n+2 *.csv; } | cat > ../worldcover_histogram_csvs_concat.csv
 # Run the K-means.
+cd /path/to/helios/scripts/worldcover_sampling
 python worldcover_kmeans.py --csv_fname /weka/dfive-default/helios/dataset_creation/worldcover_histogram_csvs_concat.csv --subsampled_grid_path /weka/dfive-default/helios/dataset_creation/esa_grid_subsampled.csv --subsampled_global_grid_path /weka/dfive-default/helios/dataset_creation/esa_grid_subsampled_global.csv
 ```
