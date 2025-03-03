@@ -72,12 +72,10 @@ class HeliosExperimentConfig(Config):
 
     run_name: str
     launch: BeakerLaunchConfig
-    model: Any  # TODO: make this agnostic to training setup this might be bad
+    model: Any
     dataset: HeliosDatasetConfig  # will likely be fixed for us
     data_loader: HeliosDataLoaderConfig  # will likely be fixed for us
-    train_module: (
-        Any  # we will want to support different train module model combinations
-    )
+    train_module: Any
     trainer: TrainerConfig
     visualize_config: HeliosVisualizeConfig | None = None
     init_seed: int = 12536
