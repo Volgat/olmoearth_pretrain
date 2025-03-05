@@ -540,6 +540,7 @@ class HeliosDataset(Dataset):
         sample_data: dict[str, Any] = {}
 
         # Assume samples could include different modalities and bands
+        # TODO: compute the histogram for each modality and band directly
         for i in tqdm(indices_to_sample):
             sample = self[i]
             for modality in sample.modalities:
