@@ -537,7 +537,7 @@ class HeliosDataset(Dataset):
                 f"num_samples {num_samples} is greater than the number of samples in the dataset {len(self)}"
             )
         indices_to_sample = random.sample(list(range(len(self))), k=num_samples)
-        data_distribution: dict[str, Any] = {}
+        sample_data: dict[str, Any] = {}
 
         # Assume samples could include different modalities and bands
         for i in tqdm(indices_to_sample):
@@ -550,17 +550,17 @@ class HeliosDataset(Dataset):
                     continue
                 modality_spec = Modality.get(modality)
                 modality_bands = modality_spec.band_order
-                if modality not in data_distribution:
-                    data_distribution[modality] = {band: [] for band in modality_bands}
+                if modality not in sample_data:
+                    sample_data[modality] = {band: [] for band in modality_bands}
                 # for each band, flatten the data and extend the list
                 for idx, band in enumerate(modality_bands):
-                    data_distribution[modality][band].extend(
+                    sample_data[modality][band].extend(
                         random.sample(
                             modality_data[:, :, :, idx].flatten().tolist(), num_values
                         )
                     )
 
-        return data_distribution
+        return sample_data
 
     def _get_timestamps(self, sample: SampleInformation) -> np.ndarray:
         """Get the timestamps of the sample."""
