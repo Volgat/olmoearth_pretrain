@@ -13,7 +13,7 @@ from olmo_core.config import Config, DType
 from olmo_core.distributed.parallel import (
     DataParallelConfig,
     DataParallelType,
-    build_device_mesh,
+    build_world_mesh,
     get_dp_mesh,
     get_dp_process_group,
 )
@@ -29,6 +29,7 @@ from olmo_core.train.train_module.transformer import (
 from olmo_core.utils import gc_cuda, get_default_device
 from torch.distributed.checkpoint.metadata import Metadata
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 
 logger = getLogger(__name__)
@@ -39,7 +40,7 @@ class HeliosTrainModuleConfig(Config):
     """A configuration class for building :class:`HeliosTrainModule` instances.
 
     Args:
-        rank_batch_size: The batch size per rank in instances.
+        rank_microbatch_size: The micro batch size per rank in instances.
         optim: The optimizer configuration.
         compile_model: Whether to compile the model using torch.compile.
         float8_config: Configuration for Float8 training if enabled.
@@ -54,8 +55,9 @@ class HeliosTrainModuleConfig(Config):
     """
 
     # Training settings
-    rank_batch_size: int
-    optim: OptimConfig
+
+    optim_config: OptimConfig
+    rank_microbatch_size: int
 
     # Model settings
     compile_model: bool = False
@@ -118,7 +120,7 @@ class HeliosTrainModule(TrainModule):
     Args:
         model: The transformer model to train.
         optim: The corresponding optimizer config.
-        rank_batch_size: The rank batch size in instances.
+        rank_microbatch_size: The rank micro batch size in instances.
         compile_model: Whether to compile to the model.
         float8_config: Float8 configuration for the model.
         dp_config: Data parallel configuration for the model.
@@ -135,8 +137,8 @@ class HeliosTrainModule(TrainModule):
     def __init__(
         self,
         model: Any,
-        optim: OptimConfig,
-        rank_batch_size: int,
+        optim_config: OptimConfig,
+        rank_microbatch_size: int,
         compile_model: bool = False,
         float8_config: Float8Config | None = None,
         dp_config: DataParallelConfig | None = None,
@@ -153,8 +155,8 @@ class HeliosTrainModule(TrainModule):
 
         Args:
             model: The transformer model to train.
-            optim: The corresponding optimizer config.
-            rank_batch_size: The rank batch size in instances.
+            optim_config: The corresponding optimizer config.
+            rank_microbatch_size: The rank batch size in instances.
             compile_model: Whether to compile to the model.
             float8_config: Float8 configuration for the model.
             dp_config: Data parallel configuration for the model.
@@ -173,7 +175,7 @@ class HeliosTrainModule(TrainModule):
         num_params = sum(p.numel() for p in self.model.parameters())
         logger.info(f"number of parameters: {num_params:,d}")
         self.device = device or get_default_device()
-        self.world_mesh = build_device_mesh(dp=dp_config, device_type=self.device.type)
+        self.world_mesh = build_world_mesh(dp=dp_config, device_type=self.device.type)
         logger.info(
             f"Data parallel world size = {get_world_size(self.dp_process_group):,d}"
         )
@@ -237,11 +239,11 @@ class HeliosTrainModule(TrainModule):
 
         # Build optimizer(s).
         logger.info("Building optimizer(s)...")
-        self.optimizer: Optimizer = optim.build(
+        self.optimizer: Optimizer = optim_config.build(
             self.model,
         )
 
-        self.rank_batch_size = rank_batch_size
+        self.rank_microbatch_size = rank_microbatch_size
         self.autocast_precision = autocast_precision
         self.max_grad_norm = max_grad_norm
         self.scheduler = scheduler
@@ -285,11 +287,17 @@ class HeliosTrainModule(TrainModule):
     def on_attach(self) -> None:
         """Called when the train module is attached to the trainer."""
         # Validate batch size.
-        dp_ws = get_world_size(self.trainer.dp_process_group)
-        if self.trainer.global_batch_size % (self.rank_batch_size * dp_ws) != 0:
+        if (
+            self.trainer.global_batch_size
+            % (
+                self.rank_microbatch_size
+                * (ws := get_world_size(self.trainer.dp_process_group))
+            )
+            != 0
+        ):
             raise OLMoConfigurationError(
                 f"global batch size ({self.trainer.global_batch_size:,d}) must be divisible by "
-                f"micro-batch size ({self.rank_batch_size:,d}) x DP world size ({dp_ws})"
+                f"micro-batch size ({self.rank_microbatch_size:,d}) x DP world size ({ws})"
             )
 
     def state_dict(self) -> dict[str, Any]:
@@ -397,7 +405,11 @@ class HeliosTrainModule(TrainModule):
     def _train_microbatch_context(
         self, micro_batch_idx: int, num_micro_batches: int
     ) -> Generator[None, None, None]:
-        raise NotImplementedError("train microbatch context not implemented")
+        with contextlib.ExitStack() as stack:
+            if isinstance(self.model, DDP) and micro_batch_idx != num_micro_batches - 1:
+                # For DDP, only sync gradients on the final micro batch.
+                stack.enter_context(self.model.no_sync())
+            yield
 
     @contextlib.contextmanager
     def _model_forward_context(self) -> Generator[None, None, None]:

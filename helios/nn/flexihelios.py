@@ -7,12 +7,12 @@ from enum import Enum
 from typing import Any, NamedTuple
 
 import torch
-import torch.nn.functional as F
 from einops import rearrange, repeat
 from olmo_core.config import Config
 from torch import Tensor, nn
 
 from helios.data.constants import Modality, ModalitySpec
+from helios.dataset.utils import get_modality_specs_from_names
 from helios.nn.attention import Block
 from helios.nn.encodings import (
     get_1d_sincos_pos_encoding,
@@ -65,8 +65,8 @@ class TokensAndMasks(NamedTuple):
         latlon_mask: lat lon mask indicating which coordinates are masked/unmasked
     """
 
-    sentinel2: Tensor | None = None
-    sentinel2_mask: Tensor | None = None
+    sentinel2_l2a: Tensor | None = None
+    sentinel2_l2a_mask: Tensor | None = None
     sentinel1: Tensor | None = None
     sentinel1_mask: Tensor | None = None
     worldcover: Tensor | None = None
@@ -77,8 +77,8 @@ class TokensAndMasks(NamedTuple):
     @property
     def device(self) -> torch.device:
         """Get the device of the tokens and masks."""
-        if self.sentinel2 is not None:
-            return self.sentinel2.device
+        if self.sentinel2_l2a is not None:
+            return self.sentinel2_l2a.device
         else:
             # look for any other modality that is not None
             for modality in self._fields:
@@ -319,9 +319,10 @@ class FlexiHeliosCompositeEncodings(nn.Module):
     def __init__(
         self,
         embedding_size: int,
-        supported_modalities: list[str],
+        supported_modalities: list[ModalitySpec],
         max_sequence_length: int,
         use_channel_embs: bool = True,
+        random_channel_embs: bool = False,
     ):
         """Initialize the composite encodings.
 
@@ -331,10 +332,14 @@ class FlexiHeliosCompositeEncodings(nn.Module):
                 instantiation supports
             max_sequence_length: Maximum sequence length
             use_channel_embs: Whether to use learnable channel embeddings
+            random_channel_embs: Initialize channel embeddings randomly (zeros if False)
         """
         super().__init__()
         self.embedding_size = embedding_size
-        self.supported_modality_names = supported_modalities
+        self.supported_modalities = supported_modalities
+        self.supported_modality_names = [
+            modality.name for modality in supported_modalities
+        ]
         self.embedding_size = embedding_size
         self.max_sequence_length = (
             max_sequence_length  # This max sequence length is a time dim thing
@@ -360,18 +365,14 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         else:
             args = {"requires_grad": False}
 
-        self.per_modality_channel_embeddings = nn.ParameterDict(
-            {
-                modality: nn.Parameter(
-                    torch.zeros(
-                        len(Modality.get(modality).band_sets),
-                        self.embedding_dim_per_embedding_type,
-                    ),
-                    **args,
-                )
-                for modality in self.supported_modality_names
-            }
-        )
+        self.per_modality_channel_embeddings = nn.ParameterDict()
+        for modality in self.supported_modalities:
+            shape = (len(modality.band_sets), self.embedding_dim_per_embedding_type)
+            if random_channel_embs:
+                channel_embeddings = nn.Parameter(torch.rand(shape), **args)
+            else:
+                channel_embeddings = nn.Parameter(torch.zeros(shape), **args)
+            self.per_modality_channel_embeddings[modality.name] = channel_embeddings
 
         self.apply(self._init_weights)
 
@@ -390,7 +391,7 @@ class FlexiHeliosCompositeEncodings(nn.Module):
 
     def _apply_encodings_per_modality(
         self,
-        modality: str,
+        modality_name: str,
         modality_tokens: Tensor,
         timestamps: Tensor | None = None,
         patch_size: int | None = None,
@@ -399,7 +400,7 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         """Apply the encodings to the patchified data based on modality type.
 
         Args:
-            modality: Name of the modality being processed
+            modality_name: Name of the modality being processed
             modality_tokens: Token embeddings for the modality
             timestamps: Optional timestamps for temporal encodings
             patch_size: Optional patch size for spatial encodings
@@ -408,117 +409,68 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         Returns:
             Tensor with encodings applied based on modality type
         """
-        logger.debug(f"Applying encodings to modality {modality}")
-        if modality == Modality.LATLON.name:
-            return modality_tokens
         # TODO: Improve this implementation it is quite bad
+
+        modality = Modality.get(modality_name)
+        logger.debug(f"Applying encodings to modality {modality}")
+
         if modality_tokens.ndim == 3:
             # modality_tokens = [B, Band_Sets, D]; static in space, static in time
             b, b_s, _ = modality_tokens.shape
-            # Static modality only needs channel embeddings
-            modality_channel_embed = self.per_modality_channel_embeddings[modality]
-            modality_channel_embed = repeat(
-                modality_channel_embed, "b_s d -> b b_s d", b=b
-            )
-            modality_embed = F.pad(
-                modality_channel_embed,
-                (0, self.embedding_size - modality_channel_embed.shape[-1]),
-            )
-        # For temporal modalities like s1/s2
-        if timestamps is None or patch_size is None or input_res is None:
-            raise ValueError(
-                f"timestamps, patch_size and input_res required for modality {modality}"
-            )
-
-        # TODO: this access needs to be fixed more generally w.r.t issue and modality spec defined properties
-        if modality == Modality.WORLDCOVER.name:
-            b, h, w, t, b_s, _ = modality_tokens.shape
-
-            # Channel embeddings
-            modality_channel_embed = self.per_modality_channel_embeddings[modality]
-            modality_channel_embed = repeat(
-                modality_channel_embed, "b_s d -> b h w t b_s d", b=b, h=h, w=w, t=t
-            )
-
-            # Spatial encodings
-            gsd_ratio = self.calculate_gsd_ratio(input_res, patch_size)
-            current_device = modality_tokens.device
-            spatial_embed = get_2d_sincos_pos_encoding_with_resolution(
-                grid_size=h,
-                res=torch.ones(b, device=current_device) * gsd_ratio,
-                encoding_dim=self.embedding_dim_per_embedding_type,
-                device=current_device,
-            )
-            spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
-            spatial_embed = repeat(
-                spatial_embed, "b h w d -> b h w t b_s d", b_s=b_s, t=t
-            )
-            sp_zeros = torch.zeros(
-                b,
-                h,
-                w,
-                t,
-                b_s,
-                self.embedding_dim_per_embedding_type * 2,
-                device=current_device,
-            )
-            modality_embed = torch.cat(
-                [modality_channel_embed, sp_zeros, spatial_embed], dim=-1
-            )
+            ein_string, ein_dict = "b b_s d", {"b": b, "b_s": b_s}
+        elif modality_tokens.ndim == 4:
+            b, t, b_s, _ = modality_tokens.shape
+            ein_string, ein_dict = "b t b_s d", {"b": b, "t": t, "b_s": b_s}
+        elif modality_tokens.ndim == 5:
+            b, h, w, b_s, _ = modality_tokens.shape
+            ein_string, ein_dict = "b h w b_s d", {"b": b, "h": h, "w": w, "b_s": b_s}
         elif modality_tokens.ndim == 6:
             b, h, w, t, b_s, _ = modality_tokens.shape
-
-            # Channel embeddings
-            modality_channel_embed = self.per_modality_channel_embeddings[modality]
-            modality_channel_embed = repeat(
-                modality_channel_embed, "b_s d -> b h w t b_s d", b=b, h=h, w=w, t=t
+            ein_string, ein_dict = (
+                "b h w t b_s d",
+                {"b": b, "h": h, "w": w, "t": t, "b_s": b_s},
             )
+        else:
+            raise ValueError(f"Unsupported tokens shape: {modality_tokens.shape}")
 
+        device = modality_tokens.device
+        modality_embed = torch.zeros(modality_tokens.shape, device=device)
+        n = self.embedding_dim_per_embedding_type
+
+        # Channel embeddings
+        channel_embed = self.per_modality_channel_embeddings[modality.name]
+        channel_embed = repeat(channel_embed, f"b_s d -> {ein_string}", **ein_dict).to(
+            device
+        )
+        modality_embed[..., :n] += channel_embed
+
+        if modality.is_multitemporal:
             # Time position encodings
-            modality_pos_embed = repeat(
-                self.pos_embed[:t], "t d -> b h w t b_s d", b=b, h=h, w=w, b_s=b_s
-            )
+            time_embed = repeat(self.pos_embed[:t], f"t d -> {ein_string}", **ein_dict)
+            modality_embed[..., n : n * 2] += time_embed.to(device)
 
             # Month encodings
+            assert timestamps is not None
             months = timestamps[:, :, 1]
             month_embed = self.month_embed(months)
-            modality_month_embed = repeat(
-                month_embed, "b t d -> b h w t b_s d", h=h, w=w, b_s=b_s
-            )
-
+            month_embed = repeat(month_embed, f"b t d -> {ein_string}", **ein_dict)
+            modality_embed[..., n * 2 : n * 3] += month_embed.to(device)
+        if modality.is_spatial:
             # Spatial encodings
+            assert input_res is not None
+            assert patch_size is not None
             gsd_ratio = self.calculate_gsd_ratio(input_res, patch_size)
-            current_device = modality_tokens.device
             spatial_embed = get_2d_sincos_pos_encoding_with_resolution(
                 grid_size=h,
-                res=torch.ones(b, device=current_device) * gsd_ratio,
+                res=torch.ones(b, device=device) * gsd_ratio,
                 encoding_dim=self.embedding_dim_per_embedding_type,
-                device=current_device,
+                device=device,
             )
             spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
             spatial_embed = repeat(
-                spatial_embed,
-                "b h w d -> b h w t b_s d",
-                b_s=b_s,
-                t=t,
-                h=h,
-                w=w,  # Adding to handle uneven dims
+                spatial_embed, f"b h w d -> {ein_string}", **ein_dict
             )
-
-            # Combine all encodings
-            modality_embed = torch.cat(
-                [
-                    modality_channel_embed,
-                    modality_pos_embed,
-                    modality_month_embed,
-                    spatial_embed,
-                ],
-                dim=-1,
-            )
-        else:
-            raise ValueError(
-                f"Unsupported tokens shape {modality_tokens.shape} for {modality}"
-            )
+            modality_embed[..., n * 3 : n * 4] += spatial_embed
         return modality_tokens + modality_embed
 
     def forward(
@@ -544,10 +496,10 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         modalities_to_process = get_modalities_to_process(
             available_modalities, self.supported_modality_names
         )
-        for modality in modalities_to_process:
-            output_dict[modality] = self._apply_encodings_per_modality(
-                modality,
-                per_modality_input_tokens[modality],
+        for modality_name in modalities_to_process:
+            output_dict[modality_name] = self._apply_encodings_per_modality(
+                modality_name,
+                per_modality_input_tokens[modality_name],
                 timestamps=timestamps,
                 patch_size=patch_size,
                 input_res=input_res,
@@ -570,16 +522,19 @@ class FlexiHeliosBase(nn.Module):
         depth: int,
         drop_path: float,
         supported_modalities: list[ModalitySpec],
+        random_channel_embs: bool = False,
     ) -> None:
         """Initialize the FlexiHeliosBase class."""
         super().__init__()
 
         self.embedding_size = embedding_size
+        self.supported_modalities = supported_modalities
         self.supported_modality_names = [x.name for x in supported_modalities]
         logger.info(f"modalities being used by model: {self.supported_modality_names}")
 
         self.max_sequence_length = max_sequence_length
         self.use_channel_embs = use_channel_embs
+        self.random_channel_embs = random_channel_embs
 
         self.blocks = nn.ModuleList(
             [
@@ -598,9 +553,10 @@ class FlexiHeliosBase(nn.Module):
 
         self.composite_encodings = FlexiHeliosCompositeEncodings(
             embedding_size,
-            self.supported_modality_names,
+            self.supported_modalities,
             max_sequence_length,
             use_channel_embs,
+            random_channel_embs,
         )
         self.apply(self._init_weights)
 
@@ -735,6 +691,7 @@ class Encoder(FlexiHeliosBase):
         supported_modalities: list[ModalitySpec],
         max_sequence_length: int,
         use_channel_embs: bool = True,
+        random_channel_embs: bool = False,
     ):
         """Initialize the encoder.
 
@@ -748,6 +705,7 @@ class Encoder(FlexiHeliosBase):
             supported_modalities: list documenting modalities used in a given model instantiation
             max_sequence_length: Maximum sequence length
             use_channel_embs: Whether to use learnable channel embeddings
+            random_channel_embs: Initialize channel embeddings randomly (zeros if False)
         """
         super().__init__(
             embedding_size=embedding_size,
@@ -758,6 +716,7 @@ class Encoder(FlexiHeliosBase):
             use_channel_embs=use_channel_embs,
             drop_path=drop_path,
             supported_modalities=supported_modalities,
+            random_channel_embs=random_channel_embs,
         )
         self.max_patch_size = max_patch_size
         self.embedding_size = embedding_size
@@ -1031,6 +990,7 @@ class Predictor(FlexiHeliosBase):
         max_sequence_length: int = 24,
         drop_path: float = 0.0,
         learnable_channel_embeddings: bool = True,
+        random_channel_embeddings: bool = False,
         output_embedding_size: int | None = None,
     ):
         """Initialize the predictor.
@@ -1045,6 +1005,7 @@ class Predictor(FlexiHeliosBase):
             max_sequence_length: Maximum sequence length
             drop_path: Drop path rate
             learnable_channel_embeddings: Whether to use learnable channel embeddings
+            random_channel_embeddings: Whether to randomly initialize channel embeddings
             output_embedding_size: Size of output embeddings
         """
         super().__init__(
@@ -1055,9 +1016,11 @@ class Predictor(FlexiHeliosBase):
             max_sequence_length=max_sequence_length,
             drop_path=drop_path,
             use_channel_embs=learnable_channel_embeddings,
+            random_channel_embs=random_channel_embeddings,
             supported_modalities=supported_modalities,
         )
         self.learnable_channel_embeddings = learnable_channel_embeddings
+        self.random_channel_embeddings = random_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size
         self.encoder_to_decoder_embed = nn.Linear(
             encoder_embedding_size, decoder_embedding_size, bias=True
@@ -1305,7 +1268,7 @@ class Predictor(FlexiHeliosBase):
 class EncoderConfig(Config):
     """Configuration for the Encoder."""
 
-    supported_modalities: list[ModalitySpec]
+    supported_modality_names: list[str]
     embedding_size: int = 16
     # This is the base patch size for the patch embedder
     max_patch_size: int = 8
@@ -1315,6 +1278,7 @@ class EncoderConfig(Config):
     drop_path: float = 0.1
     max_sequence_length: int = 12
     use_channel_embs: bool = True
+    random_channel_embs: bool = False
 
     def validate(self) -> None:
         """Validate the configuration."""
@@ -1325,27 +1289,27 @@ class EncoderConfig(Config):
                 if modality not in Modality.values():
                     raise ValueError(f"Modality {modality} is not supported")
 
+    @property
+    def supported_modalities(self) -> list[ModalitySpec]:
+        """Get the supported modalities."""
+        return get_modality_specs_from_names(self.supported_modality_names)
+
     def build(self) -> "Encoder":
         """Build the encoder."""
         self.validate()
-        return Encoder(
-            embedding_size=self.embedding_size,
-            max_patch_size=self.max_patch_size,
-            num_heads=self.num_heads,
-            depth=self.depth,
-            mlp_ratio=self.mlp_ratio,
-            drop_path=self.drop_path,
-            supported_modalities=self.supported_modalities,
-            max_sequence_length=self.max_sequence_length,
-            use_channel_embs=self.use_channel_embs,
-        )
+        kwargs = self.as_dict(exclude_none=True, recurse=False)
+        # supported_modality_names is replaced by supported_modalities
+        kwargs.pop("supported_modality_names")
+        kwargs["supported_modalities"] = self.supported_modalities
+        logger.info(f"Encoder kwargs: {kwargs}")
+        return Encoder(**kwargs)
 
 
 @dataclass
 class PredictorConfig(Config):
     """Configuration for the Predictor."""
 
-    supported_modalities: list[ModalitySpec]
+    supported_modality_names: list[str]
     encoder_embedding_size: int = 16
     decoder_embedding_size: int = 16
     depth: int = 2
@@ -1354,6 +1318,7 @@ class PredictorConfig(Config):
     max_sequence_length: int = 12
     drop_path: float = 0.0
     learnable_channel_embeddings: bool = True
+    random_channel_embeddings: bool = False
     output_embedding_size: int | None = None
 
     def validate(self) -> None:
@@ -1365,21 +1330,20 @@ class PredictorConfig(Config):
                 if modality not in Modality.values():
                     raise ValueError(f"Modality {modality} is not supported")
 
+    @property
+    def supported_modalities(self) -> list[ModalitySpec]:
+        """Get the supported modalities."""
+        return get_modality_specs_from_names(self.supported_modality_names)
+
     def build(self) -> "Predictor":
         """Build the predictor."""
         self.validate()
-        return Predictor(
-            encoder_embedding_size=self.encoder_embedding_size,
-            decoder_embedding_size=self.decoder_embedding_size,
-            depth=self.depth,
-            mlp_ratio=self.mlp_ratio,
-            num_heads=self.num_heads,
-            max_sequence_length=self.max_sequence_length,
-            drop_path=self.drop_path,
-            learnable_channel_embeddings=self.learnable_channel_embeddings,
-            output_embedding_size=self.output_embedding_size,
-            supported_modalities=self.supported_modalities,
-        )
+        kwargs = self.as_dict(exclude_none=True, recurse=False)
+        # supported_modality_names is replaced by supported_modalities
+        kwargs.pop("supported_modality_names")
+        kwargs["supported_modalities"] = self.supported_modalities
+        logger.info(f"Predictor kwargs: {kwargs}")
+        return Predictor(**kwargs)
 
 
 # TODO: add multiple combo of variables for encoder and predictor, and being able to build them directly, no need to specify each parameter, e.g., encoder_tiny, encoder_small, encoder_base, encoder_large, etc.

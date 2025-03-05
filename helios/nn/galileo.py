@@ -1,4 +1,4 @@
-"""Simple set up of latent predictor."""
+"""Simple set up of latent predictor with two predictors, following Galileo."""
 
 from copy import deepcopy
 from dataclasses import dataclass
@@ -12,8 +12,8 @@ from helios.nn.utils import DistributedMixins
 from helios.train.masking import MaskedHeliosSample
 
 
-class LatentMIM(nn.Module, DistributedMixins):
-    """Latent MIM Style."""
+class Galileo(nn.Module, DistributedMixins):
+    """Galileo Style."""
 
     def __init__(
         self,
@@ -24,7 +24,7 @@ class LatentMIM(nn.Module, DistributedMixins):
         h_w_to_sample_min: int = 2,
         h_w_to_sample_max: int = 13,
     ):
-        """Initialize the Latent MIM Style.
+        """Initialize the Galileo Style.
 
         Args:
             encoder: The encoder to use.
@@ -36,7 +36,8 @@ class LatentMIM(nn.Module, DistributedMixins):
         """
         super().__init__()
         self.encoder = encoder
-        self.decoder = decoder
+        self.decoder_a = decoder
+        self.decoder_b = deepcopy(decoder)
         self.target_encoder = deepcopy(self.encoder)
         for p in self.target_encoder.parameters():
             p.requires_grad = False
@@ -45,17 +46,24 @@ class LatentMIM(nn.Module, DistributedMixins):
         self.h_w_to_sample_min = h_w_to_sample_min
         self.h_w_to_sample_max = h_w_to_sample_max
 
-    def forward(self, x: MaskedHeliosSample, patch_size: int) -> TokensAndMasks:
+    def forward_a(self, x: MaskedHeliosSample, patch_size: int) -> TokensAndMasks:
         """Forward pass for the Latent MIM Style."""
         # TODO: Input And outputs here are not consistent between encoder and decoder need a tokensandmaks++
         latent = self.encoder(x, patch_size=patch_size)
-        decoded = self.decoder(latent, timestamps=x.timestamps, patch_size=patch_size)
+        decoded = self.decoder_a(latent, timestamps=x.timestamps, patch_size=patch_size)
+        return decoded
+
+    def forward_b(self, x: MaskedHeliosSample, patch_size: int) -> TokensAndMasks:
+        """Forward pass for the Latent MIM Style."""
+        # TODO: Input And outputs here are not consistent between encoder and decoder need a tokensandmaks++
+        latent = self.encoder(x, patch_size=patch_size)
+        decoded = self.decoder_b(latent, timestamps=x.timestamps, patch_size=patch_size)
         return decoded
 
 
 @dataclass
-class LatentMIMConfig(Config):
-    """Configuration for the Latent Predictor."""
+class GalileoConfig(Config):
+    """Configuration for the Galileo model."""
 
     encoder_config: "EncoderConfig"
     decoder_config: "PredictorConfig"
@@ -84,13 +92,13 @@ class LatentMIMConfig(Config):
         ):
             raise ValueError("Encoder embedding size must be consistent!")
 
-    def build(self) -> "LatentMIM":
-        """Build the Latent Predictor."""
+    def build(self) -> "Galileo":
+        """Build the Galileo model."""
         self.validate()
         encoder = self.encoder_config.build()
         decoder = self.decoder_config.build()
         transform = TransformConfig(transform_type=self.transform_type).build()
-        return LatentMIM(
+        return Galileo(
             encoder=encoder,
             decoder=decoder,
             transform=transform,

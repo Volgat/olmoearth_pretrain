@@ -11,7 +11,7 @@ from rslearn.utils.mp import star_imap_unordered
 from upath import UPath
 
 from helios.data.constants import Modality, TimeSpan
-from helios.dataset.util import get_modality_fname
+from helios.dataset.utils import get_modality_fname
 
 from ..constants import GEOTIFF_RASTER_FORMAT, METADATA_COLUMNS
 from ..util import get_modality_temp_meta_fname, get_window_metadata

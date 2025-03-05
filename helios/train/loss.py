@@ -79,7 +79,6 @@ class PatchDiscriminationLoss(Loss):
         Returns:
             The computed loss value.
         """
-        # TODO: write a function that deals with this
         all_preds, all_masks = predictions.flatten_tokens_and_masks()
         all_targets = targets.flatten_tokens_and_masks()[0]
 
@@ -173,7 +172,6 @@ class L2Loss(Loss):
         all_targets = targets.flatten_tokens_and_masks()[0]
         pred = all_preds[all_masks == MaskValue.DECODER.value]
         target = all_targets[all_masks == MaskValue.DECODER.value]
-
         return F.mse_loss(pred, target)
 
 

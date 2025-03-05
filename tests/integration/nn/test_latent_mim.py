@@ -40,9 +40,13 @@ def test_latentmim_with_loss(
     modality_band_set_len_and_total_bands: dict[str, tuple[int, int]],
 ) -> None:
     """Test the full end to end forward pass of the model with an exit configuration and loss."""
-    supported_modalities = [Modality.SENTINEL2, Modality.LATLON, Modality.WORLDCOVER]
-    sentinel2_num_band_sets, sentinel2_num_bands = (
-        modality_band_set_len_and_total_bands["sentinel2"]
+    supported_modalities = [
+        Modality.SENTINEL2_L2A,
+        Modality.LATLON,
+        Modality.WORLDCOVER,
+    ]
+    sentinel2_l2a_num_band_sets, sentinel2_l2a_num_bands = (
+        modality_band_set_len_and_total_bands["sentinel2_l2a"]
     )
     latlon_num_band_sets, latlon_num_bands = modality_band_set_len_and_total_bands[
         "latlon"
@@ -52,12 +56,12 @@ def test_latentmim_with_loss(
         4,
         4,
         2,
-        sentinel2_num_bands,
+        sentinel2_l2a_num_bands,
     )
-    # Create dummy sentinel2 data: shape (B, H, W, T, C)
-    sentinel2 = torch.randn(B, H, W, T, C)
+    # Create dummy sentinel2_l2a data: shape (B, H, W, T, C)
+    sentinel2_l2a = torch.randn(B, H, W, T, C)
     # Here we assume 0 (ONLINE_ENCODER) means the token is visible.
-    sentinel2_mask = torch.zeros(B, H, W, T, C, dtype=torch.long)
+    sentinel2_l2a_mask = torch.zeros(B, H, W, T, C, dtype=torch.long)
     # Dummy latitude-longitude data.
     latlon = torch.randn(B, latlon_num_bands)
     latlon_mask = (
@@ -77,8 +81,8 @@ def test_latentmim_with_loss(
     timestamps = torch.cat([days, months, years], dim=-1)  # Shape: (B, T, 3)
 
     masked_sample_dict = {
-        "sentinel2": sentinel2,
-        "sentinel2_mask": sentinel2_mask,
+        "sentinel2_l2a": sentinel2_l2a,
+        "sentinel2_l2a_mask": sentinel2_l2a_mask,
         "latlon": latlon,
         "latlon_mask": latlon_mask,
         "worldcover": worldcover,
@@ -126,24 +130,24 @@ def test_latentmim_with_loss(
     output = predictor.forward(output, timestamps, patch_size, input_res)
     patched_H = H // patch_size
     patched_W = W // patch_size
-    assert output.sentinel2 is not None
-    assert output.sentinel2_mask is not None
+    assert output.sentinel2_l2a is not None
+    assert output.sentinel2_l2a_mask is not None
     assert output.latlon is not None
     assert output.latlon_mask is not None
-    assert output.sentinel2.shape == (
+    assert output.sentinel2_l2a.shape == (
         B,
         patched_H,
         patched_W,
         T,
-        sentinel2_num_band_sets,
+        sentinel2_l2a_num_band_sets,
         predictor.output_embedding_size,
     )
-    assert output.sentinel2_mask.shape == (
+    assert output.sentinel2_l2a_mask.shape == (
         B,
         patched_H,
         patched_W,
         T,
-        sentinel2_num_band_sets,
+        sentinel2_l2a_num_band_sets,
     )
     assert output.latlon.shape == (
         B,
@@ -200,7 +204,7 @@ def test_latentmim_with_loss(
         ):
             assert param.grad is not None, name
     for name, param in latentmim.decoder.named_parameters():
-        # sentinel2 is "masked" from the decoder
+        # sentinel2_l2a is "masked" from the decoder
         if not any(
             ignore_param in name
             for ignore_param in [

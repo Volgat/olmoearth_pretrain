@@ -8,6 +8,8 @@ from typing import cast
 
 import numpy as np
 from olmo_core.config import Config, StrEnum
+from olmo_core.distributed.utils import get_local_rank
+from olmo_core.launch.beaker import BeakerLaunchConfig
 from olmo_core.train import (
     TrainerConfig,
     prepare_training_environment,
@@ -16,30 +18,43 @@ from olmo_core.train import (
 from olmo_core.train.callbacks import ConfigSaverCallback, WandBCallback
 from olmo_core.utils import get_default_device, prepare_cli_environment, seed_all
 
-from helios.data.constants import ModalitySpec
+from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig, collate_helios
 from helios.data.normalize import Normalizer, Strategy
 from helios.data.visualize import visualize_sample
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
+from helios.train.train_module.train_module import HeliosTrainModuleConfig
 
 logger = logging.getLogger(__name__)
 
 # TODO: Make this more agnostic to the training setup
 # TODO: Add support for different model configs
 # TODO: Add support for different train module configs
-# TODO: Add support for overrides
 
 
+# maybe this build common components can be the same function for every experiment
 @dataclass
 class CommonComponents(Config):
     """Any configurable items that are common to all experiments."""
 
     run_name: str
     save_folder: str
-    supported_modalities: list[ModalitySpec]
+    supported_modality_names: list[str]
+    launch: BeakerLaunchConfig
     # callbacks: dict[str, Callback]
+
+    def validate(self) -> None:
+        """Validate the common components."""
+        if not isinstance(self.supported_modality_names, list):
+            raise ValueError("supported_modality_names must be a list")
+        if not all(
+            modality in Modality.names() for modality in self.supported_modality_names
+        ):
+            raise ValueError(
+                "supported_modality_names must contain only valid modality names"
+            )
 
 
 @dataclass
@@ -47,7 +62,8 @@ class HeliosVisualizeConfig(Config):
     """Configuration for visualizing the dataset."""
 
     output_dir: str
-    num_samples: int = 10
+    num_samples: int | None = None
+    global_step: int | None = None
     normalize_strategy: Strategy = Strategy.PREDEFINED
     std_multiplier: float = 2.0
 
@@ -57,25 +73,38 @@ class HeliosExperimentConfig(Config):
     """Configuration for a Helios experiment."""
 
     run_name: str
-    # launch: BeakerLaunchConfig # we should use this as well
-    model: LatentMIMConfig  # TODO: make this agnostic to training setup
+    launch: BeakerLaunchConfig
+    model: Config
     dataset: HeliosDatasetConfig  # will likely be fixed for us
     data_loader: HeliosDataLoaderConfig  # will likely be fixed for us
-    train_module: LatentMIMTrainModuleConfig  # we will want to support different train module model combinations
+    train_module: HeliosTrainModuleConfig
     trainer: TrainerConfig
     visualize_config: HeliosVisualizeConfig | None = None
     init_seed: int = 12536
 
 
+def split_common_overrides(overrides: list[str]) -> tuple[list[str], list[str]]:
+    """Split the common overrides from the command line."""
+    common_overrides = [
+        dotfield.replace("common.", "")
+        for dotfield in overrides
+        if "common." in dotfield
+    ]
+    non_common_overrides = [
+        dotfield for dotfield in overrides if "common." not in dotfield
+    ]
+    return common_overrides, non_common_overrides
+
+
 def build_config(
     common: CommonComponents,
-    model_config_builder: Callable[[CommonComponents], LatentMIMConfig],
+    model_config_builder: Callable[[CommonComponents], Config],
     dataset_config_builder: Callable[[CommonComponents], HeliosDatasetConfig],
     dataloader_config_builder: Callable[[CommonComponents], HeliosDataLoaderConfig],
     trainer_config_builder: Callable[[CommonComponents], TrainerConfig],
     train_module_config_builder: Callable[
         [CommonComponents],
-        LatentMIMTrainModuleConfig,
+        HeliosTrainModuleConfig,
     ],
     overrides: list[str],
     visualize_config_builder: (
@@ -83,6 +112,11 @@ def build_config(
     ) = None,
 ) -> HeliosExperimentConfig:
     """Build a Helios experiment configuration."""
+    # Overide common components
+    common_overrides, overrides = split_common_overrides(overrides)
+    logger.info("Common overrides: %s", common_overrides)
+    common = common.merge(common_overrides)
+    logger.info("Common: %s", common)
     model_config = model_config_builder(common)
     dataset_config = dataset_config_builder(common)
     dataloader_config = dataloader_config_builder(common)
@@ -99,13 +133,10 @@ def build_config(
         train_module=train_module_config,
         trainer=trainer_config,
         visualize_config=visualize_config,
+        launch=common.launch,
     )
-    logger.info("Config: %s", config)
     logger.info("Overrides: %s", overrides)
-    if len(overrides) > 0:
-        # also there are some unerlying dataclasses we don't want to be able to overide and are not actually part of config
-        # OmegaConf merge does not support all types we use so we would have to do some mods to make this work https://omegaconf.readthedocs.io/en/2.2_branch/structured_config.html
-        config = config.merge(overrides)
+    config = config.merge(overrides)
     return config
 
 
@@ -140,19 +171,34 @@ def visualize(config: HeliosExperimentConfig) -> None:
     logger.info("Visualizing the dataset")
     if config.visualize_config is None:
         raise ValueError("visualize_config is not set")
+    global_step = config.visualize_config.global_step
     dataset = config.dataset.build()
-    sample_indices = np.random.randint(
-        0, len(dataset), config.visualize_config.num_samples
-    )
+    if global_step is not None:
+        data_loader = config.data_loader.build(
+            dataset, collator=collate_helios, dp_process_group=None
+        )
+        sample_indices = data_loader.fast_forward(global_step)
+    else:
+        sample_indices = np.random.randint(
+            0, len(dataset), config.visualize_config.num_samples
+        )
     normalizer = Normalizer(
         strategy=config.visualize_config.normalize_strategy,
         std_multiplier=config.visualize_config.std_multiplier,
     )
+    logger.info(f"sample indices: {sample_indices}")
     for sample_index in sample_indices:
         visualize_sample(
             dataset, sample_index, normalizer, config.visualize_config.output_dir
         )
     logger.info("Done visualizing the dataset")
+
+
+def launch(config: HeliosExperimentConfig) -> None:
+    """Launch an experiment."""
+    logger.info("Launching the experiment")
+    logger.info(config)
+    config.launch.launch(follow=True)
 
 
 class SubCmd(StrEnum):
@@ -188,19 +234,21 @@ class SubCmd(StrEnum):
 
     def run(self, config: HeliosExperimentConfig) -> None:
         """Run the given subcommand."""
-        # if get_local_rank() == 0:
-        #     print(config)
-        #     print(
-        #         "\n"
-        #         f"[b blue]Total parameters:[/]                {config.model.num_params:,d}\n"
-        #         f"[b blue]Non-embedding parameters:[/]        {config.model.num_non_embedding_params:,d}"
-        #     )
+        if get_local_rank() == 0:
+            print(config)
+            # TODO: Add parameter count math to config
+            # print(
+            #     "\n"
+            #     f"[b blue]Total parameters:[/]                {config.model.num_params:,d}\n"
+            #     f"[b blue]Non-embedding parameters:[/]        {config.model.num_non_embedding_params:,d}"
+            # )
 
         if self == SubCmd.launch:
-            raise NotImplementedError
+            launch(config)
         elif self == SubCmd.dry_run:
             pass
         elif self == SubCmd.visualize:
+            seed_all(config.init_seed)
             visualize(config)
         elif self == SubCmd.train:
             try:
@@ -228,7 +276,7 @@ class SubCmd(StrEnum):
 
 def main(
     *,
-    common_components_builder: Callable[[], CommonComponents],
+    common_components_builder: Callable,
     model_config_builder: Callable[[CommonComponents], LatentMIMConfig],
     dataset_config_builder: Callable[[CommonComponents], HeliosDatasetConfig],
     dataloader_config_builder: Callable[[CommonComponents], HeliosDataLoaderConfig],
@@ -247,7 +295,7 @@ def main(
     """
     usage = f"""
 [yellow]Usage:[/] [i blue]python[/] [i cyan]{sys.argv[0]}[/] [i b magenta]{'|'.join(SubCmd)}[/] [i b]RUN_NAME CLUSTER[/] [i][OVERRIDES...][/]
-
+If running command on a local machine ie from a session, you can use the [b]local[/b] cluster name.
 [b]Subcommands[/]
 [b magenta]launch:[/]     Not Implemented. Launch the script on Beaker with the [b magenta]train[/] subcommand.
 [b magenta]train:[/]       Run the trainer. You usually shouldn't invoke the script with this subcommand directly.
@@ -265,14 +313,15 @@ def main(
     python train.py visualize
     """.strip()
 
-    if len(sys.argv) < 2 or sys.argv[1] not in set(SubCmd):
+    if len(sys.argv) < 4 or sys.argv[1] not in set(SubCmd):
         import rich
 
         rich.get_console().print(usage, highlight=False)
         sys.exit(1)
 
-    script_name, cmd, *overrides = sys.argv
-    common = common_components_builder()
+    script, cmd, run_name, cluster, *overrides = sys.argv
+    # TODO: we should probably have a single common components builder that can be used for all experiments
+    common = common_components_builder(script, cmd, run_name, cluster, overrides)
 
     cmd = SubCmd(cmd)
     cmd.prepare_environment()
