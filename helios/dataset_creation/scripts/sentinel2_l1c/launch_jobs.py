@@ -6,13 +6,7 @@ import random
 import uuid
 
 import tqdm
-from beaker import (
-    Beaker,
-    DataMount,
-    DataSource,
-    ExperimentSpec,
-    Priority,
-)
+from google.cloud import batch_v1
 from rslearn.dataset import Dataset, Window
 from upath import UPath
 
@@ -63,52 +57,73 @@ def is_window_pending(window: Window) -> bool:
 
 
 def launch_job(
+    client: batch_v1.BatchServiceClient,
     image: str,
-    clusters: list[str],
+    project: str,
+    region: str,
     ds_path: str,
     window_names: list[str],
 ) -> None:
     """Launch a Beaker job that ingests the specified windows.
 
     Args:
-        image: the name of the Beaker image to use.
-        clusters: list of Beaker clusters to target.
+        client: the Google Batch client to use to start the jobs.
+        image: the Docker image URI on GCR.
+        project: the GCP project to use.
+        region: the GCP region to use.
         ds_path: the dataset path.
         window_names: names of the windows to ingest in this job.
-        weka_mounts: list of weka mounts for Beaker job.
     """
-    beaker = Beaker.from_env(default_workspace=BEAKER_WORKSPACE)
-    with beaker.session():
-        # Add random string since experiment names must be unique.
-        task_uuid = str(uuid.uuid4())[0:16]
-        experiment_name = f"helios-sentinel2-l1c-{task_uuid}"
+    # Define runnable.
+    runnable = batch_v1.Runnable()
+    runnable.container = batch_v1.Runnable.Container()
+    runnable.container.image_uri = image
+    runnable.container.entrypoint = "python"
+    runnable.container.commands = [
+        "helios/dataset_creation/scripts/sentinel2_l1c/entrypoint.py",
+        "--ds_path",
+        ds_path,
+        "--windows",
+        ",".join(window_names),
+    ]
 
-        command = [
-            "python",
-            "helios/dataset_creation/scripts/sentinel2_l1c/entrypoint.py",
-            "--ds_path",
-            ds_path,
-            "--windows",
-            ",".join(window_names),
-        ]
-        weka_mount = DataMount(
-            source=DataSource(weka="dfive-default"),
-            mount_path="/weka/dfive-default",
-        )
-        experiment_spec = ExperimentSpec.new(
-            budget=BEAKER_BUDGET,
-            task_name=experiment_name,
-            beaker_image=image,
-            priority=Priority.high,
-            cluster=clusters,
-            command=command,
-            datasets=[weka_mount],
-            # Set one GPU, otherwise we might have hundreds of jobs scheduled on the
-            # same machine.
-            resources={"gpuCount": 1},
-            preemptible=True,
-        )
-        beaker.experiment.create(experiment_name, experiment_spec)
+    # Define single-runnable task.
+    task = batch_v1.TaskSpec()
+    task.runnables = [runnable]
+
+    resources = batch_v1.ComputeResource()
+    resources.cpu_milli = 32000
+    resources.memory_mib = 65536
+    task.compute_resource = resources
+
+    task.max_retry_count = 1
+    task.max_run_duration = "3600s"
+
+    group = batch_v1.TaskGroup()
+    group.task_count = 1
+    group.task_spec = task
+
+    policy = batch_v1.AllocationPolicy.InstancePolicy()
+    policy.machine_type = "e2-standard-32"
+    instances = batch_v1.AllocationPolicy.InstancePolicyOrTemplate()
+    instances.policy = policy
+    allocation_policy = batch_v1.AllocationPolicy()
+    allocation_policy.instances = [instances]
+
+    job = batch_v1.Job()
+    job.task_groups = [group]
+    job.allocation_policy = allocation_policy
+    job.labels = {"env": "testing", "type": "container"}
+    job.logs_policy = batch_v1.LogsPolicy()
+    job.logs_policy.destination = batch_v1.LogsPolicy.Destination.CLOUD_LOGGING
+
+    create_request = batch_v1.CreateJobRequest()
+    create_request.job = job
+    task_uuid = str(uuid.uuid4())[0:16]
+    create_request.job_id = f"helios-sentinel2-l1c-{task_uuid}"
+    create_request.parent = f"projects/{project}/locations/{region}"
+
+    client.create_job(create_request)
 
 
 if __name__ == "__main__":
@@ -122,15 +137,21 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
-        "--image_name",
+        "--image",
         type=str,
-        help="Name of the Beaker image to use for the job",
+        help="Docker image URI on GCR to run",
         required=True,
     )
     parser.add_argument(
-        "--clusters",
+        "--project",
         type=str,
-        help="Comma-separated list of clusters to target",
+        help="GCP project to use",
+        required=True,
+    )
+    parser.add_argument(
+        "--region",
+        type=str,
+        help="GCP region to use",
         required=True,
     )
     parser.add_argument(
@@ -184,5 +205,6 @@ if __name__ == "__main__":
         batch = pending_window_names[i : i + args.batch_size]
         batches.append(batch)
 
+    client = batch_v1.BatchServiceClient()
     for batch in tqdm.tqdm(batches, desc="Launching jobs"):
-        launch_job(args.image_name, args.clusters.split(","), args.ds_path, batch)
+        launch_job(client, args.image, args.project, args.region, args.ds_path, batch)
