@@ -189,7 +189,6 @@ class MaskingStrategy(ABC):
             Tuple of (masked_data, mask)
         """
         pass
-
     def _create_random_mask(
         self,
         modality: ModalitySpec,
@@ -222,6 +221,7 @@ class MaskingStrategy(ABC):
             flat_mask_tokens = self.generator.permuted(flat_mask_tokens)
 
         mask = torch.as_tensor(flat_mask_tokens, device=device)
+        # want to use the helios sample right here
         mask = mask.view(*shape)
         return mask
 
