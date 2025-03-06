@@ -132,10 +132,11 @@ def build_train_module_config(
     dp_config = DataParallelConfig(name=DataParallelType.ddp)
 
     # TODO: would need a scheduler config and registry to be able to change this with overrides
-    scheduler = CosWithWarmup(warmup_steps=WARMUP_EPOCHS * STEPS_PER_EPOCH)
+    scheduler = CosWithWarmup()
     train_module_config = GalileoTrainModuleConfig(
         # TODO: change name to optim config
         optim_config=optim_config,
+        warmup_duration=Duration.epochs(WARMUP_EPOCHS),
         masking_config_a=masking_config_a,
         masking_config_b=masking_config_b,
         loss_config_a=loss_config_a,

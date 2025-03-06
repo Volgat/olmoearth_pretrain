@@ -16,7 +16,7 @@ python launch_beaker.py --out_dir /weka/dfive-default/helios/dataset_creation/wo
 
 Note that the output directory must be on a shared filesystem.
 
-### 2. Use those features to train a
+### 2. Apply k-means clustering
 Once the file is created, we use a k-means clustering algorithm to find the centroids of k clusters, where k corresponds to the number of points we want to export.
 
 Two strategies are adopted - one where we sample 50 points per tile (this is saved in `"esa_grid_subsampled.csv"`) and one where we take k points globally (this is saved in `"esa_grid_subsampled_global.csv"` and takes far longer to run).
