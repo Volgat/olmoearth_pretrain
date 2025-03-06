@@ -189,10 +189,12 @@ class MaskingStrategy(ABC):
             Tuple of (masked_data, mask)
         """
         pass
+
     def _create_random_mask(
         self,
         modality: ModalitySpec,
         shape: torch.Size,
+        missing_mask: ArrayTensor | None = None,
         device: torch.device | None = None,
     ) -> ArrayTensor:
         if modality.is_spatial or modality.is_multitemporal:
@@ -221,6 +223,8 @@ class MaskingStrategy(ABC):
             flat_mask_tokens = self.generator.permuted(flat_mask_tokens)
 
         mask = torch.as_tensor(flat_mask_tokens, device=device)
+        if missing_mask is not None:
+            flat_mask_tokens[missing_mask] = MaskValue.MISSING.value
         # want to use the helios sample right here
         mask = mask.view(*shape)
         return mask
@@ -260,6 +264,7 @@ class TimeMaskingStrategy(MaskingStrategy):
     def _create_temporal_mask(
         self,
         shape: torch.Size,
+        missing_mask: ArrayTensor | None = None,
         device: torch.device | None = None,
     ) -> ArrayTensor:
         b = shape[0]
@@ -283,6 +288,8 @@ class TimeMaskingStrategy(MaskingStrategy):
         mask = repeat(flat_mask, "t -> b t", b=b)
         mask = self.generator.permuted(mask, axis=1)
         mask = torch.as_tensor(mask, device=device)
+        if missing_mask is not None:
+            mask[missing_mask] = MaskValue.MISSING.value
         return mask
 
     def apply_mask(self, batch: HeliosSample, **kwargs: Any) -> MaskedHeliosSample:
@@ -298,8 +305,9 @@ class TimeMaskingStrategy(MaskingStrategy):
             MaskedHeliosSample containing the masked data and mask
         """
         output_dict: dict[str, ArrayTensor | None] = {}
+        missing_mask_dict = batch.missing_modalities_masks
         temporal_mask = None
-        for modality_name in batch._fields:
+        for modality_name in batch.modalities:
             instance = getattr(batch, modality_name)
             if instance is None:
                 # set instance and mask to None
@@ -318,12 +326,17 @@ class TimeMaskingStrategy(MaskingStrategy):
                     device = None
 
                 modality = Modality.get(modality_name)
+                missing_mask = missing_mask_dict.get(modality_name, None)
                 shape = instance.shape
                 if not modality.is_multitemporal:
-                    mask = self._create_random_mask(modality, shape, device)
+                    mask = self._create_random_mask(
+                        modality, shape, missing_mask, device
+                    )
                 else:
                     if temporal_mask is None:
-                        temporal_mask = self._create_temporal_mask(shape, device)
+                        temporal_mask = self._create_temporal_mask(
+                            shape, missing_mask, device
+                        )
                     b_s = shape[-1]
                     b, h, w = list(shape[:-2]) + [1] * (3 - len(shape[:-2]))
                     mask = repeat(
@@ -407,9 +420,10 @@ class SpaceMaskingStrategy(MaskingStrategy):
         Returns:
             MaskedHeliosSample containing the masked data and mask
         """
+        missing_mask_dict = batch.missing_modalities_masks
         output_dict: dict[str, ArrayTensor | None] = {}
         spatial_mask = None
-        for modality_name in batch._fields:
+        for modality_name in batch.modalities:
             instance = getattr(batch, modality_name)
             if instance is None:
                 # set instance and mask to None
@@ -428,9 +442,12 @@ class SpaceMaskingStrategy(MaskingStrategy):
                     device = None
 
                 modality = Modality.get(modality_name)
+                missing_mask = missing_mask_dict.get(modality_name, None)
                 shape = instance.shape
                 if not modality.is_spatial:
-                    mask = self._create_random_mask(modality, shape, device)
+                    mask = self._create_random_mask(
+                        modality, shape, missing_mask, device
+                    )
                 else:
                     if spatial_mask is None:
                         spatial_mask = self._create_spatial_mask(
@@ -511,7 +528,8 @@ class RandomMaskingStrategy(MaskingStrategy):
             MaskedHeliosSample containing the masked data and mask
         """
         output_dict: dict[str, ArrayTensor | None] = {}
-        for modality_name in batch._fields:
+        missing_mask_dict = batch.missing_modalities_masks
+        for modality_name in batch.modalities:
             instance = getattr(batch, modality_name)
             if instance is None:
                 # set instance and mask to None
@@ -529,8 +547,9 @@ class RandomMaskingStrategy(MaskingStrategy):
                 else:
                     device = None
 
+                missing_mask = missing_mask_dict.get(modality_name, None)
                 mask = self._create_random_mask(
-                    Modality.get(modality_name), instance.shape, device
+                    Modality.get(modality_name), instance.shape, missing_mask, device
                 )
 
                 output_dict[modality_name] = instance

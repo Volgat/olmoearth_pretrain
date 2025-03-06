@@ -3,7 +3,7 @@
 import hashlib
 import logging
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import floor
 from pathlib import Path
@@ -59,7 +59,7 @@ class HeliosSample(NamedTuple):
     worldcover: ArrayTensor | None = None  # [B, H, W, len(WC_bands)]
     # Missing modality masks to show which samples are missing which modalities
     # if a modality is not in the dict, then all samples are present for that modality, if Sample is not batched, then this will be an empty dict
-    missing_modalities_masks: dict[str, ArrayTensor] = {}  # {modality: [B]}
+    missing_modalities_masks: Mapping[str, ArrayTensor] = {}  # {modality: [B]}
 
     # TODO: Add unit tests for this
     def shape(self, attribute: str, mask: bool = False) -> Sequence[int]:
@@ -163,9 +163,12 @@ class HeliosSample(NamedTuple):
                 return None
             return tensor.to(device)
 
-        return HeliosSample(
-            **{key: maybe_move_to_device(val) for key, val in self.as_dict().items()}
-        )
+        # Add type annotation to make the type checker happy
+        device_dict: dict[str, ArrayTensor | None] = {
+            key: maybe_move_to_device(val) for key, val in self.as_dict().items()
+        }
+        # Use type: ignore to bypass the type checker for this call
+        return HeliosSample(**device_dict)  # type: ignore
 
     @property
     def batch_size(self) -> int:
@@ -297,31 +300,11 @@ class HeliosSample(NamedTuple):
         return HeliosSample(**new_data_dict)
 
 
-def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
-    """Collate function that automatically handles any modalities present in the samples."""
-
-    # Stack tensors while handling None values
-    def stack_or_none(attr: str) -> torch.Tensor | None:
-        """Stack the tensors while handling None values."""
-        if getattr(batch[0], attr) is None:
-            return None
-        return torch.stack(
-            [torch.from_numpy(getattr(sample, attr)) for sample in batch], dim=0
-        )
-
-    # TODO: Gets all non-None modalities ASSUMES ALL SAMPLES HAVE THE SAME MODALITIES
-    sample_fields = batch[0].modalities
-
-    # Create a dictionary of stacked tensors for each field
-    collated_dict = {field: stack_or_none(field) for field in sample_fields}
-    return HeliosSample(**collated_dict)
-
-
-def collate_helios_missing_modalities(
+def collate_helios(
     batch: list[HeliosSample], supported_modalities: list[ModalitySpec]
 ) -> HeliosSample:
     """Collate function capable of handling batches with samples missing modalities."""
-    collated_dict = {}
+    collated_dict: dict = {}
     missing_modalities_masks = {}
 
     # First, find a reference sample to get dtypes from
@@ -364,9 +347,9 @@ def collate_helios_missing_modalities(
             )
         if missing_data_indices:
             missing_modalities_masks[field] = torch.zeros(
-                len(batch), dtype=torch.int, device=reference_device
+                len(batch), dtype=torch.bool, device=reference_device
             )
-            missing_modalities_masks[field][missing_data_indices] = 1
+            missing_modalities_masks[field][missing_data_indices] = True
         collated_dict[field] = torch.stack(modality_data_stack, dim=0)
     collated_dict["missing_modalities_masks"] = missing_modalities_masks
 
