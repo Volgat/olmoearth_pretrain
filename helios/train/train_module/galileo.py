@@ -12,7 +12,7 @@ from olmo_core.distributed.utils import get_local_tensor, get_world_size
 from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
-from olmo_core.train.common import ReduceType
+from olmo_core.train.common import Duration, ReduceType
 from olmo_core.train.train_module.transformer import (
     TransformerActivationCheckpointingConfig,
 )
@@ -61,6 +61,7 @@ class GalileoTrainModuleConfig(HeliosTrainModuleConfig):
     )
     ema_decay: tuple[float, float] = (0.996, 1.0)
     max_grad_norm: float = 1.0
+    warmup_duration: Duration = Duration.epochs(2)
 
     def build(
         self,
@@ -107,6 +108,7 @@ class GalileoTrainModule(HeliosTrainModule):
         state_dict_load_opts: Override state dict options for loading.
         token_exit_cfg_a: The token exit configuration for the model.
         token_exit_cfg_b: The token exit configuration for the model.
+        warmup_duration: The warmup duration for the model.
     """
 
     def __init__(
@@ -132,6 +134,7 @@ class GalileoTrainModule(HeliosTrainModule):
         state_dict_save_opts: dist_cp_sd.StateDictOptions | None = None,
         state_dict_load_opts: dist_cp_sd.StateDictOptions | None = None,
         ema_decay: tuple[float, float] = (0.996, 1.0),
+        warmup_duration: Duration = Duration.epochs(2),
     ):
         """Initialize the training module.
 
@@ -157,6 +160,7 @@ class GalileoTrainModule(HeliosTrainModule):
             ema_decay: EMA decay rate for target encoder, as a tuple of (start_ema_decay, end_ema_decay)
             token_exit_cfg_a: The token exit configuration for the model.
             token_exit_cfg_b: The token exit configuration for the model.
+            warmup_duration: The warmup duration for the model.
         """
         super().__init__(
             model=model,
@@ -173,6 +177,7 @@ class GalileoTrainModule(HeliosTrainModule):
             device=device,
             state_dict_save_opts=state_dict_save_opts,
             state_dict_load_opts=state_dict_load_opts,
+            warmup_duration=warmup_duration,
         )
         self.start_ema, self.end_ema = ema_decay
         self.token_exit_cfg_a = token_exit_cfg_a

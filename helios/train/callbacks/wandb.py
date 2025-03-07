@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class HeliosWandBCallback(WandBCallback):
     """Helios specific wandb callback."""
 
-    upload_dataset_distribution_pre_train: bool = True
+    upload_dataset_distribution_pre_train: bool = False
     restart_on_same_run: bool = True
 
     def pre_train(self) -> None:
