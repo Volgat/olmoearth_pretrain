@@ -35,7 +35,7 @@ from helios.train.train_module.galileo import GalileoTrainModuleConfig
 
 logger = logging.getLogger(__name__)
 # TODO: Need to use the dynamic computation from trainer for this
-STEPS_PER_EPOCH = 1
+STEPS_PER_EPOCH = 100
 
 
 def build_model_config(common: CommonComponents) -> GalileoConfig:
@@ -173,7 +173,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 
 def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     """Build the dataset config for an experiment."""
-    TILE_PATH = UPath("/weka/dfive-default/helios/dataset/20250223/")
+    TILE_PATH = UPath("/weka/dfive-default/helios/dataset/presto/")
     return HeliosDatasetConfig(
         tile_path=TILE_PATH,
         supported_modality_names=common.supported_modality_names,
@@ -206,7 +206,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             norm_stats_from_pretrained=True,
         ),
         DownstreamTaskConfig(
-            name="m-bigearthnet",
+            name="m-brick-kiln",
             batch_size=128,
             num_workers=8,
             pooling_type=PoolingType.MEAN,
