@@ -7,8 +7,8 @@ import subprocess  # nosec
 NUM_WORKERS = 16
 
 # Fixed model parameters
-ENCODER_EMBEDDING_SIZE = 128
-DECODER_EMBEDDING_SIZE = 128
+ENCODER_EMBEDDING_SIZE = 256
+DECODER_EMBEDDING_SIZE = 256
 ENCODER_DEPTH = 4
 DECODER_DEPTH = 4
 ENCODER_NUM_HEADS = 8
@@ -28,9 +28,9 @@ token_exit_args = " ".join(
 )
 
 # Sweep parameters
-LEARNING_RATES = [1e-3]  # , 2e-3, 3e-3
-WEIGHT_DECAYS = [1e-2]  # , 2e-2, 3e-2
-WARMUP_EPOCHS = [2]  # , 10, 20, 30
+LEARNING_RATES = [1e-3, 2e-3, 3e-3]
+WEIGHT_DECAYS = [1e-2, 2e-2, 3e-2]
+WARMUP_EPOCHS = [2, 10, 20, 30]
 
 # Base command template
 BASE_COMMAND = (
