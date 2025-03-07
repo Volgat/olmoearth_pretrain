@@ -50,9 +50,9 @@ class LatentMIMTrainModuleConfig(HeliosTrainModuleConfig):
     token_exit_cfg: dict[str, int] = field(
         default_factory=lambda: {modality: 0 for modality in Modality.names()}
     )
+    warmup_duration: Duration = field(default_factory=lambda: Duration.epochs(2))
     ema_decay: tuple[float, float] = (0.996, 1.0)
     max_grad_norm: float = 1.0
-    warmup_duration: Duration = Duration.epochs(2)
 
     def build(
         self,
