@@ -198,7 +198,7 @@ def launch(config: HeliosExperimentConfig) -> None:
     """Launch an experiment."""
     logger.info("Launching the experiment")
     logger.info(config)
-    config.launch.launch(follow=True)
+    config.launch.launch(follow=False)
 
 
 class SubCmd(StrEnum):

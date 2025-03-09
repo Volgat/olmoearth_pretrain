@@ -72,6 +72,7 @@ def build_launch_config(
         num_nodes=1,
         num_gpus=1,
         shared_filesystem=True,  # We only use Weka for now
+        shared_memory="256GiB",
         allow_dirty=False,
         priority=BeakerPriority.high,
         env_vars=[
