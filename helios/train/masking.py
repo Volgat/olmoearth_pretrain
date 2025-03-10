@@ -475,25 +475,28 @@ class ModalityMaskingStrategy(MaskingStrategy):
         """
         output_dict: dict[str, ArrayTensor | None] = {"timestamps": batch.timestamps}
 
-        present_bands = list(batch.as_dict(ignore_nones=True).keys())
-        present_bands = [b for b in present_bands if b != "timestamps"]
+        present_modalities = list(batch.as_dict(ignore_nones=True).keys())
+        present_modalities = [b for b in present_modalities if b != "timestamps"]
 
-        num_present_bands = len(present_bands)
-        encode_bands = max(1, int(self.encode_ratio * num_present_bands))
-        decode_bands = max(1, int(self.decode_ratio * num_present_bands))
-        target_bands = num_present_bands - encode_bands - decode_bands
+        num_present_modalities = len(present_modalities)
+        encode_modalities = max(1, int(self.encode_ratio * num_present_modalities))
+        decode_modalities = max(1, int(self.decode_ratio * num_present_modalities))
+        target_modalities = (
+            num_present_modalities - encode_modalities - decode_modalities
+        )
 
         band_mask_per_instance = np.concatenate(
             (
-                np.ones(target_bands, dtype=np.int_)
+                np.ones(target_modalities, dtype=np.int_)
                 * MaskValue.TARGET_ENCODER_ONLY.value,
-                np.ones(decode_bands, dtype=np.int_) * MaskValue.DECODER.value,
-                np.ones(encode_bands, dtype=np.int_) * MaskValue.ONLINE_ENCODER.value,
+                np.ones(decode_modalities, dtype=np.int_) * MaskValue.DECODER.value,
+                np.ones(encode_modalities, dtype=np.int_)
+                * MaskValue.ONLINE_ENCODER.value,
             )
         )
         batch_mask = repeat(band_mask_per_instance, "x -> b x", b=batch.batch_size)
         random_batch_mask = self.generator.permuted(batch_mask, axis=1)
-        for idx, modality in enumerate(present_bands):
+        for idx, modality in enumerate(present_modalities):
             instance = getattr(batch, modality)
             output_dict[modality] = instance
 
@@ -543,7 +546,7 @@ class SpaceTimeMaskingStrategy(MaskingStrategy):
 
 @MASKING_STRATEGY_REGISTRY.register("modality_space_time")
 class ModalitySpaceTimeMaskingStrategy(MaskingStrategy):
-    """Randomly select space or time masking and apply it to the input data."""
+    """Randomly select modality, space or time masking and apply it to the input data."""
 
     def __init__(
         self,
