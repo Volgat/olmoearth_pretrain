@@ -1,4 +1,4 @@
-ai2-olmo-core @ git+https://github.com/allenai/olmo-core.git@v2
+ai2-olmo-core @ git+https://github.com/allenai/olmo-core.git
 beaker-py>=1.32.0
 cartopy
 class-registry
