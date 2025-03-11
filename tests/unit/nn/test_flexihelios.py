@@ -1,4 +1,4 @@
-"""Unit tests for the core model code."""
+"""Unit tests for the flexihelios module."""
 
 import pytest
 import torch
@@ -420,11 +420,36 @@ class TestPredictor:
         tokens = torch.tensor(
             [[5, 6, 7, 8, 2, 13, 14, 15, 16], [5, 6, 7, 1, 2, 3, 4, 15, 16]]
         ).unsqueeze(-1)
-        mask = torch.tensor([[0, 0, 0, 0, 1, 1, 2, 2, 2], [0, 0, 0, 1, 1, 1, 1, 2, 2]])
+        mask = torch.tensor(
+            [
+                [
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                ],
+                [
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                ],
+            ]
+        )
 
-        # Add some missing tokens (value 3)
-        mask[0, 0] = 3  # First token in first batch is missing
-        mask[1, 1] = 3  # Second token in second batch is missing
+        # Add some missing tokens (value MISSING)
+        mask[0, 0] = MaskValue.MISSING.value  # First token in first batch is missing
+        mask[1, 1] = MaskValue.MISSING.value  # Second token in second batch is missing
 
         x, y, z, x_mask, y_mask, z_mask, indices = Predictor.split_x_y(tokens, mask)
 
@@ -433,7 +458,7 @@ class TestPredictor:
         assert y.shape == (2, 3, 1), f"Expected shape (2, 3, 1), got {y.shape}"
         assert z.shape == (2, 1, 1), f"Expected shape (2, 1, 1), got {z.shape}"
 
-        # Check that z contains the missing tokens (value 3)
+        # Check that z contains the missing tokens (value MISSING)
         assert (
             z[0, 0, 0].item() == 5
         ), f"Expected z[0, 0, 0] to be 5, got {z[0, 0, 0].item()}"
@@ -441,13 +466,13 @@ class TestPredictor:
             z[1, 0, 0].item() == 6
         ), f"Expected z[1, 0, 0] to be 6, got {z[1, 0, 0].item()}"
 
-        # Check that x contains the tokens to be decoded (value 2)
+        # Check that x contains the tokens to be decoded (value DECODER)
         expected_x = torch.tensor([[14, 15, 16], [15, 16, 0]])
         assert torch.equal(
             x.squeeze(-1), expected_x
         ), f"Expected x to be {expected_x}, got {x.squeeze(-1)}"
 
-        # Check that y contains the tokens for context (value 0)
+        # Check that y contains the tokens for context (value ONLINE_ENCODER)
         expected_y = torch.tensor([[6, 7, 8], [5, 7, 0]])
         assert torch.equal(
             y.squeeze(-1), expected_y
@@ -467,11 +492,11 @@ class TestPredictor:
     def test_combine_x_y(self) -> None:
         """Test combining the x, y, and z groups back into the original tokens."""
         # Create a simple test case with known values
-        # x is the query (i.e. the masked tokens to be decoded)
+        # x is the query (i.e. the masked tokens to be decoded - DECODER)
         x = torch.tensor([[14, 15, 16], [15, 16, 0]]).unsqueeze(-1)
-        # y is the keys and values (i.e. the unmasked tokens)
+        # y is the keys and values (i.e. the unmasked tokens - ONLINE_ENCODER)
         y = torch.tensor([[6, 7, 8], [5, 7, 0]]).unsqueeze(-1)
-        # z is the missing tokens
+        # z is the missing tokens (MISSING)
         z = torch.tensor([[5], [6]]).unsqueeze(-1)
 
         # Masks indicate which tokens are valid (1) or padding (0)
@@ -529,8 +554,28 @@ class TestPredictor:
         # Second sample: 3 missing, 3 decoder, 3 encoder
         mask = torch.tensor(
             [
-                [3, 3, 0, 0, 0, 2, 2, 2, 2],  # 2 missing, 4 decoder, 3 encoder
-                [3, 3, 3, 0, 0, 0, 2, 2, 2],  # 3 missing, 3 decoder, 3 encoder
+                [
+                    MaskValue.MISSING.value,
+                    MaskValue.MISSING.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                ],
+                [
+                    MaskValue.MISSING.value,
+                    MaskValue.MISSING.value,
+                    MaskValue.MISSING.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.DECODER.value,
+                ],
             ]
         )
 
@@ -541,19 +586,19 @@ class TestPredictor:
         assert y.shape == (2, 3, 1), f"Expected y shape (2, 3, 1), got {y.shape}"
         assert z.shape == (2, 3, 1), f"Expected z shape (2, 3, 1), got {z.shape}"
 
-        # Check x values (tokens to be decoded - mask value 2)
+        # Check x values (tokens to be decoded - mask value DECODER)
         expected_x = torch.tensor([[6, 7, 8, 9], [17, 18, 19, 0]])
         assert torch.equal(
             x.squeeze(-1), expected_x
         ), f"Expected x to be {expected_x}, got {x.squeeze(-1)}"
 
-        # Check y values (tokens for context - mask value 0)
+        # Check y values (tokens for context - mask value ONLINE_ENCODER)
         expected_y = torch.tensor([[3, 4, 5], [14, 15, 16]])
         assert torch.equal(
             y.squeeze(-1), expected_y
         ), f"Expected y to be {expected_y}, got {y.squeeze(-1)}"
 
-        # Check z values (missing tokens - mask value 3)
+        # Check z values (missing tokens - mask value MISSING)
         expected_z = torch.tensor([[1, 2, 0], [11, 12, 13]])
         assert torch.equal(
             z.squeeze(-1), expected_z
