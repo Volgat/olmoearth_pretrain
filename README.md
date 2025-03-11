@@ -63,7 +63,7 @@ Add additional overides as needed.
 
 budget: `ai2/d5` \
 workspace: `ai2/earth-systems` \
-weka: `weka://dfive-default` \
+weka: `weka://dfive-default`
 
 ## Helios Dataset
 

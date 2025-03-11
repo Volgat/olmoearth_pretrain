@@ -47,6 +47,9 @@ def build_launch_config(
     name: str,
     cmd: list[str],
     clusters: list[str] | str,
+    num_nodes: int = 1,
+    num_gpus: int = 1,
+    shared_memory: str = "256GiB",
     task_name: str = "train",
     workspace: str = WORKSPACE,
     budget: str = BUDGET,
@@ -69,10 +72,10 @@ def build_launch_config(
         clusters=clusters if isinstance(clusters, list) else [clusters],
         weka_buckets=weka_buckets,
         beaker_image=f"henryh/{OLMoCoreBeakerImage.stable}",  # we can all use the same image for now
-        num_nodes=1,
-        num_gpus=4,
+        num_nodes=num_nodes,
+        num_gpus=num_gpus,
         shared_filesystem=True,  # We only use Weka for now
-        shared_memory="256GiB",
+        shared_memory=shared_memory,
         allow_dirty=False,
         priority=BeakerPriority.high,
         env_vars=[
@@ -109,7 +112,10 @@ def build_common_components(
     cmd: SubCmd,
     run_name: str,
     cluster: str,
-    overrides: list[str],
+    overrides: list[str] = [],
+    num_nodes: int = 1,
+    num_gpus: int = 1,
+    shared_memory: str = "256GiB",
 ) -> CommonComponents:
     """Build the common components for an experiment."""
     # Variables to be changed per user
@@ -128,6 +134,9 @@ def build_common_components(
         name=f"{run_name}-{cmd_to_launch}",
         cmd=[script, cmd_to_launch, run_name, cluster, *overrides],
         clusters=cluster,
+        num_nodes=num_nodes,
+        num_gpus=num_gpus,
+        shared_memory=shared_memory,
         nccl_debug=False,
     )
     root_dir = get_root_dir(cluster)

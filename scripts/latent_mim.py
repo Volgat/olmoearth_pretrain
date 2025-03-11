@@ -33,8 +33,6 @@ from helios.train.masking import MaskingConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
 
 logger = logging.getLogger(__name__)
-# # TODO: Need to use the dynamic computation from trainer for this
-# STEPS_PER_EPOCH = 100
 
 
 def build_model_config(common: CommonComponents) -> LatentMIMConfig:
@@ -109,7 +107,7 @@ def build_train_module_config(
     )
     token_exit_cfg = {modality: 0 for modality in common.supported_modality_names}
 
-    WARMUP_EPOCHS = 2
+    WARMUP_EPOCHS = 10
     dp_config = DataParallelConfig(name=DataParallelType.ddp)
 
     # TODO: would need a scheduler config and registry to be able to change this with overrides
@@ -134,7 +132,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     # things should be set during building
     # TODO: Include collate function here
 
-    NUM_WORKERS = 16
+    NUM_WORKERS = 8
     NUM_THREADS = 0
     GLOBAL_BATCH_SIZE = 128
 
@@ -174,7 +172,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         entity=WANDB_USERNAME,
         enabled=True,  # set to False to avoid wandb errors
     )
-    EVAL_INTERVAL_EPOCHS = 1
+    EVAL_INTERVAL_EPOCHS = 5
     EVAL_TASKS = [
         DownstreamTaskConfig(
             name="m-eurosat",
@@ -182,14 +180,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             num_workers=8,
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
-        ),
-        DownstreamTaskConfig(
-            name="m-brick-kiln",
-            batch_size=128,
-            num_workers=8,
-            pooling_type=PoolingType.MEAN,
-            norm_stats_from_pretrained=True,
-        ),
+        )
     ]
     # Let us not use garbage collector fallback
     trainer_config = (
