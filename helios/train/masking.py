@@ -142,7 +142,10 @@ class MaskedHeliosSample(NamedTuple):
         """
         masked_sample_dict = {}
         for key, t in sample.as_dict(ignore_nones=False).items():
-            if key == "timestamps":
+            # Skip the missing_modalities_masks field as it's not part of MaskedHeliosSample
+            if key == "missing_modalities_masks":
+                continue
+            elif key == "timestamps":
                 # lets assume timestamps is not None
                 masked_sample_dict[key] = t
             else:

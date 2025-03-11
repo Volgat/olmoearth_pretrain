@@ -76,9 +76,11 @@ class HeliosSample(NamedTuple):
             The shape of the attribute.
         """
         if attribute == "missing_modalities_masks":
-            raise NotImplementedError(
-                "shape of missing modalities masks is not supported"
-            )
+            # For missing_modalities_masks, we return the batch size
+            # Each mask in the dictionary has shape [B]
+            if self.sentinel2_l2a is None:
+                raise ValueError("Sentinel2 L2A is not present in the sample")
+            return [self.sentinel2_l2a.shape[0]]
         # It is safe to assume we always have Sentinel2, timestamps, and latlon
         # If other attributes are missing, we use Sentinel2 to get its partial shape (B, H, W, T)
         # For static modality like worldcover, we specify the T dimension as 1
@@ -114,9 +116,8 @@ class HeliosSample(NamedTuple):
         if attribute == "timestamps":
             return len(TIMESTAMPS)
         elif attribute == "missing_modalities_masks":
-            raise NotImplementedError(
-                "num_bands of missing modalities masks is not supported"
-            )
+            # Each mask in the dictionary is a binary tensor, so it has 1 channel
+            return 1
         else:
             return Modality.get(attribute).num_bands
 
