@@ -67,6 +67,7 @@ class DownstreamEvaluator:
         """Get the embeddings for the given data loader."""
         return get_embeddings(
             data_loader=data_loader,
+            task_type=self.config.task_type,
             model=self.trainer.train_module.model.encoder,
             patch_size=self.patch_size,
             pooling_type=self.pooling_type,
