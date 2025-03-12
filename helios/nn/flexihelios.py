@@ -701,12 +701,6 @@ class FlexiHeliosBase(nn.Module):
         binarized_target_encoder_only_mask = (
             sorted_mask == MaskValue.TARGET_ENCODER_ONLY.value
         )
-        assert (
-            binarized_target_encoder_only_mask.sum() == 0
-        ), "TARGET_ENCODER_ONLY tokens should not be present these should be unmasked to encoder only value when we are in the target encoder"
-        logger.info(
-            f"binarized_target_encoder_only_mask: {binarized_target_encoder_only_mask.sum()}"
-        )
         binarized_decoder_mask = sorted_mask == MaskValue.DECODER.value
         binarized_online_encoder_mask = sorted_mask == MaskValue.ONLINE_ENCODER.value
 
@@ -714,6 +708,9 @@ class FlexiHeliosBase(nn.Module):
         missing_counts = binarized_missing_mask.sum(dim=1)  # [B]
         decoder_counts = binarized_decoder_mask.sum(dim=1)  # [B]
         encoder_counts = binarized_online_encoder_mask.sum(dim=1)  # [B]
+        target_encoder_only_counts = binarized_target_encoder_only_mask.sum(
+            dim=1
+        )  # [B]
 
         # Get maximum lengths for each category across the batch
         max_length_to_be_decoded = decoder_counts.max()
@@ -763,10 +760,11 @@ class FlexiHeliosBase(nn.Module):
             missing_count = missing_counts[b]
             decoder_count = decoder_counts[b]
             encoder_count = encoder_counts[b]
+            target_encoder_only_count = target_encoder_only_counts[b]
             logger.info(f"missing_count: {missing_count}")
             logger.info(f"decoder_count: {decoder_count}")
             logger.info(f"encoder_count: {encoder_count}")
-
+            logger.info(f"target_encoder_only_count: {target_encoder_only_count}")
             # Since we sorted in descending order, MISSING tokens come first
             if missing_count > 0:
                 missing_tokens[b, :missing_count] = tokens[b, :missing_count]
@@ -783,7 +781,10 @@ class FlexiHeliosBase(nn.Module):
                 tokens_to_decode_mask[b, :decoder_count] = 1
                 logger.info(f"tokens_to_decode: {tokens_to_decode}")
                 logger.info(f"tokens_to_decode_mask: {tokens_to_decode_mask}")
-            encoder_start = decoder_start + decoder_count
+
+            # Target Encoder Only tokens are always set to zero at this point in the code
+            # we turn them into encoder only tokens during unmasking
+            encoder_start = decoder_start + decoder_count + target_encoder_only_count
             logger.info(f"encoder_start: {encoder_start}")
             # ONLINE_ENCODER tokens are at the end after sorting in descending order
             if encoder_count > 0:

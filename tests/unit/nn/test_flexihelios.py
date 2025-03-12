@@ -589,6 +589,77 @@ class TestPredictor:
 
         assert torch.equal(combined_tokens, tokens)
 
+    def test_split_and_recombine_with_missing_tokens_and_target_encoder_only_tokens(
+        self,
+    ) -> None:
+        """Test splitting the tokens into decoded, unmasked, and missing groups with missing tokens and target encoder only tokens."""
+        tokens = torch.tensor(
+            [
+                [1, 2, 3, 4, 5, 6, 7, 8, 9],  # First batch
+                [10, 11, 12, 13, 14, 15, 16, 17, 18],  # Second batch
+            ]
+        ).unsqueeze(-1)
+
+        mask = torch.tensor(
+            [
+                [
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.MISSING.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                ],
+                [
+                    MaskValue.MISSING.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.MISSING.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.TARGET_ENCODER_ONLY.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                    MaskValue.DECODER.value,
+                    MaskValue.ONLINE_ENCODER.value,
+                ],
+            ]
+        )
+
+        (
+            tokens_to_decode,
+            unmasked_tokens,
+            missing_tokens,
+            tokens_to_decode_mask,
+            unmasked_tokens_mask,
+            missing_tokens_mask,
+            indices,
+        ) = Predictor.split_x_y(tokens, mask)
+
+        # Check the shape of the output
+        expected_shape = (2, 9, 1)
+        assert (
+            tokens.shape == expected_shape
+        ), f"Expected shape {expected_shape}, got {tokens.shape}"
+
+        combined_tokens = Predictor.combine_x_y(
+            tokens_to_decode,
+            unmasked_tokens,
+            missing_tokens,
+            tokens_to_decode_mask,
+            unmasked_tokens_mask,
+            missing_tokens_mask,
+            indices,
+        )
+        logger.info(f"combined_tokens: {combined_tokens}")
+        logger.info(f"tokens: {tokens}")
+        # check that it is zero wherever there is a target encoder only token
+        assert (combined_tokens[0, 1, 0] == 0).all()
+        assert (combined_tokens[1, 2, 0] == 0).all()
+        assert (combined_tokens[1, 5, 0] == 0).all()
+        assert (combined_tokens[0, 5, 0] == 0).all()
+
     def test_combine_x_y(self) -> None:
         """Test combining the decoded, unmasked, and missing groups back into the original tokens."""
         decoded = torch.tensor([[14, 15, 16], [15, 16, 0]]).unsqueeze(-1)
