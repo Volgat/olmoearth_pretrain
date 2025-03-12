@@ -33,8 +33,6 @@ from helios.train.masking import MaskingConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
 
 logger = logging.getLogger(__name__)
-# TODO: Need to use the dynamic computation from trainer for this
-STEPS_PER_EPOCH = 100
 
 
 def build_model_config(common: CommonComponents) -> LatentMIMConfig:
@@ -109,15 +107,16 @@ def build_train_module_config(
     )
     token_exit_cfg = {modality: 0 for modality in common.supported_modality_names}
 
-    WARMUP_EPOCHS = 2
+    WARMUP_EPOCHS = 10
     dp_config = DataParallelConfig(name=DataParallelType.ddp)
 
     # TODO: would need a scheduler config and registry to be able to change this with overrides
-    scheduler = CosWithWarmup(warmup_steps=WARMUP_EPOCHS * STEPS_PER_EPOCH)
+    scheduler = CosWithWarmup()
     train_module_config = LatentMIMTrainModuleConfig(
         # TODO: change name to optim config
         optim_config=optim_config,
         masking_config=masking_config,
+        warmup_duration=Duration.epochs(WARMUP_EPOCHS),
         loss_config=loss_config,
         rank_microbatch_size=RANK_MICROBATCH_SIZE,
         token_exit_cfg=token_exit_cfg,
@@ -133,7 +132,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     # things should be set during building
     # TODO: Include collate function here
 
-    NUM_WORKERS = 0
+    NUM_WORKERS = 8
     NUM_THREADS = 0
     GLOBAL_BATCH_SIZE = 128
 
@@ -150,7 +149,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 
 def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     """Build the dataset config for an experiment."""
-    TILE_PATH = UPath("/weka/dfive-default/helios/dataset/20250223/")
+    TILE_PATH = UPath("/weka/dfive-default/helios/dataset/presto/")
     return HeliosDatasetConfig(
         tile_path=TILE_PATH,
         supported_modality_names=common.supported_modality_names,
@@ -160,12 +159,12 @@ def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
 
 def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     """Build the trainer config for an experiment."""
-    MAX_DURATION = Duration.epochs(50)
+    MAX_DURATION = Duration.epochs(300)
     METRICS_COLLECT_INTERVAL = 1
     CANCEL_CHECK_INTERVAL = 1
     LOAD_STRATEGY = LoadStrategy.if_available
     WANDB_USERNAME = "eai-ai2"  # nosec
-    WANDB_PROJECT = "helios-debug"
+    WANDB_PROJECT = "helios-train"
     checkpointer_config = CheckpointerConfig(work_dir=common.save_folder)
     wandb_callback = HeliosWandBCallback(
         name=common.run_name,
@@ -173,7 +172,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         entity=WANDB_USERNAME,
         enabled=True,  # set to False to avoid wandb errors
     )
-    EVAL_INTERVAL_EPOCHS = 1
+    EVAL_INTERVAL_EPOCHS = 5
     EVAL_TASKS = [
         DownstreamTaskConfig(
             name="m-eurosat",
@@ -181,7 +180,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             num_workers=8,
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
-        ),
+        )
     ]
     # Let us not use garbage collector fallback
     trainer_config = (
@@ -202,7 +201,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             "downstream_evaluator",
             DownstreamEvaluatorCallbackConfig(
                 tasks=EVAL_TASKS,
-                eval_interval=EVAL_INTERVAL_EPOCHS * STEPS_PER_EPOCH,
+                eval_duration=Duration.epochs(EVAL_INTERVAL_EPOCHS),
             ),
         )
     )

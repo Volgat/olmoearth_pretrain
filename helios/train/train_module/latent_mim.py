@@ -12,9 +12,12 @@ from olmo_core.distributed.utils import get_local_tensor, get_world_size
 from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
-from olmo_core.train.common import ReduceType
-from olmo_core.train.train_module.transformer import \
-    TransformerActivationCheckpointingConfig
+
+from olmo_core.train.common import Duration, ReduceType
+from olmo_core.train.train_module.transformer import (
+    TransformerActivationCheckpointingConfig,
+)
+
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
@@ -47,6 +50,7 @@ class LatentMIMTrainModuleConfig(HeliosTrainModuleConfig):
     token_exit_cfg: dict[str, int] = field(
         default_factory=lambda: {modality: 0 for modality in Modality.names()}
     )
+    warmup_duration: Duration = field(default_factory=lambda: Duration.epochs(2))
     ema_decay: tuple[float, float] = (0.996, 1.0)
     max_grad_norm: float = 1.0
 
@@ -93,6 +97,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
         state_dict_save_opts: Override state dict options for saving.
         state_dict_load_opts: Override state dict options for loading.
         token_exit_cfg: The token exit configuration for the model.
+        warmup_duration: The warmup duration for the model.
     """
 
     def __init__(
@@ -115,6 +120,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
         state_dict_save_opts: dist_cp_sd.StateDictOptions | None = None,
         state_dict_load_opts: dist_cp_sd.StateDictOptions | None = None,
         ema_decay: tuple[float, float] = (0.996, 1.0),
+        warmup_duration: Duration = Duration.epochs(2),
     ):
         """Initialize the training module.
 
@@ -138,6 +144,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
             state_dict_load_opts: Override state dict options for loading.
             ema_decay: EMA decay rate for target encoder, as a tuple of (start_ema_decay, end_ema_decay)
             token_exit_cfg: The token exit configuration for the model.
+            warmup_duration: The warmup duration for the model.
         """
         super().__init__(
             model=model,
@@ -154,6 +161,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
             device=device,
             state_dict_save_opts=state_dict_save_opts,
             state_dict_load_opts=state_dict_load_opts,
+            warmup_duration=warmup_duration,
         )
         self.start_ema, self.end_ema = ema_decay
         self.token_exit_cfg = token_exit_cfg
@@ -200,6 +208,8 @@ class LatentMIMTrainModule(HeliosTrainModule):
         NOTE: For non contrastive losses, the loss is invariant to the global batch size across GPUS as well
         """
         self.update_target_encoder()
+        # Set the model to train mode
+        self.model.train()
         # Set the maximum number of tokens
         token_budget = self.model.token_budget
         h_w_to_sample = list(
@@ -218,7 +228,10 @@ class LatentMIMTrainModule(HeliosTrainModule):
                 # Smallest h /w must be bigger than the smallest patch size
 
                 patch_size = np.random.choice(
-                    np.arange(1, self.model.encoder.max_patch_size)
+                    np.arange(
+                        self.model.encoder.min_patch_size,
+                        self.model.encoder.max_patch_size,
+                    )
                 )
                 logger.info(f"patch_size: {patch_size}")
                 microbatch = self.model.transform.apply(microbatch)
@@ -240,6 +253,15 @@ class LatentMIMTrainModule(HeliosTrainModule):
                 loss = loss / num_microbatches
                 loss_val = get_local_tensor(loss)
                 total_batch_loss += loss_val
+
+                # Skip bad batches
+                if torch.isnan(loss).any() or torch.isinf(loss).any():
+                    logger.warning(
+                        f"NaN or Inf detected in loss at microbatch {microbatch_idx}, stopping training for this batch."
+                    )
+                    del decoded, target_output
+                    break
+
                 del decoded, target_output
                 loss.backward()
 

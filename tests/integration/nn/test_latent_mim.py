@@ -72,6 +72,7 @@ def test_latentmim_with_loss(
         supported_modalities=supported_modalities,
         embedding_size=ENCODER_EMBEDDING_SIZE,
         max_patch_size=MAX_PATCH_SIZE,
+        min_patch_size=1,
         num_heads=NUM_HEADS,
         mlp_ratio=MLP_RATIO,
         max_sequence_length=MAX_SEQ_LENGTH,

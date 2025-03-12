@@ -71,6 +71,7 @@ def build_launch_config(
         beaker_image=f"henryh/{OLMoCoreBeakerImage.stable}",  # we can all use the same image for now
         num_nodes=1,
         num_gpus=1,
+        shared_memory="256GiB",
         shared_filesystem=True,  # We only use Weka for now
         allow_dirty=False,
         priority=BeakerPriority.high,

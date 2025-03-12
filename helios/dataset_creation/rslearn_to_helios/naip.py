@@ -56,7 +56,7 @@ def convert_naip(window_path: UPath, helios_path: UPath) -> None:
     assert len(Modality.NAIP.band_sets) == 1
     band_set = Modality.NAIP.band_sets[0]
     raster_dir = window.get_raster_dir(LAYER_NAME, band_set.bands)
-    image = raster_format.decode_raster(raster_dir, window.bounds)
+    image = raster_format.decode_raster(raster_dir, window.projection, window.bounds)
     dst_fname = get_modality_fname(
         helios_path,
         Modality.NAIP,
