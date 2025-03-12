@@ -11,6 +11,7 @@ import torch.multiprocessing
 from einops import repeat
 from geobench.dataset import Stats
 from torch.utils.data import Dataset
+from upath import UPath
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
@@ -21,6 +22,9 @@ from .constants import EVAL_S2_BAND_NAMES, EVAL_TO_HELIOS_S2_BANDS
 from .normalize import impute_normalization_stats, normalize_bands
 
 torch.multiprocessing.set_sharing_strategy("file_system")
+
+
+GEOBENCH_DIR = UPath("/weka/dfive-default/presto-geobench/dataset/geobench")
 
 
 class GeobenchDataset(Dataset):

@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from helios.evals.datasets import GeobenchDataset
-from helios.evals.utils import eval_collate_fn
+from helios.evals.datasets.utils import eval_collate_fn
 
 
 @pytest.fixture

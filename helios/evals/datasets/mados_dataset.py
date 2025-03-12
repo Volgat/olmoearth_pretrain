@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from einops import repeat
 from PIL import Image
 from torch.utils.data import Dataset
+from upath import UPath
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
@@ -20,6 +21,8 @@ from .constants import EVAL_S2_BAND_NAMES, EVAL_TO_HELIOS_S2_BANDS
 from .normalize import normalize_bands
 
 torch.multiprocessing.set_sharing_strategy("file_system")
+
+MADOS_DIR = UPath("/weka/dfive-default/presto_eval_sets/mados")
 
 
 BAND_STATS = (

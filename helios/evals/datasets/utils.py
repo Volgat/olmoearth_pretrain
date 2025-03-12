@@ -8,7 +8,7 @@ from torch.utils.data import default_collate
 from helios.train.masking import MaskedHeliosSample
 
 
-def collate_fn(
+def eval_collate_fn(
     batch: Sequence[tuple[MaskedHeliosSample, torch.Tensor]],
 ) -> tuple[MaskedHeliosSample, torch.Tensor]:
     """Collate function for DataLoaders."""
