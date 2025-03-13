@@ -330,10 +330,6 @@ def collate_helios(
 
         for i, sample in enumerate(batch):
             modality_data = getattr(sample, field)
-            if field =="sentinel1" and i == 2:
-                logger.info(f"sample {i} has no sentinel1")
-                # artificially create a missing modality
-                modality_data = None
             if modality_data is not None:
                 modality_data = torch.from_numpy(modality_data)
                 if expected_shape is None:
@@ -355,11 +351,13 @@ def collate_helios(
         logger.info(f"expected_shape: {expected_shape}, dtype_to_use: {dtype_to_use}")
         for i in missing_data_indices:
             modality_data_stack[i] = torch.zeros(
-                expected_shape, dtype=dtype_to_use,
+                expected_shape,
+                dtype=dtype_to_use,
             )
         if missing_data_indices:
             missing_modalities_masks[field] = torch.zeros(
-                len(batch), dtype=torch.bool,
+                len(batch),
+                dtype=torch.bool,
             )
             missing_modalities_masks[field][missing_data_indices] = True
         collated_dict[field] = torch.stack(modality_data_stack, dim=0)
