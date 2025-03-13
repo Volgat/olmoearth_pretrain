@@ -46,7 +46,7 @@ def get_embeddings(
                 )  # (bsz, dim)
             spatial_pool = True if task_type == TaskType.SEGMENTATION else False
             averaged_embeddings = batch_embeddings.pool_unmasked_tokens(
-                pooling_type, spatial_pool=spatial_pool
+                pooling_type, spatial_pooling=spatial_pool
             )
             embeddings.append(averaged_embeddings.cpu())
             labels.append(label)
