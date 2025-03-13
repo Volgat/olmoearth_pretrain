@@ -14,9 +14,11 @@ from torch import Tensor, nn
 from helios.data.constants import Modality, ModalitySpec
 from helios.dataset.utils import get_modality_specs_from_names
 from helios.nn.attention import Block
-from helios.nn.encodings import (get_1d_sincos_pos_encoding,
-                                 get_2d_sincos_pos_encoding_with_resolution,
-                                 get_month_encoding_table)
+from helios.nn.encodings import (
+    get_1d_sincos_pos_encoding,
+    get_2d_sincos_pos_encoding_with_resolution,
+    get_month_encoding_table,
+)
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample, MaskValue
 
@@ -1240,12 +1242,17 @@ class Predictor(FlexiHeliosBase):
     def apply_attn(
         self,
         x: dict[str, Tensor],
+        timestamps: Tensor,
+        patch_size: int,
+        input_res: int,
     ) -> dict[str, Tensor]:
         """Apply attention to the tokens."""
         tokens_only_dict, original_masks_dict, modalities_to_dims_dict = (
             self.split_tokens_masks_and_dims(x)
         )
-        tokens_dict = self.add_masks(tokens_only_dict)
+        tokens_dict = self.composite_encodings(
+            tokens_only_dict, timestamps, patch_size, input_res
+        )
         tokens_dict.update(original_masks_dict)
         x, mask = self.collapse_and_combine_hwtc(tokens_dict)
         x, y, x_mask, y_mask, indices = self.split_x_y(x, mask)
@@ -1267,11 +1274,17 @@ class Predictor(FlexiHeliosBase):
     def forward(
         self,
         x: TokensAndMasks,
+        timestamps: Tensor,
+        patch_size: int,
+        input_res: int = BASE_GSD,
     ) -> TokensAndMasks:
         """Generate predictions from encoded token representations.
 
         Args:
             x: TokensAndMasks containing the encoded tokens to make predictions from
+            timestamps: Timestamps of the tokens
+            patch_size: Patch size of the tokens
+            input_res: Input resolution of the tokens
 
         Returns:
             TokensAndMasks containing the predicted tokens and their masks
@@ -1295,7 +1308,9 @@ class Predictor(FlexiHeliosBase):
 
         tokens_only_dict = self.add_masks(decoder_emedded_dict)
         decoder_emedded_dict.update(tokens_only_dict)
-        tokens_and_masks = self.apply_attn(decoder_emedded_dict)
+        tokens_and_masks = self.apply_attn(
+            decoder_emedded_dict, timestamps, patch_size, input_res
+        )
         # TODO: Factor this out into a more readable function
         output_dict = {}
         available_modalities = return_modalities_from_dict(tokens_and_masks)

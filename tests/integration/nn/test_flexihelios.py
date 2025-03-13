@@ -10,8 +10,12 @@ import torch
 from einops import rearrange
 
 from helios.data.constants import Modality, ModalitySpec
-from helios.nn.flexihelios import (Encoder, FlexiHeliosPatchEmbeddings,
-                                   Predictor, TokensAndMasks)
+from helios.nn.flexihelios import (
+    Encoder,
+    FlexiHeliosPatchEmbeddings,
+    Predictor,
+    TokensAndMasks,
+)
 from helios.train.masking import MaskedHeliosSample, MaskValue
 
 logger = logging.getLogger(__name__)
@@ -275,9 +279,12 @@ class TestEncoder:
             latlon_num_band_sets,
             expected_embedding_size,
         ), f"Expected output latlon shape {latlon.shape}, got {output.latlon.shape}"
-        assert output.latlon_mask.shape == (
-            B,
-            latlon_num_band_sets,
+        assert (
+            output.latlon_mask.shape
+            == (
+                B,
+                latlon_num_band_sets,
+            )
         ), f"Expected output latlon_mask shape {latlon_mask.shape}, got {output.latlon_mask.shape}"
 
         # test the gradients are correct too
@@ -475,9 +482,12 @@ class TestEncoder:
             1,
             expected_embedding_size,
         ), f"Expected output latlon shape {latlon.shape}, got {output.latlon.shape}"
-        assert output.latlon_mask.shape == (
-            B,
-            1,
+        assert (
+            output.latlon_mask.shape
+            == (
+                B,
+                1,
+            )
         ), f"Expected output latlon_mask shape {latlon_mask.shape}, got {output.latlon_mask.shape}"
 
         output.sentinel2_l2a.sum().backward()
@@ -565,7 +575,10 @@ class TestPredictor:
             "b d t -> b t d",
         )
 
-        output = predictor.forward(encoded_tokens)
+        patch_size = 4
+        input_res = 1
+
+        output = predictor.forward(encoded_tokens, timestamps, patch_size, input_res)
 
         expected_token_shape = (
             B,
