@@ -198,9 +198,12 @@ class MaskingStrategy(ABC):
     ) -> ArrayTensor:
         if modality.is_spatial or modality.is_multitemporal:
             b = shape[0]
-            num_tokens = np.prod(shape[1:])
+            num_tokens = np.prod(shape[1:-1])
         else:
-            num_tokens = np.prod(shape)
+            num_tokens = np.prod(shape[:-1])
+        b_s = modality.num_band_sets
+        num_tokens *= b_s
+
         encode_tokens = int(num_tokens * self.encode_ratio)
         decode_tokens = int(num_tokens * self.decode_ratio)
         target_tokens = int(num_tokens - (encode_tokens + decode_tokens))
@@ -222,7 +225,7 @@ class MaskingStrategy(ABC):
             flat_mask_tokens = self.generator.permuted(flat_mask_tokens)
 
         mask = torch.as_tensor(flat_mask_tokens, device=device)
-        mask = mask.view(*shape)
+        mask = mask.view(*shape[:-1], b_s)
         return mask
 
     @property
@@ -324,12 +327,12 @@ class TimeMaskingStrategy(MaskingStrategy):
                 else:
                     if temporal_mask is None:
                         temporal_mask = self._create_temporal_mask(shape, device)
-                    b_s = shape[-1]
+                    b_s = modality.num_band_sets
                     b, h, w = list(shape[:-2]) + [1] * (3 - len(shape[:-2]))
                     mask = repeat(
                         temporal_mask, "b t -> b h w t b_s", h=h, w=w, b_s=b_s
                     )
-                    mask = mask.view(*shape)
+                    mask = mask.view(*shape[:-1], b_s)
 
                 output_dict[modality_name] = instance
                 output_dict[
@@ -436,9 +439,13 @@ class SpaceMaskingStrategy(MaskingStrategy):
                         spatial_mask = self._create_spatial_mask(
                             Modality.get(modality_name), shape, patch_size, device
                         )
-                    time_and_bandsets = np.prod(shape[3:])
-                    mask = repeat(spatial_mask, "... -> ... n", n=time_and_bandsets)
-                    mask = mask.view(*shape)
+                    if len(shape) == 5:
+                        t = shape[-2]
+                    else:
+                        t = 1
+                    b_s = modality.num_band_sets
+                    mask = repeat(spatial_mask, "... -> ... t b_s", t=t, b_s=b_s)
+                    mask = mask.view(*shape[:-1], b_s)
 
                 output_dict[modality_name] = instance
                 output_dict[
