@@ -465,10 +465,10 @@ class TestPredictor:
         mask[1, 1] = MaskValue.MISSING.value  # Second token in second batch is missing
 
         (
-            unmasked_tokens,
             tokens_to_decode,
-            unmasked_tokens_mask,
+            unmasked_tokens,
             tokens_to_decode_mask,
+            unmasked_tokens_mask,
             indices,
         ) = Predictor.split_x_y(tokens, mask)
 
@@ -562,11 +562,11 @@ class TestPredictor:
 
         # Test that we can combine the tokens back correctly
         combined_tokens = Predictor.combine_x_y(
-            unmasked_tokens,
-            tokens_to_decode,
-            unmasked_tokens_mask,
-            tokens_to_decode_mask,
-            indices,
+            tokens_to_decode=tokens_to_decode,
+            unmasked_tokens=unmasked_tokens,
+            tokens_to_decode_mask=tokens_to_decode_mask,
+            unmasked_tokens_mask=unmasked_tokens_mask,
+            indices=indices,
         )
         # Check the shape of the combined tokens
         assert combined_tokens.shape == tokens.shape
@@ -622,11 +622,11 @@ class TestPredictor:
         ) = Predictor.split_x_y(tokens, mask)
 
         combined_tokens = Predictor.combine_x_y(
-            unmasked_tokens,
-            tokens_to_decode,
-            unmasked_tokens_mask,
-            tokens_to_decode_mask,
-            indices,
+            tokens_to_decode=tokens_to_decode,
+            unmasked_tokens=unmasked_tokens,
+            tokens_to_decode_mask=tokens_to_decode_mask,
+            unmasked_tokens_mask=unmasked_tokens_mask,
+            indices=indices,
         )
         # check that it is zero wherever there is a target encoder only token
         target_encoder_only_mask = mask == MaskValue.TARGET_ENCODER_ONLY.value
@@ -651,11 +651,11 @@ class TestPredictor:
         )
 
         tokens = Predictor.combine_x_y(
-            unmasked_tokens,
-            tokens_to_decode,
-            unmasked_tokens_mask,
-            tokens_to_decode_mask,
-            indices,
+            tokens_to_decode=tokens_to_decode,
+            unmasked_tokens=unmasked_tokens,
+            tokens_to_decode_mask=tokens_to_decode_mask,
+            unmasked_tokens_mask=unmasked_tokens_mask,
+            indices=indices,
         )
         assert torch.equal(
             tokens,

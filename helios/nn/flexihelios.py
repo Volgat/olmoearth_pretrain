@@ -1096,6 +1096,7 @@ class Predictor(FlexiHeliosBase):
         Returns:
             tokens_to_decode: Tokens to be decoded of shape [B, X_len, D].
             unmasked_tokens: Tokens to be used as context of shape [B, Y_len, D].
+            tokens_to_decode_mask: Binary mask for x tokens of shape [B, X_len].
             unmasked_tokens_mask: Binary mask for y tokens of shape [B, Y_len].
             indices: Indices for restoring the original token ordering of shape [B, T].
         """
@@ -1213,14 +1214,14 @@ class Predictor(FlexiHeliosBase):
         """
         # Get dimensions
         B, T = indices.shape[0], indices.shape[1]
-        D = unmasked_tokens.shape[-1]
+        D = tokens_to_decode.shape[-1]
         tokens = torch.zeros(
-            (B, T, D), dtype=unmasked_tokens.dtype, device=unmasked_tokens.device
+            (B, T, D), dtype=tokens_to_decode.dtype, device=tokens_to_decode.device
         )
-        tokens[:, -tokens_to_decode.shape[1] :] = (
+        tokens[:, : tokens_to_decode.shape[1]] += (
             tokens_to_decode * tokens_to_decode_mask.unsqueeze(-1)
         )
-        tokens[:, : unmasked_tokens.shape[1]] += (
+        tokens[:, -unmasked_tokens.shape[1] :] = (
             unmasked_tokens * unmasked_tokens_mask.unsqueeze(-1)
         )
         tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
