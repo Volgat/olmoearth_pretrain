@@ -74,39 +74,13 @@ def samples_without_missing_modalities(
     s2_H, s2_W, s2_T, s2_C = 16, 16, 12, 13
     s1_H, s1_W, s1_T, s1_C = 16, 16, 12, 2
     wc_H, wc_W, wc_T, wc_C = 16, 16, 1, 10
-    example_s2_data = torch.randn(
-        s2_H,
-        s2_W,
-        s2_T,
-        s2_C,
-        device="cpu",
-        dtype=torch.float32,
-        requires_grad=True,
-    )
-    example_s1_data = torch.randn(
-        s1_H,
-        s1_W,
-        s1_T,
-        s1_C,
-        device="cpu",
-        dtype=torch.float32,
-        requires_grad=True,
-    )
-    example_wc_data = torch.randn(
-        wc_H,
-        wc_W,
-        wc_T,
-        wc_C,
-        device="cpu",
-        dtype=torch.float32,
-        requires_grad=True,
-    )
-    print(f"example_wc_data device: {example_wc_data.device}")
-    example_latlon_data = torch.randn(2, device="cpu", dtype=torch.float32)
-    timestamps = torch.tensor(
+    example_s2_data = np.random.randn(s2_H, s2_W, s2_T, s2_C).astype(np.float32)
+    example_s1_data = np.random.randn(s1_H, s1_W, s1_T, s1_C).astype(np.float32)
+    example_wc_data = np.random.randn(wc_H, wc_W, wc_T, wc_C).astype(np.float32)
+    example_latlon_data = np.random.randn(2).astype(np.float32)
+    timestamps = np.array(
         [[15, 7, 2023], [15, 8, 2023], [15, 9, 2023]],
-        dtype=torch.int32,
-        device="cpu",
+        dtype=np.int32,
     )
 
     sample1 = HeliosSample(
@@ -279,35 +253,8 @@ def test_train_batch_without_missing_modalities(
     set_random_seeds: None,
 ) -> None:
     """Test train batch without missing modalities."""
-    # Create a collated batch
-    import random
-
-    import numpy as np
-
-    torch.manual_seed(42)
-    torch.use_deterministic_algorithms(True)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    np.random.seed(42)
-    random.seed(42)
-
-    torch.backends.cuda.matmul.allow_tf32 = (
-        False  # Disables TensorFloat32 (TF32) on matmul ops
-    )
-    torch.backends.cudnn.allow_tf32 = False  # Disables TF32 on cuDNN
-    torch.backends.cudnn.benchmark = False  # Disables the cuDNN auto-tuner
-    torch.backends.cudnn.deterministic = (
-        True  # Forces cuDNN to use deterministic algorithms
-    )
-    # in the worst case, use this:
-    torch.backends.cudnn.enabled = False  # Disables cuDNN entirely
     batch = collate_helios(samples_without_missing_modalities, supported_modalities)
     train_module = train_module_config.build(latent_mim_model, device="cpu")
-    # tokens = torch.randn((3, 53, 16), device="cpu", dtype=torch.float32)
-    # normed_tokens = latent_mim_model.encoder.norm(tokens)
-    # logger.info(
-    #     f"normed tokens sum and std: {normed_tokens.sum()} {normed_tokens.std()}"
-    # )
     with patch("helios.train.train_module.train_module.build_world_mesh"):
         # Mock the trainer property
         mock_trainer = MockTrainer()
@@ -326,7 +273,7 @@ def test_train_batch_without_missing_modalities(
             logger.info(mock_trainer._metrics)
             assert torch.allclose(
                 mock_trainer._metrics["train/PatchDisc"],
-                torch.tensor(0.9216),
+                torch.tensor(1.6635),
                 atol=1e-2,
             )
 
@@ -360,6 +307,6 @@ def test_train_batch_with_missing_modalities(
             logger.info(mock_trainer._metrics)
             assert torch.allclose(
                 mock_trainer._metrics["train/PatchDisc"],
-                torch.tensor(0.864),
+                torch.tensor(1.6013),
                 atol=1e-2,
             )
