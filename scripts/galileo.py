@@ -89,7 +89,7 @@ def build_train_module_config(
 ) -> GalileoTrainModuleConfig:
     """Build the train module config for an experiment."""
     LR = 0.002
-    RANK_MICROBATCH_SIZE = 32
+    RANK_MICROBATCH_SIZE = 64
     ENCODE_RATIO = 0.1
     DECODE_RATIO = 0.75
     WD = 0.02
@@ -156,7 +156,8 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 
     NUM_WORKERS = 8
     NUM_THREADS = 0
-    GLOBAL_BATCH_SIZE = 128
+    GLOBAL_BATCH_SIZE = 512
+    PREFETCH_FACTOR = 4
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
@@ -164,6 +165,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
         work_dir=common.save_folder,
         num_threads=NUM_THREADS,
         num_workers=NUM_WORKERS,
+        prefetch_factor=PREFETCH_FACTOR,
     )
     # Should the dataloader build the config or take an object?
     return dataloader_config
