@@ -1218,11 +1218,11 @@ class Predictor(FlexiHeliosBase):
         tokens = torch.zeros(
             (B, T, D), dtype=tokens_to_decode.dtype, device=tokens_to_decode.device
         )
-        tokens[:, : tokens_to_decode.shape[1]] += (
-            tokens_to_decode * tokens_to_decode_mask.unsqueeze(-1)
-        )
         tokens[:, -unmasked_tokens.shape[1] :] = (
             unmasked_tokens * unmasked_tokens_mask.unsqueeze(-1)
+        )
+        tokens[:, : tokens_to_decode.shape[1]] += (
+            tokens_to_decode * tokens_to_decode_mask.unsqueeze(-1)
         )
         tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
         return tokens
