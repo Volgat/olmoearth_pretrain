@@ -43,12 +43,12 @@ def build_model_config(common: CommonComponents) -> LatentMIMConfig:
     # which may cause issues
     H_W_TO_SAMPLE_MIN = 5
     H_W_TO_SAMPLE_MAX = 13
-    ENCODER_EMBEDDING_SIZE = 768
-    DECODER_EMBEDDING_SIZE = 768
-    ENCODER_DEPTH = 12
+    ENCODER_EMBEDDING_SIZE = 128
+    DECODER_EMBEDDING_SIZE = 128
+    ENCODER_DEPTH = 4
     DECODER_DEPTH = 4
-    ENCODER_NUM_HEADS = 12
-    DECODER_NUM_HEADS = 12
+    ENCODER_NUM_HEADS = 8
+    DECODER_NUM_HEADS = 8
     MLP_RATIO = 4.0
     TRANSFORM_TYPE = "flip_and_rotate"
     encoder_config = EncoderConfig(
