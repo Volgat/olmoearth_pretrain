@@ -198,7 +198,7 @@ class MaskingStrategy:
         patch_size: int,
         device: torch.device | None = None,
     ) -> ArrayTensor:
-        mask_shape = shape.detach().clone()
+        mask_shape = list(shape)
         mask_shape[-1] = modality.num_band_sets
         if modality.is_spatial:
             mask_shape[1] //= patch_size
