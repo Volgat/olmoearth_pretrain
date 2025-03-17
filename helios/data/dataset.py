@@ -344,6 +344,7 @@ class HeliosDataset(Dataset):
         dtype: DType,
         samples: list[SampleInformation] | None = None,
         normalize: bool = True,
+        use_samples_with_missing_supported_modalities: bool = False,
     ):
         """Initialize the dataset.
 
@@ -358,12 +359,16 @@ class HeliosDataset(Dataset):
             samples: The samples to include in the dataset.
             dtype: The dtype of the data.
             normalize: If True, apply normalization to the data, if False, do not apply normalization
+            use_samples_with_missing_supported_modalities: If True, use samples that are missing a supported modality.
 
         Returns:
             None
         """
         self.tile_path = tile_path
         self.supported_modalities = supported_modalities
+        self.use_samples_missing_supported_modalities = (
+            use_samples_with_missing_supported_modalities
+        )
         # Note: if samples are provided, use them, if not, get them from the tile directory
         if not samples:
             samples = self._get_samples()  # type: ignore
@@ -492,6 +497,13 @@ class HeliosDataset(Dataset):
                 if not modality.ignore_when_parsing
             ):
                 continue
+
+            if not self.use_samples_missing_supported_modalities:
+                if any(
+                    modality not in sample.modalities
+                    for modality in self.supported_modalities
+                ):
+                    continue
             if sample.time_span != TimeSpan.YEAR:
                 continue
             # check if sample modalities have s1 and s2
@@ -726,6 +738,7 @@ class HeliosDatasetConfig(Config):
     samples: list[SampleInformation] | None = None
     dtype: DType = DType.float32
     normalize: bool = True
+    use_samples_with_missing_supported_modalities: bool = False
 
     def validate(self) -> None:
         """Validate the configuration and build kwargs.
