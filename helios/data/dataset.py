@@ -59,7 +59,7 @@ class HeliosSample(NamedTuple):
     latlon: ArrayTensor | None = None  # [B, 2]
     timestamps: ArrayTensor | None = None  # [B, T, D=3], where D=[day, month, year]
     sentinel1: ArrayTensor | None = None  # [B, H, W, T, len(S1_bands)]
-    worldcover: ArrayTensor | None = None  # [B, H, W, len(WC_bands)]
+    worldcover: ArrayTensor | None = None  # [B, H, W, 1, len(WC_bands)]
 
     # TODO: Add unit tests for this
     def shape(self, attribute: str, mask: bool = False) -> Sequence[int]:
@@ -149,16 +149,11 @@ class HeliosSample(NamedTuple):
             """Move the tensor to the specified device if it is not None."""
             if tensor is None:
                 return None
-            if isinstance(tensor, dict):
-                return {k: v.to(device) for k, v in tensor.items()}
             return tensor.to(device)
 
-        # Add type annotation to make the type checker happy
-        device_dict: dict[str, ArrayTensor | None] = {
-            key: maybe_move_to_device(val) for key, val in self.as_dict().items()
-        }
-        # Use type: ignore to bypass the type checker for this call
-        return HeliosSample(**device_dict)  # type: ignore
+        return HeliosSample(
+            **{key: maybe_move_to_device(val) for key, val in self.as_dict().items()}
+        )
 
     @property
     def batch_size(self) -> int:
@@ -199,7 +194,6 @@ class HeliosSample(NamedTuple):
         """
         used_tokens = 0
         time_multiply_tokens = 0
-        # we need to exclude the missing modalities from the token count
         for attribute in self.as_dict(ignore_nones=True).keys():
             if attribute == "timestamps":
                 continue
@@ -325,7 +319,7 @@ def collate_helios(
             collated_dict[field] = None
             continue
 
-        # Second pass: fill in missing data with empty tensors of the right shape and dtype
+        # Second pass: fill in missing data with MISSING_VALUE
         dtype_to_use = found_dtype if found_dtype is not None else reference_dtype
         for i in missing_data_indices:
             modality_data_stack[i] = torch.full(
