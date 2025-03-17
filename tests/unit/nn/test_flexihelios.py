@@ -474,21 +474,19 @@ class TestPredictor:
 
         # Check shapes
         assert unmasked_tokens.shape == (2, 6, 1)
-        assert tokens_to_decode.shape == (2, 4, 1)
+        assert tokens_to_decode.shape == (2, 3, 1)
 
         expected_unmasked_tokens = torch.tensor(
-            [[0, 2, 3, 4, 5, 6], [10, 12, 13, 14, 15, 16]]
+            [[1, 2, 3, 4, 5, 6], [10, 12, 13, 14, 15, 16]]
         )
         assert torch.equal(unmasked_tokens.squeeze(-1), expected_unmasked_tokens)
         assert torch.equal(
             unmasked_tokens_mask, torch.tensor([[0, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]])
         )
 
-        expected_tokens_to_decode = torch.tensor([[0, 7, 8, 9], [0, 17, 18, 0]])
+        expected_tokens_to_decode = torch.tensor([[7, 8, 9], [17, 18, 11]])
         assert torch.equal(tokens_to_decode.squeeze(-1), expected_tokens_to_decode)
-        assert torch.equal(
-            tokens_to_decode_mask, torch.tensor([[0, 1, 1, 1], [0, 1, 1, 0]])
-        )
+        assert torch.equal(tokens_to_decode_mask, torch.tensor([[1, 1, 1], [1, 1, 0]]))
 
     def test_split_and_recombine_with_missing_tokens(self) -> None:
         """Test splitting the tokens into decoded, unmasked, and missing groups with missing tokens."""
@@ -541,21 +539,19 @@ class TestPredictor:
         ) = Predictor.split_x_y(tokens, mask)
 
         # Check shapes
-        assert tokens_to_decode.shape == (2, 5, 1)
+        assert tokens_to_decode.shape == (2, 3, 1)
         assert unmasked_tokens.shape == (2, 5, 1)
 
-        expected_unmasked_tokens = torch.tensor([[1, 3, 5, 7, 9], [0, 11, 14, 16, 18]])
+        expected_unmasked_tokens = torch.tensor([[1, 3, 5, 7, 9], [17, 11, 14, 16, 18]])
         assert torch.equal(unmasked_tokens.squeeze(-1), expected_unmasked_tokens)
 
         expected_unmasked_tokens_mask = torch.tensor([[1, 1, 1, 1, 1], [0, 1, 1, 1, 1]])
         assert torch.equal(unmasked_tokens_mask, expected_unmasked_tokens_mask)
 
-        expected_tokens_to_decode = torch.tensor([[0, 2, 6, 8, 0], [0, 0, 0, 12, 15]])
+        expected_tokens_to_decode = torch.tensor([[2, 6, 8], [12, 15, 10]])
         assert torch.equal(tokens_to_decode.squeeze(-1), expected_tokens_to_decode)
 
-        expected_tokens_to_decode_mask = torch.tensor(
-            [[0, 1, 1, 1, 0], [0, 0, 0, 1, 1]]
-        )
+        expected_tokens_to_decode_mask = torch.tensor([[1, 1, 1], [1, 1, 0]])
         assert torch.equal(tokens_to_decode_mask, expected_tokens_to_decode_mask)
 
         # Test that we can combine the tokens back correctly
@@ -571,7 +567,13 @@ class TestPredictor:
         missing_mask = mask == MaskValue.MISSING.value
         # Check that all values are the same but missing values in mask are set to 0
         assert (combined_tokens[missing_mask] == 0).all()
-        assert torch.equal(combined_tokens[~missing_mask], tokens[~missing_mask])
+        target_encoder_only_mask = mask == MaskValue.TARGET_ENCODER_ONLY.value
+        missing_or_target_encoder_only_mask = missing_mask | target_encoder_only_mask
+        # Ensuring Encode decode tokens are put back together correctly
+        assert torch.equal(
+            combined_tokens[~missing_or_target_encoder_only_mask],
+            tokens[~missing_or_target_encoder_only_mask],
+        )
 
     def test_split_and_recombine_with_missing_tokens_and_target_encoder_only_tokens(
         self,

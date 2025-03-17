@@ -1100,85 +1100,40 @@ class Predictor(FlexiHeliosBase):
             unmasked_tokens_mask: Binary mask for y tokens of shape [B, Y_len].
             indices: Indices for restoring the original token ordering of shape [B, T].
         """
+        # Set Missing Masks to Target Encoder ONLY so that we can have all unused tokens in the middle
         org_mask_dtype = mask.dtype
+        missing_mask = mask == MaskValue.MISSING.value
+        mask[missing_mask] = MaskValue.TARGET_ENCODER_ONLY.value
+
         # Sort tokens by mask value (descending order)
         sorted_mask, indices = torch.sort(
             mask.int(), dim=1, descending=True, stable=True
         )
+        logger.info(f"sorted_mask: {sorted_mask}")
         tokens = tokens.gather(1, indices[:, :, None].expand_as(tokens))
 
-        # Create binary masks for each category
-        binarized_missing_mask = sorted_mask == MaskValue.MISSING.value
+        # Create binary masks for Encoder and Decoder
         binarized_decoder_mask = sorted_mask == MaskValue.DECODER.value
-        missing_or_decoded_mask = binarized_missing_mask | binarized_decoder_mask
         binarized_online_encoder_mask = sorted_mask == MaskValue.ONLINE_ENCODER.value
 
-        # Calculate per-sample counts for each category
-        missing_counts = binarized_missing_mask.sum(dim=1)  # [B]
-        decoder_counts = binarized_decoder_mask.sum(dim=1)  # [B]
-        encoder_counts = binarized_online_encoder_mask.sum(dim=1)  # [B]
-        missing_or_decoded_counts = missing_or_decoded_mask.sum(dim=1)  # [B]
+        max_length_of_unmasked_tokens = binarized_online_encoder_mask.sum(dim=-1).max()
+        max_length_of_decoded_tokens = binarized_decoder_mask.sum(dim=-1).max()
 
-        max_length_of_unmasked_tokens = encoder_counts.max()
-        max_length_of_missing_or_decoded_tokens = missing_or_decoded_counts.max()
-        # Create padded tensors for each category
-        B, T, D = tokens.shape
+        # the y mask is going to be used to determine which of the y values take. True values
+        # take part in the attention (we don't take the inverse here, unlike in the decoder)
+        tokens_to_decode = tokens[:, :max_length_of_decoded_tokens]
+        tokens_to_decode_mask = binarized_decoder_mask[
+            :, :max_length_of_decoded_tokens
+        ].to(org_mask_dtype)
 
-        if missing_counts.sum() > 0:
-            tokens_to_decode = torch.zeros(
-                (B, max_length_of_missing_or_decoded_tokens, D),
-                device=tokens.device,
-                dtype=tokens.dtype,
-            )
-            tokens_to_decode_mask = torch.zeros(
-                (B, max_length_of_missing_or_decoded_tokens),
-                device=tokens.device,
-                dtype=org_mask_dtype,
-            )
-            unmasked_tokens = torch.zeros(
-                (B, max_length_of_unmasked_tokens, D),
-                device=tokens.device,
-                dtype=tokens.dtype,
-            )
-            unmasked_tokens_mask = torch.zeros(
-                (B, max_length_of_unmasked_tokens),
-                device=tokens.device,
-                dtype=org_mask_dtype,
-            )
-            for b in range(B):
-                # Get counts for this batch
-                missing_count = missing_counts[b]
-                decoder_count = decoder_counts[b]
-                encoder_count = encoder_counts[b]
-                decoder_start = missing_count
-
-                if decoder_count > 0:
-                    decoder_end = decoder_start + decoder_count
-                    tokens_to_decode[b, decoder_start:decoder_end] = tokens[
-                        b, decoder_start : decoder_start + decoder_count
-                    ]
-                    tokens_to_decode_mask[b, decoder_start:decoder_end] = 1
-                if encoder_count > 0:
-                    # Given the current masking there will never be extra tokens that need to be masked but perhaps this could happen in future
-                    encoder_start = -encoder_count
-                    unmasked_tokens[b, encoder_start:] = tokens[b, encoder_start:]
-                    unmasked_tokens_mask[b, encoder_start:] = 1
-        else:
-            # the y mask is going to be used to determine which of the y values take. True values
-            # take part in the attention (we don't take the inverse here, unlike in the decoder)
-            tokens_to_decode = tokens[:, :max_length_of_missing_or_decoded_tokens]
-            tokens_to_decode_mask = binarized_decoder_mask[
-                :, :max_length_of_missing_or_decoded_tokens
-            ]
-
-            unmasked_tokens = tokens[:, -max_length_of_unmasked_tokens:]
-            # the x_mask is just going to be used in the reconstruction, to know which
-            # x tokens to add back into the token list. TODO is this even necessary? it could
-            # get padded with noise tokens since we don't care about reconstruction at all
-            # for a whole bunch of tokens
-            unmasked_tokens_mask = binarized_online_encoder_mask[
-                :, -max_length_of_unmasked_tokens:
-            ]
+        unmasked_tokens = tokens[:, -max_length_of_unmasked_tokens:]
+        # the x_mask is just going to be used in the reconstruction, to know which
+        # x tokens to add back into the token list. TODO is this even necessary? it could
+        # get padded with noise tokens since we don't care about reconstruction at all
+        # for a whole bunch of tokens
+        unmasked_tokens_mask = binarized_online_encoder_mask[
+            :, -max_length_of_unmasked_tokens:
+        ].to(org_mask_dtype)
 
         return (
             tokens_to_decode,
@@ -1435,4 +1390,5 @@ class PredictorConfig(Config):
 
 # TODO: add multiple combo of variables for encoder and predictor, and being able to build them directly, no need to specify each parameter, e.g., encoder_tiny, encoder_small, encoder_base, encoder_large, etc.
 
+# TODO: add multiple combo of variables for encoder and predictor, and being able to build them directly, no need to specify each parameter, e.g., encoder_tiny, encoder_small, encoder_base, encoder_large, etc.
 # TODO: add multiple combo of variables for encoder and predictor, and being able to build them directly, no need to specify each parameter, e.g., encoder_tiny, encoder_small, encoder_base, encoder_large, etc.
