@@ -161,7 +161,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     logger.warning(f"Using {NUM_WORKERS} workers and {NUM_THREADS} threads")
     logger.warning("Set NUM_WORKERS and NUM_THREADS to 0 if you want to just start the run to debug without caring about results")
     GLOBAL_BATCH_SIZE = 32
-    PREFETCH_FACTOR = 2
+    PREFETCH_FACTOR = 4
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
@@ -199,7 +199,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         project=WANDB_PROJECT,
         entity=WANDB_USERNAME,
         upload_modality_data_band_distribution_pre_train=False,
-        upload_dataset_distribution_pre_train=True,
+        upload_dataset_distribution_pre_train=False,
         enabled=True,  # set to False to avoid wandb errors
     )
     logger.warning("WANDB Distribution Uploads are disabled for Debugging")
