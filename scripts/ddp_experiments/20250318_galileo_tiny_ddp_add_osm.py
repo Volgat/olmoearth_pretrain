@@ -33,7 +33,7 @@ SUPPORTED_MODALITIES = [
     Modality.LATLON.name,
     Modality.SENTINEL1.name,
     Modality.WORLDCOVER.name,
-    Modality.OPENSTREETMAP.name,
+    Modality.OPENSTREETMAP_RASTER.name,
 ]
 
 # Base command template
