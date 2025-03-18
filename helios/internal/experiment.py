@@ -26,7 +26,7 @@ from helios.data.visualize import visualize_sample
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
 from helios.train.train_module.train_module import HeliosTrainModuleConfig
-
+from torch.utils.viz._cycles import warn_tensor_cycles
 logger = logging.getLogger(__name__)
 
 # TODO: Make this more agnostic to the training setup
@@ -162,7 +162,7 @@ def train(config: HeliosExperimentConfig) -> None:
     config_dict = config.as_config_dict()
     cast(WandBCallback, trainer.callbacks["wandb"]).config = config_dict
     cast(ConfigSaverCallback, trainer.callbacks["config_saver"]).config = config_dict
-
+    warn_tensor_cycles()
     trainer.fit()
 
 

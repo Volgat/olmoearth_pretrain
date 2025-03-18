@@ -167,10 +167,10 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     logger.warning(
         "Set NUM_WORKERS and NUM_THREADS to 0 if you want to just start the run to debug without caring about results"
     )
-    GLOBAL_BATCH_SIZE = 256
+    GLOBAL_BATCH_SIZE = 128
     PREFETCH_FACTOR = 1
 
-    # GBS * PREFETCH_FACTOR * NUM_WORKERS is the total number of instances that can be put in
+    # GBS * PREFETCH_FACTOR * NUM_WORKERS is the total number of instances that can be put into prefetch queue
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
@@ -211,7 +211,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         upload_dataset_distribution_pre_train=False,
         enabled=True,  # set to False to avoid wandb errors
     )
-    garbage_collector_callback = GarbageCollectorCallback(gc_interval=1)
+    garbage_collector_callback = GarbageCollectorCallback(gc_interval=1000)
     logger.warning("WANDB Distribution Uploads are disabled for Debugging")
     EVAL_INTERVAL_EPOCHS = 1
     EVAL_TASKS = [

@@ -29,7 +29,66 @@ from helios.train.train_module.train_module import (
 from helios.train.utils import split_batch
 
 logger = getLogger(__name__)
+import logging
+import psutil
+import os
 
+
+def log_memory_usage_for_process(process):
+    """Log memory usage for a given process and return memory stats."""
+    try:
+        memory_info = process.memory_info()
+        rss = memory_info.rss
+        pss = 0
+        uss = 0
+        shared = 0
+
+        # Log the process memory usage
+        logger.info(f"Process (PID {process.pid}) memory usage: RSS={rss / (1024 * 1024 * 1024):.2f} GB")
+
+        # Iterate over memory maps
+        for mmap in process.memory_maps():
+            pss += mmap.pss
+            uss += mmap.private_clean + mmap.private_dirty
+            shared += mmap.shared_clean + mmap.shared_dirty
+
+        return rss, pss, uss, shared
+
+    except psutil.NoSuchProcess:
+        # The process may have terminated between the time we got the list and now
+        return 0, 0, 0, 0
+
+def log_total_memory_usage():
+    """Log total memory usage for the main process and its children."""
+    # Get the current process (main process)
+    main_process = psutil.Process(os.getpid())
+
+    # Initialize total memory usage counters
+    total_rss = 0
+    total_pss = 0
+    total_uss = 0
+    total_shared = 0
+
+    # Log memory usage for the main process
+    logger.info("Logging memory usage for main process")
+    rss, pss, uss, shared = log_memory_usage_for_process(main_process)
+    total_rss += rss
+    total_pss += pss
+    total_uss += uss
+    total_shared += shared
+
+    # Iterate over child processes and log their memory usage
+    logger.info("Logging memory usage for child processes")
+    for child in main_process.children(recursive=True):
+        rss, pss, uss, shared = log_memory_usage_for_process(child)
+        total_rss += rss
+        total_pss += pss
+        total_uss += uss
+        total_shared += shared
+
+    # Log the total memory usage
+    logger.info(f"Total memory usage: RSS={total_rss / (1024 * 1024 * 1024):.2f} GB, PSS={total_pss / (1024 * 1024 * 1024):.2f} GB, USS={total_uss / (1024 * 1024 * 1024):.2f} GB, Shared={total_shared / (1024 * 1024 * 1024):.2f} GB")
+    return total_pss / (1024 * 1024 * 1024)
 
 @dataclass
 class GalileoTrainModuleConfig(HeliosTrainModuleConfig):
@@ -230,6 +289,8 @@ class GalileoTrainModule(HeliosTrainModule):
 
         NOTE: For contrastive losses, the loss is invariant to the global batch size across GPUS as well
         """
+        total_pss = log_total_memory_usage()
+        self.trainer.record_metric("worker_memory/total_pss", total_pss, ReduceType.mean)
         self.update_target_encoder()
         # Set the model to train mode
         self.model.train()
@@ -251,18 +312,20 @@ class GalileoTrainModule(HeliosTrainModule):
                 # Gallileo does this subsetting at the microbatch level so we follow that for now
                 # Smallest h /w must be bigger than the smallest patch size
 
-                # patch_size = np.random.choice(
-                #     np.arange(
-                #         self.model.encoder.min_patch_size,
-                #         self.model.encoder.max_patch_size,
-                #     )
-                # )
-                patch_size = 2
+                patch_size = np.random.choice(
+                    np.arange(
+                        self.model.encoder.min_patch_size,
+                        self.model.encoder.max_patch_size,
+                    )
+                )
+                logger.info(f"Patch size: {patch_size}")
+                logger.info(f"Token budget: {token_budget}")
+                logger.info(f"H / W to sample: {h_w_to_sample}")
                 microbatch = self.model.transform.apply(microbatch)
-                # subsampled_batch = microbatch.subset(
-                #     patch_size, token_budget, h_w_to_sample
-                # )
-                subsampled_batch = microbatch
+                subsampled_batch = microbatch.subset(
+                    patch_size, token_budget, h_w_to_sample
+                )
+                # subsampled_batch = microbatch
                 subsampled_batch = subsampled_batch.to_device(self.device)
                 # Each microbatch should have about the same number of encoded tokens if
                 # we mask here

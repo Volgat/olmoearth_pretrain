@@ -288,7 +288,7 @@ class HeliosDataLoader(DataLoaderBase):
         timestamps = torch.cat([days, months, years], dim=1)
         timestamps = rearrange(timestamps, "b t c -> b c t")
         output_dict["timestamps"] = timestamps
-        return HeliosSample(**output_dict).subset(2, 1500, [5, 6, 7, 8, 9, 10, 11, 12])
+        return HeliosSample(**output_dict)
 
     def fast_forward(self, global_step: int) -> np.ndarray:
         """Fast forward the data loader to a specific global step and return the batch_indices."""

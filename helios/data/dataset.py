@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from math import floor
 from pathlib import Path
 from typing import Any, NamedTuple
+import psutil
 
 import h5py
 import numpy as np
@@ -240,6 +241,7 @@ class HeliosSample(NamedTuple):
         max_tokens_per_instance
         """
         max_height_width = max(self.height, self.width)
+        logger.info(f"Max height/width: {max_height_width}")
         max_height_width_tokens = int(max_height_width / patch_size)
         hw_to_sample = [x for x in hw_to_sample if x <= max_height_width_tokens]
         if len(hw_to_sample) == 0:
@@ -281,6 +283,17 @@ class HeliosSample(NamedTuple):
                 new_data_dict[attribute] = modality
         return HeliosSample(**new_data_dict)
 
+# def get_mem_info(pid: int) -> dict[str, int]:
+#   res = {}
+#   for mmap in psutil.Process(pid).memory_maps():
+#     logger.info(f"Memory map: {mmap}")
+#     res['rss'] += mmap.rss
+#     res['pss'] += mmap.pss
+#     res['uss'] += mmap.private_clean + mmap.private_dirty
+#     res['shared'] += mmap.shared_clean + mmap.shared_dirty
+#     if mmap.path.startswith('/'):  # looks like a file path
+#       res['shared_file'] += mmap.shared_clean + mmap.shared_dirty
+#   return res
 
 def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
     """Collate function that automatically handles any modalities present in the samples."""
@@ -298,10 +311,9 @@ def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
     sample_fields = batch[0].modalities
 
     # Create a dictionary of stacked tensors for each field
-    hw_to_sample = list(range(5, 13))
     collated_dict = {field: stack_or_none(field) for field in sample_fields}
-    patch_size = 2
-    return HeliosSample(**collated_dict).subset(patch_size, 1500, hw_to_sample)
+    # patch_size = 2
+    return HeliosSample(**collated_dict)
 
 
 class HeliosDataset(Dataset):
