@@ -19,7 +19,7 @@ EVAL_S2_BAND_NAMES = [
 ]
 
 
-EVAL_S1_BAND_NAMES = ["VV", "VH"]
+EVAL_S1_BAND_NAMES = ["vv", "vh"]
 
 
 def _eval_band_index_from_helios_name(eval_bands: list[str], helios_name: str) -> int:
