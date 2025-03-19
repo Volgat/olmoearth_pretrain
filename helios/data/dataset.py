@@ -202,7 +202,7 @@ class HeliosSample(NamedTuple):
         """Get the number of time steps in the data."""
         if self.timestamps is None:
             raise ValueError("Timestamps are not present in the sample")
-        return self.timestamps.shape[1]
+        return self.timestamps.shape[-2]
 
     def _get_max_t_within_token_budget(
         self, h_w_p: int, max_tokens_per_instance: int
