@@ -51,7 +51,7 @@ class Sen1Floods11Processor:
         "B12",
     )
 
-    def __init__(self, folder: Path, split_path: Path) -> None:
+    def __init__(self, folder: Path, split_path: Path):
         """Class for preprocessing floods dataset."""
         split_labelnames = pd.read_csv(split_path, header=None)[1].tolist()
         all_labels = list(folder.glob("LabelHand/*.tif"))
@@ -191,7 +191,7 @@ class Sen1Floods11Dataset(Dataset):
         norm_stats_from_pretrained: bool = False,
         norm_method: str = "norm_no_clip",
         mode: str = "s1",  # not sure if we would ever want s2?
-    ) -> None:
+    ):
         """Sen1Floods eval dataset."""
         assert split in ["train", "val", "valid", "test", "bolivia"]
         if split == "val":

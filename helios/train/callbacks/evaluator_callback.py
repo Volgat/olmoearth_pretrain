@@ -79,6 +79,8 @@ class DownstreamEvaluator:
         """Validate the model on the downstream task."""
         # try:
         train_loader = self._get_data_loader("train")
+        print("train loader loaded")
+        print(len(train_loader.dataset))
         val_loader = self._get_data_loader("valid")
 
         train_embeddings, train_labels = self._get_embeddings(train_loader)
