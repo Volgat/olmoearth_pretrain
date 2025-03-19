@@ -4,12 +4,9 @@ import json
 from enum import Enum
 
 import numpy as np
-import time
-import logging
 
 from helios.data.constants import ModalitySpec
 
-logger = logging.getLogger(__name__)
 
 class Strategy(Enum):
     """The strategy to use for normalization."""
@@ -65,7 +62,6 @@ class Normalizer:
     ) -> np.ndarray:
         """Normalize the data using predefined values."""
         # When using predefined values, we have the min and max values for each band
-
         modality_bands = modality.band_order
         modality_norm_values = self.norm_config[modality.name]
         min_vals = []
@@ -77,11 +73,8 @@ class Normalizer:
             max_val = modality_norm_values[band]["max"]
             min_vals.append(min_val)
             max_vals.append(max_val)
-
-        min_arr = np.array(min_vals)
-        max_arr = np.array(max_vals)
         # The last dimension of data is always the number of bands (channels)
-        return (data - min_arr) / (max_arr - min_arr)
+        return (data - np.array(min_vals)) / (np.array(max_vals) - np.array(min_vals))
 
     def _normalize_computed(
         self, modality: ModalitySpec, data: np.ndarray
@@ -100,13 +93,9 @@ class Normalizer:
             std_val = modality_norm_values[band]["std"]
             mean_vals.append(mean_val)
             std_vals.append(std_val)
-
-        mean_arr = np.array(mean_vals)
-        std_arr = np.array(std_vals)
-        min_vals = mean_arr - self.std_multiplier * std_arr
-        max_vals = mean_arr + self.std_multiplier * std_arr
-        out = (data - min_vals) / (max_vals - min_vals)
-        return out
+        min_vals = np.array(mean_vals) - self.std_multiplier * np.array(std_vals)
+        max_vals = np.array(mean_vals) + self.std_multiplier * np.array(std_vals)
+        return (data - min_vals) / (max_vals - min_vals)  # type: ignore
 
     def normalize(self, modality: ModalitySpec, data: np.ndarray) -> np.ndarray:
         """Normalize the data.
