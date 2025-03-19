@@ -61,6 +61,12 @@ DATASET_TO_CONFIG = {
         is_multilabel=False,
         height_width=64,
     ),
+    "pastis-r": EvalDatasetConfig(
+        task_type=TaskType.SEGMENTATION,
+        imputes=[],
+        num_classes=19,
+        is_multilabel=False,
+        height_width=64,
+    ),
 }
-
 ALL_DATASETS = list(DATASET_TO_CONFIG.keys())
