@@ -13,16 +13,19 @@ from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import Duration, ReduceType
-from olmo_core.train.train_module.transformer import \
-    TransformerActivationCheckpointingConfig
+from olmo_core.train.train_module.transformer import (
+    TransformerActivationCheckpointingConfig,
+)
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.nn.latent_mim import LatentMIM
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskedHeliosSample, MaskingConfig
-from helios.train.train_module.train_module import (HeliosTrainModule,
-                                                    HeliosTrainModuleConfig)
+from helios.train.train_module.train_module import (
+    HeliosTrainModule,
+    HeliosTrainModuleConfig,
+)
 from helios.train.utils import split_batch
 
 logger = getLogger(__name__)
@@ -191,7 +194,9 @@ class LatentMIMTrainModule(HeliosTrainModule):
                     cur_ema_value * target_param.data + (1 - cur_ema_value) * param.data
                 )
 
-    def train_batch(self, batch: HeliosSample, dry_run: bool = False) -> None:
+    def train_batch(
+        self, batch: tuple[int, HeliosSample], dry_run: bool = False
+    ) -> None:
         """Train a batch.
 
         NOTE: Gradient accumulation/microbatching is not invariant for all losses across the same global batch size.
@@ -208,9 +213,9 @@ class LatentMIMTrainModule(HeliosTrainModule):
         # Set the model to train mode
         self.model.train()
         total_batch_loss = torch.tensor(0.0, device=self.device)
-        patch_size, batch = batch
+        patch_size, batch_data = batch
         # Split into micro-batches.
-        microbatches = split_batch(batch, self.rank_microbatch_size)
+        microbatches = split_batch(batch_data, self.rank_microbatch_size)
         num_microbatches = len(microbatches)
         for microbatch_idx, microbatch in enumerate(microbatches, start=1):
             with self._train_microbatch_context(microbatch_idx, num_microbatches):
@@ -261,7 +266,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
         if dry_run:
             return
 
-        del batch  # In case this helps with memory utilization.
+        del batch, batch_data  # In case this helps with memory utilization.
         del masked_batch
 
     def eval_batch(

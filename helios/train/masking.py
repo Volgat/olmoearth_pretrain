@@ -232,7 +232,7 @@ class MaskingStrategy:
                 shape[0],
                 shape[1] // patch_size,
                 shape[2] // patch_size,
-            ) # Patch size does not divide  height and width this is bad
+            )  # Patch size does not divide  height and width this is bad
             patchified_shape = patchified_shape + shape[3:]
 
             mask = mask.view(*patchified_shape)

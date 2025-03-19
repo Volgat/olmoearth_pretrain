@@ -1,13 +1,11 @@
 """Unit tests for dataloader module."""
 
-
-
-import pytest
 import numpy as np
+
 from helios.data.dataloader import _get_batch_item_params_iterator
 
 
-def test_get_batch_item_params_iterator():
+def test_get_batch_item_params_iterator() -> None:
     """Test the _get_batch_item_params_iterator function."""
     # Setup test data
     indices = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
@@ -19,7 +17,9 @@ def test_get_batch_item_params_iterator():
     np.random.seed(42)
 
     # Get iterator
-    iterator = _get_batch_item_params_iterator(indices, patch_size, sampled_hw_p, rank_batch_size)
+    iterator = _get_batch_item_params_iterator(
+        indices, patch_size, sampled_hw_p, rank_batch_size
+    )
 
     # First batch (should all have the same patch_size and sampled_hw_p)
     first_batch = [next(iterator) for _ in range(3)]
@@ -40,7 +40,9 @@ def test_get_batch_item_params_iterator():
     assert all(item[2] == second_sampled_hw_p for item in second_batch)
 
     # Check that the patch_size or sampled_hw_p changed between batches
-    assert (first_patch_size != second_patch_size) or (first_sampled_hw_p != second_sampled_hw_p)
+    assert (first_patch_size != second_patch_size) or (
+        first_sampled_hw_p != second_sampled_hw_p
+    )
 
     # Test that all indices are yielded
     remaining = list(iterator)

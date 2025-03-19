@@ -10,19 +10,23 @@ import torch
 import torch.distributed as dist
 import torch.distributed.checkpoint.state_dict as dist_cp_sd
 from olmo_core.config import Config, DType
-from olmo_core.distributed.parallel import (DataParallelConfig,
-                                            DataParallelType, build_world_mesh,
-                                            get_dp_mesh, get_dp_process_group)
+from olmo_core.distributed.parallel import (
+    DataParallelConfig,
+    DataParallelType,
+    build_world_mesh,
+    get_dp_mesh,
+    get_dp_process_group,
+)
 from olmo_core.distributed.utils import get_world_size
 from olmo_core.exceptions import OLMoConfigurationError
 from olmo_core.float8 import Float8Config, Float8Handler
 from olmo_core.optim import OptimConfig, SkipStepOptimizer
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import Duration
-from olmo_core.train.train_module import (EvalBatchSizeUnit, EvalBatchSpec,
-                                          TrainModule)
-from olmo_core.train.train_module.transformer import \
-    TransformerActivationCheckpointingConfig
+from olmo_core.train.train_module import EvalBatchSizeUnit, EvalBatchSpec, TrainModule
+from olmo_core.train.train_module.transformer import (
+    TransformerActivationCheckpointingConfig,
+)
 from olmo_core.utils import gc_cuda, get_default_device
 from torch.distributed.checkpoint.metadata import Metadata
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -252,6 +256,7 @@ class HeliosTrainModule(TrainModule):
         self.state_dict_load_opts = state_dict_load_opts or dist_cp_sd.StateDictOptions(
             flatten_optimizer_state_dict=True, strict=True
         )
+
     @property
     def dp_process_group(self) -> dist.ProcessGroup | None:
         """Get the data parallel process group."""

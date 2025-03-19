@@ -1,12 +1,9 @@
 """Training and optimizer abstraction for Helios."""
 
-import gc
-import sys
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any
 
-import numpy as np
 import torch
 import torch.distributed.checkpoint.state_dict as dist_cp_sd
 from olmo_core.distributed.parallel import DataParallelConfig
@@ -15,16 +12,19 @@ from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import Duration, ReduceType
-from olmo_core.train.train_module.transformer import \
-    TransformerActivationCheckpointingConfig
+from olmo_core.train.train_module.transformer import (
+    TransformerActivationCheckpointingConfig,
+)
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.nn.latent_mim import LatentMIM
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskedHeliosSample, MaskingConfig
-from helios.train.train_module.train_module import (HeliosTrainModule,
-                                                    HeliosTrainModuleConfig)
+from helios.train.train_module.train_module import (
+    HeliosTrainModule,
+    HeliosTrainModuleConfig,
+)
 from helios.train.utils import split_batch
 
 logger = getLogger(__name__)
@@ -216,7 +216,9 @@ class GalileoTrainModule(HeliosTrainModule):
                     cur_ema_value * target_param.data + (1 - cur_ema_value) * param.data
                 )
 
-    def train_batch(self, batch: HeliosSample, dry_run: bool = False) -> None:
+    def train_batch(
+        self, batch: tuple[int, HeliosSample], dry_run: bool = False
+    ) -> None:
         """Train a batch.
 
         NOTE: Gradient accumulation/microbatching is not invariant for all losses across the same global batch size.
@@ -236,15 +238,17 @@ class GalileoTrainModule(HeliosTrainModule):
         # Set the maximum number of tokens
         total_batch_loss = torch.tensor(0.0, device=self.device)
         # Split into micro-batches.
-        patch_size, batch = batch
-        microbatches = split_batch(batch, self.rank_microbatch_size)
+        patch_size, batch_data = batch
+        microbatches = split_batch(batch_data, self.rank_microbatch_size)
         num_microbatches = len(microbatches)
         for microbatch_idx, microbatch in enumerate(microbatches, start=1):
             with self._train_microbatch_context(microbatch_idx, num_microbatches):
                 logger.info(
                     f"Training microbatch {microbatch_idx} of {num_microbatches} with batch size {microbatch.batch_size}"
                 )
-                microbatch = self.model.transform.apply(microbatch).to_device(self.device)
+                microbatch = self.model.transform.apply(microbatch).to_device(
+                    self.device
+                )
 
                 if microbatch_idx % 2 == 0:
                     masked_batch = self.masking_strategy_a.apply_mask(
@@ -290,7 +294,7 @@ class GalileoTrainModule(HeliosTrainModule):
             total_batch_loss,
             ReduceType.mean,
         )
-        del masked_batch, batch, microbatch
+        del masked_batch, batch, microbatch, batch_data
 
     def eval_batch(
         self, batch: dict[str, Any], labels: torch.Tensor | None = None

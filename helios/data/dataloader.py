@@ -5,29 +5,32 @@ import math
 import multiprocessing as mp
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
-from itertools import islice
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import torch
 import torch.distributed as dist
-from einops import rearrange
 from olmo_core.config import Config
 from olmo_core.data.data_loader import DataLoaderBase
 from olmo_core.data.utils import get_rng, memmap_to_write
-from olmo_core.distributed.utils import (barrier, get_fs_local_rank, get_rank,
-                                         get_world_size)
-from olmo_core.utils import get_default_device, roundrobin, threaded_generator
+from olmo_core.distributed.utils import (
+    barrier,
+    get_fs_local_rank,
+    get_rank,
+    get_world_size,
+)
+from olmo_core.utils import get_default_device
 from torch.utils.data import default_collate
 from upath import UPath
 
-from helios.data.constants import Modality, IMAGE_TILE_SIZE
-from helios.data.dataset import HeliosDataset, HeliosSample, GetItemArgs
+from helios.data.constants import IMAGE_TILE_SIZE, Modality
+from helios.data.dataset import GetItemArgs, HeliosDataset, HeliosSample
 
 logger = logging.getLogger(__name__)
 
 BASE_TOKEN_BUDGET = 1500
+
 
 class HeliosDataLoader(DataLoaderBase):
     """Helios dataloader.
@@ -227,9 +230,14 @@ class HeliosDataLoader(DataLoaderBase):
 
     def _get_dataset_item(
         self, idx: int, patch_size: int, sampled_hw_p: int
-    ) -> HeliosSample:
+    ) -> tuple[int, HeliosSample]:
         """Get a dataset item."""
-        args = GetItemArgs(index=idx, patch_size=patch_size, sampled_hw_p=sampled_hw_p, token_budget=self.token_budget)
+        args = GetItemArgs(
+            idx=idx,
+            patch_size=patch_size,
+            sampled_hw_p=sampled_hw_p,
+            token_budget=self.token_budget,
+        )
         item = self.dataset[args]
         return item
 
@@ -301,7 +309,9 @@ class HeliosDataLoader(DataLoaderBase):
         output_dict["timestamps"] = timestamps
 
         patch_size = 1
-        collated_sample = self.collator([(patch_size, HeliosSample(**output_dict).subset(patch_size, 1500, 6))])
+        collated_sample = self.collator(
+            [(patch_size, HeliosSample(**output_dict).subset(patch_size, 1500, 6))]
+        )
         return collated_sample
 
     def fast_forward(self, global_step: int) -> np.ndarray:
@@ -325,8 +335,10 @@ class HeliosDataLoader(DataLoaderBase):
 
 
 def iter_batched(
-    iterable: Iterable[HeliosSample], batch_size: int, drop_last: bool = True
-) -> Iterable[tuple[HeliosSample, ...]]:
+    iterable: Iterable[tuple[int, HeliosSample]],
+    batch_size: int,
+    drop_last: bool = True,
+) -> Iterable[tuple[tuple[int, HeliosSample], ...]]:
     """Iterate over the dataset in batches.
 
     This is a modified version of olmo_core.data.data_loader.iter_batched that creates batches
@@ -342,7 +354,7 @@ def iter_batched(
         An iterator of batches of items.
     """
     assert batch_size > 0
-    batch: list[HeliosSample] = []
+    batch: list[tuple[int, HeliosSample]] = []
     for item in iterable:
         batch.append(item)
         if len(batch) == batch_size:
@@ -356,23 +368,27 @@ def iter_batched(
 
 def _get_batch_item_params_iterator(
     indices: np.ndarray,
-    patch_size: list[int],
-    sampled_hw_p: list[int],
+    patch_size_list: list[int],
+    hw_p_to_sample: list[int],
     rank_batch_size: int,
 ) -> Iterator[tuple[int, int, int]]:
-    """Get a generator that yields a tuple of (idx, patch_size, sampled_hw_p)
-    that changes the patch_size and sampled_hw_p every rank_batch_size
+    """Get a generator that yields a tuple of (idx, patch_size, sampled_hw_p).
+
+    Changes patch_size and sampled_hw_p every rank_batch_size.
     """
-    patch_size_array = np.array(patch_size)
-    sampled_hw_p_array = np.array(sampled_hw_p)
+    patch_size_array = np.array(patch_size_list)
+    hw_p_to_sample_array = np.array(hw_p_to_sample)
     instances_processed = 0
-    # TODO: we should use a generator here
+    # TODO: We need to maintain state and reproducibility here
+    # DO we want this to differ by rank?
     for idx in indices:
         if instances_processed % rank_batch_size == 0:
             patch_size = np.random.choice(patch_size_array)
             max_height_width_tokens = int(IMAGE_TILE_SIZE / patch_size)
-            filtered_sampled_hw_p_array = sampled_hw_p_array[sampled_hw_p_array <= max_height_width_tokens]
-            sampled_hw_p = np.random.choice(filtered_sampled_hw_p_array)
+            filtered_hw_p_to_sample_array = hw_p_to_sample_array[
+                hw_p_to_sample_array <= max_height_width_tokens
+            ]
+            sampled_hw_p = np.random.choice(filtered_hw_p_to_sample_array)
         yield idx, int(patch_size), int(sampled_hw_p)
         instances_processed += 1
 

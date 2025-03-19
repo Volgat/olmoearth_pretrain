@@ -1,9 +1,11 @@
 """Training utilities specific to Helios."""
 
-from helios.data.dataset import HeliosSample
 import logging
 import os
+
 import psutil
+
+from helios.data.dataset import HeliosSample
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ def split_batch(batch: HeliosSample, microbatch_size: int) -> list[HeliosSample]
     return microbatches
 
 
-def log_memory_usage_for_process(process):
+def log_memory_usage_for_process(process: psutil.Process) -> tuple[int, int, int, int]:
     """Log memory usage for a given process and return memory stats."""
     try:
         memory_info = process.memory_info()
@@ -72,7 +74,7 @@ def log_memory_usage_for_process(process):
         return 0, 0, 0, 0
 
 
-def log_total_memory_usage():
+def log_total_memory_usage() -> float:
     """Log total memory usage for the main process and its children."""
     # Get the current process (main process)
     main_process = psutil.Process(os.getpid())

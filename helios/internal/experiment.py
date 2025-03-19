@@ -17,6 +17,7 @@ from olmo_core.train import (
 )
 from olmo_core.train.callbacks import ConfigSaverCallback, WandBCallback
 from olmo_core.utils import get_default_device, prepare_cli_environment, seed_all
+from torch.utils.viz._cycles import warn_tensor_cycles
 
 from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
@@ -26,7 +27,7 @@ from helios.data.visualize import visualize_sample
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
 from helios.train.train_module.train_module import HeliosTrainModuleConfig
-from torch.utils.viz._cycles import warn_tensor_cycles
+
 logger = logging.getLogger(__name__)
 
 # TODO: Make this more agnostic to the training setup

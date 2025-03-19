@@ -47,6 +47,7 @@ from helios.types import ArrayTensor
 
 logger = logging.getLogger(__name__)
 
+
 class HeliosSample(NamedTuple):
     """A sample of the data from the Helios dataset.
 
@@ -278,7 +279,7 @@ class HeliosSample(NamedTuple):
             elif modality_spec.is_space_only_varying:
                 # for now, lets assume fixed resolution
                 new_data_dict[attribute] = modality[
-                     start_h : start_h + sampled_hw, start_w : start_w + sampled_hw
+                    start_h : start_h + sampled_hw, start_w : start_w + sampled_hw
                 ]
             elif modality_spec.is_time_only_varying:
                 new_data_dict[attribute] = modality[start_t : start_t + max_t]
@@ -287,8 +288,9 @@ class HeliosSample(NamedTuple):
         return HeliosSample(**new_data_dict)
 
 
-def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
+def collate_helios(batch: list[tuple[int, HeliosSample]]) -> tuple[int, HeliosSample]:
     """Collate function that automatically handles any modalities present in the samples."""
+
     # Stack tensors while handling None values
     def stack_or_none(attr: str) -> torch.Tensor | None:
         """Stack the tensors while handling None values."""
@@ -307,12 +309,15 @@ def collate_helios(batch: list[HeliosSample]) -> HeliosSample:
     collated_dict = {field: stack_or_none(field) for field in sample_fields}
     return patch_size, HeliosSample(**collated_dict)
 
+
 class GetItemArgs(NamedTuple):
     """Arguments for the __getitem__ method of the HeliosDataset."""
-    index: int
+
+    idx: int
     patch_size: int
     sampled_hw_p: int
     token_budget: int | None = None
+
 
 class HeliosDataset(Dataset):
     """Helios dataset."""
@@ -339,10 +344,14 @@ class HeliosDataset(Dataset):
 
         Args:
             supported_modalities: The modalities to include in the dataset.
-            tile_path: The path to the raw dataset (image tile directory).
+            tile_path: The path to the raw dataset (image tile directory). If None we will use the h5py_dir to load the dataset. Mutually exclusive with h5py_dir.
             dtype: The dtype of the data.
-            normalize: If True, apply normalization to the data, if False, do not apply normalization
-            h5py_folder: The folder to store the h5py files.
+            normalize: If True, apply normalization to the data, if False, do not apply
+                normalization.
+            h5py_dir: The path to the h5py directory containing preprocessed data. If None, the dataset will be created from raw data. Mutually exclusive with tile_path.
+
+            h5py_folder: The folder name to store the h5py files when creating from raw data.
+
         Returns:
             None
         """
@@ -354,10 +363,14 @@ class HeliosDataset(Dataset):
             self.h5py_dir = h5py_dir
             self.tile_path = h5py_dir.parent.parent
             logger.info(f"H5py dir: {self.h5py_dir.parent.name.split('_')}")
-            predefined_supported_modalities_names = self.parse_modalities_names_from_dir_name(self.h5py_dir.parent.name)
+            predefined_supported_modalities_names = (
+                self.parse_modalities_names_from_dir_name(self.h5py_dir.parent.name)
+            )
             modality_names = [modality.name for modality in supported_modalities]
             if set(predefined_supported_modalities_names) != set(modality_names):
-                raise ValueError(f"The predefined supported modalities do not match the supported modalities: {predefined_supported_modalities_names} != {modality_names}")
+                raise ValueError(
+                    f"The predefined supported modalities do not match the supported modalities: {predefined_supported_modalities_names} != {modality_names}"
+                )
         else:
             self.tile_path = tile_path
             self.h5py_dir: Path | None = None  # type: ignore
@@ -378,7 +391,11 @@ class HeliosDataset(Dataset):
 
     def parse_modalities_names_from_dir_name(self, dir_name: str) -> list[str]:
         """Parse the modalities from the directory name."""
-        return [name for name in Modality.names() if name in dir_name and name != "sentinel2"]
+        return [
+            name
+            for name in Modality.names()
+            if name in dir_name and name != "sentinel2"
+        ]
 
     @property
     def fingerprint_version(self) -> str:
@@ -439,8 +456,7 @@ class HeliosDataset(Dataset):
         self._create_h5_file(sample, h5_file_path)
 
     def create_h5_dataset(self, samples: list[SampleInformation]) -> None:
-        """Create a dataset of the samples in h5 format in a shared weka directory under the given fingerprint.
-        """
+        """Create a dataset of the samples in h5 format in a shared weka directory under the given fingerprint."""
         total_sample_indices = len(samples)
 
         num_processes = max(1, mp.cpu_count() - 2)
@@ -454,7 +470,6 @@ class HeliosDataset(Dataset):
                     desc="Creating H5 files",
                 )
             )
-
 
     def set_h5py_dir(self, num_samples: int) -> None:
         """Set the h5py directory.
@@ -491,7 +506,9 @@ class HeliosDataset(Dataset):
             return
         samples = []
         if self.h5py_dir is None:
-            logger.warning("h5py_dir is not set, Generating H5 files from raw tile directory")
+            logger.warning(
+                "h5py_dir is not set, Generating H5 files from raw tile directory"
+            )
             if samples is None:
                 samples = self._get_samples()  # type: ignore
             if len(samples) == 0:
@@ -676,7 +693,10 @@ class HeliosDataset(Dataset):
         # Assume samples could include different modalities and bands
         # TODO: compute the histogram for each modality and band directly
         for i in tqdm(indices_to_sample):
-            sample = self[i]
+            get_item_args = GetItemArgs(
+                idx=i, patch_size=1, sampled_hw_p=IMAGE_TILE_SIZE
+            )
+            _, sample = self[get_item_args]
             for modality in sample.modalities:
                 if modality == "timestamps" or modality == "latlon":
                     continue
@@ -731,7 +751,10 @@ class HeliosDataset(Dataset):
         norm_dict: dict[str, Any] = {}
 
         for i in tqdm(indices_to_sample):
-            sample = self[i]
+            get_item_args = GetItemArgs(
+                idx=i, patch_size=1, sampled_hw_p=IMAGE_TILE_SIZE
+            )
+            _, sample = self[get_item_args]
             for modality in sample.modalities:
                 # Shall we compute the norm stats for worldcover?
                 if modality == "timestamps" or modality == "latlon":
@@ -829,7 +852,7 @@ class HeliosDataset(Dataset):
 
     def __getitem__(self, args: GetItemArgs) -> tuple[int, HeliosSample]:
         """Get the sample at the given index."""
-        h5_file_path = self._get_h5_file_path(args.index)
+        h5_file_path = self._get_h5_file_path(args.idx)
 
         if not h5_file_path.exists():
             raise FileNotFoundError(
@@ -841,7 +864,11 @@ class HeliosDataset(Dataset):
 
         sample = HeliosSample(**sample_dict)
         if args.token_budget is not None:
-            result = sample.subset(patch_size=args.patch_size, max_tokens_per_instance=args.token_budget, sampled_hw_p=args.sampled_hw_p)
+            result = sample.subset(
+                patch_size=args.patch_size,
+                max_tokens_per_instance=args.token_budget,
+                sampled_hw_p=args.sampled_hw_p,
+            )
         else:
             result = sample
         sample_dict = result.as_dict(ignore_nones=True)
@@ -887,7 +914,6 @@ class HeliosDatasetConfig(Config):
             raise ValueError("Either a tile path or h5py_dir must be provided")
         if self.tile_path is not None and self.h5py_dir is not None:
             raise ValueError("Only one of tile_path or h5py_dir must be provided")
-
 
         # Validate supported_modalities
         if not isinstance(self.supported_modalities, list):
