@@ -6,17 +6,13 @@ These Settings are meant to help you get quick results on a single GPU in minima
 import logging
 
 from olmo_core.config import DType
-from olmo_core.distributed.parallel.data_parallel import (
-    DataParallelConfig,
-    DataParallelType,
-)
+from olmo_core.distributed.parallel.data_parallel import (DataParallelConfig,
+                                                          DataParallelType)
 from olmo_core.optim import AdamWConfig
 from olmo_core.optim.scheduler import CosWithWarmup
-from olmo_core.train.callbacks import (
-    ConfigSaverCallback,
-    GarbageCollectorCallback,
-    GPUMemoryMonitorCallback,
-)
+from olmo_core.train.callbacks import (ConfigSaverCallback,
+                                       GarbageCollectorCallback,
+                                       GPUMemoryMonitorCallback)
 from olmo_core.train.checkpoint import CheckpointerConfig
 from olmo_core.train.common import Duration, LoadStrategy
 from olmo_core.train.config import TrainerConfig
@@ -27,14 +23,13 @@ from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
 from helios.data.normalize import Strategy
 from helios.internal.common import build_common_components
-from helios.internal.experiment import CommonComponents, HeliosVisualizeConfig, main
+from helios.internal.experiment import (CommonComponents,
+                                        HeliosVisualizeConfig, main)
 from helios.nn.flexihelios import EncoderConfig, PoolingType, PredictorConfig
 from helios.nn.galileo import GalileoConfig
-from helios.train.callbacks import (
-    DownstreamEvaluatorCallbackConfig,
-    HeliosSpeedMonitorCallback,
-    HeliosWandBCallback,
-)
+from helios.train.callbacks import (DownstreamEvaluatorCallbackConfig,
+                                    HeliosSpeedMonitorCallback,
+                                    HeliosWandBCallback)
 from helios.train.callbacks.evaluator_callback import DownstreamTaskConfig
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskingConfig
@@ -43,10 +38,12 @@ from helios.train.train_module.galileo import GalileoTrainModuleConfig
 logger = logging.getLogger(__name__)
 
 # TODO: Update all the configurations related to the new changes like token budget and min max patch size which are currently hardcoded
+MAX_PATCH_SIZE = 8  # NOTE: actual patch_size <= max_patch_size
+MIN_PATCH_SIZE = 1
+
 
 def build_model_config(common: CommonComponents) -> GalileoConfig:
     """Build the model config for an experiment."""
-    MAX_PATCH_SIZE = 8  # NOTE: actual patch_size <= max_patch_size
     TOKEN_BUDGET = 1500
     # IF HW MIN is too small , then we cna have microbatches with very uneven token budgets
     # which may cause issues
@@ -170,16 +167,19 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     )
     GLOBAL_BATCH_SIZE = 64
     PREFETCH_FACTOR = None
-
+    SAMPLE_HW_P_LIST = list(range(5, 13))
     # GBS * PREFETCH_FACTOR * NUM_WORKERS is the total number of instances that can be put into prefetch queue
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
+        min_patch_size=MIN_PATCH_SIZE,
+        max_patch_size=MAX_PATCH_SIZE,
         seed=3622,
         work_dir=common.save_folder,
         num_threads=NUM_THREADS,
         num_workers=NUM_WORKERS,
         prefetch_factor=PREFETCH_FACTOR,
+        sampled_hw_p_list=SAMPLE_HW_P_LIST,
     )
     # Should the dataloader build the config or take an object?
     return dataloader_config

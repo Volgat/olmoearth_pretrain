@@ -2,6 +2,7 @@
 
 import logging
 import math
+import multiprocessing as mp
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from itertools import islice
@@ -15,13 +16,8 @@ from einops import rearrange
 from olmo_core.config import Config
 from olmo_core.data.data_loader import DataLoaderBase
 from olmo_core.data.utils import get_rng, memmap_to_write
-from olmo_core.distributed.utils import (
-    barrier,
-    get_fs_local_rank,
-    get_rank,
-    get_world_size,
-)
-import multiprocessing as mp
+from olmo_core.distributed.utils import (barrier, get_fs_local_rank, get_rank,
+                                         get_world_size)
 from olmo_core.utils import get_default_device, roundrobin, threaded_generator
 from torch.utils.data import default_collate
 from upath import UPath
@@ -44,6 +40,9 @@ class HeliosDataLoader(DataLoaderBase):
         dataset: HeliosDataset,
         work_dir: UPath,
         global_batch_size: int,
+        min_patch_size: int,
+        max_patch_size: int,
+        sampled_hw_p_list: list[int],
         dp_world_size: int = 1,
         dp_rank: int = 0,
         fs_local_rank: int = 0,
@@ -70,8 +69,8 @@ class HeliosDataLoader(DataLoaderBase):
         assert isinstance(self.dataset, HeliosDataset)  # type: ignore
         if not self.dataset.is_dataset_prepared:
             raise RuntimeError("Dataset must be prepared before creating a dataloader")
-        self.patch_sizes = np.arange(1, 8)
-        self.sampled_hw_p_list = list(range(5, 13))
+        self.patch_sizes = np.arange(min_patch_size, max_patch_size + 1)
+        self.sampled_hw_p_list = sampled_hw_p_list
         self.collator = collator
         self.seed = seed
         self.shuffle = shuffle
@@ -189,10 +188,12 @@ class HeliosDataLoader(DataLoaderBase):
             num_workers=self.num_workers,
             pin_memory=self.target_device_type == "cuda" and self.num_workers > 0,
             prefetch_factor=self.prefetch_factor,
-            persistent_workers=self.persistent_workers
-            if self.num_workers > 0
-            else False,
-            multiprocessing_context=self.multiprocessing_context if self.num_workers > 0 else None,
+            persistent_workers=(
+                self.persistent_workers if self.num_workers > 0 else False
+            ),
+            multiprocessing_context=(
+                self.multiprocessing_context if self.num_workers > 0 else None
+            ),
             timeout=0,
         )
 
@@ -219,7 +220,9 @@ class HeliosDataLoader(DataLoaderBase):
         indices = indices[:, self.dp_rank :: self.dp_world_size].reshape((-1,))
         return indices
 
-    def _get_dataset_item(self, idx: int, patch_size: int, sampled_hw_p: int) -> HeliosSample:
+    def _get_dataset_item(
+        self, idx: int, patch_size: int, sampled_hw_p: int
+    ) -> HeliosSample:
         """Get a dataset item."""
         item = self.dataset[idx, patch_size, sampled_hw_p]
         return item
@@ -343,7 +346,12 @@ def iter_batched(
         yield tuple(batch)
 
 
-def _get_batch_item_params_iterator(indices: np.ndarray, patch_size: list[int], sampled_hw_p: list[int], rank_batch_size: int) -> Iterator[tuple[int, int, int]]:
+def _get_batch_item_params_iterator(
+    indices: np.ndarray,
+    patch_size: list[int],
+    sampled_hw_p: list[int],
+    rank_batch_size: int,
+) -> Iterator[tuple[int, int, int]]:
     """Get a generator that yields a tuple of (idx, patch_size, sampled_hw_p)
     that changes the patch_size and sampled_hw_p every rank_batch_size
     """
@@ -389,7 +397,6 @@ class _IterableDatasetWrapper(torch.utils.data.IterableDataset[HeliosSample]):
             # try to guess a good number of threads.
             num_threads = 4
 
-
         # Potentially slice by threads.
         instance_iterator: Iterator[HeliosSample]
         if num_threads:
@@ -418,8 +425,12 @@ class _IterableDatasetWrapper(torch.utils.data.IterableDataset[HeliosSample]):
             # that changes every batchsize
             instance_iterator = (
                 self.data_loader._get_dataset_item(int(idx), patch_size, sampled_hw_p)
-                for idx, patch_size, sampled_hw_p in
-                 _get_batch_item_params_iterator(indices, self.data_loader.patch_sizes, self.data_loader.sampled_hw_p_list, self.data_loader.rank_batch_size)
+                for idx, patch_size, sampled_hw_p in _get_batch_item_params_iterator(
+                    indices,
+                    self.data_loader.patch_sizes,
+                    self.data_loader.sampled_hw_p_list,
+                    self.data_loader.rank_batch_size,
+                )
             )
 
         return (
@@ -438,6 +449,9 @@ class HeliosDataLoaderConfig(Config):
 
     work_dir: str
     global_batch_size: int
+    min_patch_size: int
+    max_patch_size: int
+    sampled_hw_p_list: list[int]
     seed: int
     shuffle: bool = True
     num_threads: int | None = None
@@ -450,6 +464,8 @@ class HeliosDataLoaderConfig(Config):
         """Validate the configuration."""
         if self.work_dir is None:
             raise ValueError("Work directory is not set")
+        if self.min_patch_size > self.max_patch_size:
+            raise ValueError("min_patch_size must be less than max_patch_size")
 
     @property
     def work_dir_upath(self) -> UPath:
@@ -483,4 +499,7 @@ class HeliosDataLoaderConfig(Config):
             target_device_type=self.target_device_type or get_default_device().type,
             collator=collator,
             drop_last=self.drop_last,
+            min_patch_size=self.min_patch_size,
+            max_patch_size=self.max_patch_size,
+            sampled_hw_p_list=self.sampled_hw_p_list,
         )

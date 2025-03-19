@@ -10,23 +10,19 @@ import torch
 import torch.distributed as dist
 import torch.distributed.checkpoint.state_dict as dist_cp_sd
 from olmo_core.config import Config, DType
-from olmo_core.distributed.parallel import (
-    DataParallelConfig,
-    DataParallelType,
-    build_world_mesh,
-    get_dp_mesh,
-    get_dp_process_group,
-)
+from olmo_core.distributed.parallel import (DataParallelConfig,
+                                            DataParallelType, build_world_mesh,
+                                            get_dp_mesh, get_dp_process_group)
 from olmo_core.distributed.utils import get_world_size
 from olmo_core.exceptions import OLMoConfigurationError
 from olmo_core.float8 import Float8Config, Float8Handler
 from olmo_core.optim import OptimConfig, SkipStepOptimizer
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import Duration
-from olmo_core.train.train_module import EvalBatchSizeUnit, EvalBatchSpec, TrainModule
-from olmo_core.train.train_module.transformer import (
-    TransformerActivationCheckpointingConfig,
-)
+from olmo_core.train.train_module import (EvalBatchSizeUnit, EvalBatchSpec,
+                                          TrainModule)
+from olmo_core.train.train_module.transformer import \
+    TransformerActivationCheckpointingConfig
 from olmo_core.utils import gc_cuda, get_default_device
 from torch.distributed.checkpoint.metadata import Metadata
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -312,6 +308,15 @@ class HeliosTrainModule(TrainModule):
                     self.warmup_duration
                 )
                 self.scheduler.warmup_steps = warmup_steps
+
+        if self.trainer.data_loader.min_patch_size != self.model.min_patch_size:
+            raise ValueError(
+                f"min_patch_size of dataloader ({self.trainer.data_loader.min_patch_size}) must match min_patch_size of model ({self.model.min_patch_size})"
+            )
+        if self.trainer.data_loader.max_patch_size != self.model.max_patch_size:
+            raise ValueError(
+                f"max_patch_size of dataloader ({self.trainer.data_loader.max_patch_size}) must match max_patch_size of model ({self.model.max_patch_size})"
+            )
 
     def state_dict(self) -> dict[str, Any]:
         """Get the state dict."""

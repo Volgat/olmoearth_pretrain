@@ -14,11 +14,9 @@ from torch import Tensor, nn
 from helios.data.constants import Modality, ModalitySpec
 from helios.dataset.utils import get_modality_specs_from_names
 from helios.nn.attention import Block
-from helios.nn.encodings import (
-    get_1d_sincos_pos_encoding,
-    get_2d_sincos_pos_encoding_with_resolution,
-    get_month_encoding_table,
-)
+from helios.nn.encodings import (get_1d_sincos_pos_encoding,
+                                 get_2d_sincos_pos_encoding_with_resolution,
+                                 get_month_encoding_table)
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample, MaskValue
 

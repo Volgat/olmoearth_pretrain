@@ -1,5 +1,7 @@
 """Training and optimizer abstraction for Helios."""
 
+import gc
+import sys
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any
@@ -13,20 +15,16 @@ from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import Duration, ReduceType
-from olmo_core.train.train_module.transformer import (
-    TransformerActivationCheckpointingConfig,
-)
-import sys
-import gc
+from olmo_core.train.train_module.transformer import \
+    TransformerActivationCheckpointingConfig
+
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.nn.latent_mim import LatentMIM
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskedHeliosSample, MaskingConfig
-from helios.train.train_module.train_module import (
-    HeliosTrainModule,
-    HeliosTrainModuleConfig,
-)
+from helios.train.train_module.train_module import (HeliosTrainModule,
+                                                    HeliosTrainModuleConfig)
 from helios.train.utils import split_batch
 
 logger = getLogger(__name__)
@@ -326,7 +324,6 @@ class GalileoTrainModule(HeliosTrainModule):
         self.model.train()
 
         # Set the maximum number of tokens
-        token_budget = self.model.token_budget
         total_batch_loss = torch.tensor(0.0, device=self.device)
         # Split into micro-batches.
         patch_size, batch = batch
