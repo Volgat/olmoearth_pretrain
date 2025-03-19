@@ -3,13 +3,13 @@
 import logging
 
 from olmo_core.config import DType
-from olmo_core.distributed.parallel.data_parallel import (
-    DataParallelConfig,
-    DataParallelType,
-)
+from olmo_core.distributed.parallel.data_parallel import (DataParallelConfig,
+                                                          DataParallelType)
 from olmo_core.optim import AdamWConfig
 from olmo_core.optim.scheduler import CosWithWarmup
-from olmo_core.train.callbacks import ConfigSaverCallback, GPUMemoryMonitorCallback
+from olmo_core.train.callbacks import (ConfigSaverCallback,
+                                       GarbageCollectorCallback,
+                                       GPUMemoryMonitorCallback)
 from olmo_core.train.checkpoint import CheckpointerConfig
 from olmo_core.train.common import Duration, LoadStrategy
 from olmo_core.train.config import TrainerConfig
@@ -19,14 +19,13 @@ from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
 from helios.data.normalize import Strategy
 from helios.internal.common import build_common_components
-from helios.internal.experiment import CommonComponents, HeliosVisualizeConfig, main
+from helios.internal.experiment import (CommonComponents,
+                                        HeliosVisualizeConfig, main)
 from helios.nn.flexihelios import EncoderConfig, PoolingType, PredictorConfig
 from helios.nn.latent_mim import LatentMIMConfig
-from helios.train.callbacks import (
-    DownstreamEvaluatorCallbackConfig,
-    HeliosSpeedMonitorCallback,
-    HeliosWandBCallback,
-)
+from helios.train.callbacks import (DownstreamEvaluatorCallbackConfig,
+                                    HeliosSpeedMonitorCallback,
+                                    HeliosWandBCallback)
 from helios.train.callbacks.evaluator_callback import DownstreamTaskConfig
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskingConfig
@@ -35,6 +34,7 @@ from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
 logger = logging.getLogger(__name__)
 MAX_PATCH_SIZE = 8
 MIN_PATCH_SIZE = 1
+
 
 def build_model_config(common: CommonComponents) -> LatentMIMConfig:
     """Build the model config for an experiment."""
@@ -127,6 +127,9 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     NUM_WORKERS = 8
     GLOBAL_BATCH_SIZE = 128
     PREFETCH_FACTOR = 2
+    TOKEN_BUDGET = 1500
+
+    SAMPLE_HW_P_LIST = list(range(5, 13))
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
@@ -134,16 +137,20 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
         work_dir=common.save_folder,
         num_workers=NUM_WORKERS,
         prefetch_factor=PREFETCH_FACTOR,
+        sampled_hw_p_list=SAMPLE_HW_P_LIST,
+        min_patch_size=MIN_PATCH_SIZE,
+        max_patch_size=MAX_PATCH_SIZE,
+        token_budget=TOKEN_BUDGET,
     )
-    # Should the dataloader build the config or take an object?
     return dataloader_config
 
 
 def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     """Build the dataset config for an experiment."""
-    TILE_PATH = UPath("/weka/dfive-default/helios/dataset/presto/")
+    h5py_dir = "/weka/dfive-default/helios/dataset/presto/h5py_data/latlon_sentinel1_sentinel2_l2a_worldcover/98856"
     return HeliosDatasetConfig(
-        tile_path=TILE_PATH,
+        h5py_dir=h5py_dir,
+        tile_path=None,
         supported_modality_names=common.supported_modality_names,
         dtype=DType.float32,
     )
@@ -164,6 +171,8 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         entity=WANDB_USERNAME,
         enabled=True,  # set to False to avoid wandb errors
     )
+    # Safe to collect everys tep for now
+    garbage_collector_callback = GarbageCollectorCallback(gc_interval=1)
     EVAL_INTERVAL_EPOCHS = 5
     EVAL_TASKS = [
         DownstreamTaskConfig(
@@ -182,7 +191,6 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             probe_lr=0.1,
         ),
     ]
-    # Let us not use garbage collector fallback
     trainer_config = (
         TrainerConfig(
             work_dir=common.save_folder,
@@ -204,6 +212,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
                 eval_duration=Duration.epochs(EVAL_INTERVAL_EPOCHS),
             ),
         )
+        .with_callback("garbage_collector", garbage_collector_callback)
     )
     return trainer_config
 

@@ -13,19 +13,16 @@ from olmo_core.float8 import Float8Config
 from olmo_core.optim import OptimConfig
 from olmo_core.optim.scheduler import Scheduler
 from olmo_core.train.common import Duration, ReduceType
-from olmo_core.train.train_module.transformer import (
-    TransformerActivationCheckpointingConfig,
-)
+from olmo_core.train.train_module.transformer import \
+    TransformerActivationCheckpointingConfig
 
 from helios.data.constants import Modality
 from helios.data.dataset import HeliosSample
 from helios.nn.latent_mim import LatentMIM
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskedHeliosSample, MaskingConfig
-from helios.train.train_module.train_module import (
-    HeliosTrainModule,
-    HeliosTrainModuleConfig,
-)
+from helios.train.train_module.train_module import (HeliosTrainModule,
+                                                    HeliosTrainModuleConfig)
 from helios.train.utils import split_batch
 
 logger = getLogger(__name__)
@@ -210,11 +207,8 @@ class LatentMIMTrainModule(HeliosTrainModule):
         self.update_target_encoder()
         # Set the model to train mode
         self.model.train()
-        # Set the maximum number of tokens
-        h_w_to_sample = list(
-            range(self.model.h_w_to_sample_min, self.model.h_w_to_sample_max)
-        )
         total_batch_loss = torch.tensor(0.0, device=self.device)
+        patch_size, batch = batch
         # Split into micro-batches.
         microbatches = split_batch(batch, self.rank_microbatch_size)
         num_microbatches = len(microbatches)
@@ -223,8 +217,6 @@ class LatentMIMTrainModule(HeliosTrainModule):
                 logger.info(
                     f"Training microbatch {microbatch_idx} of {num_microbatches} with batch size {microbatch.batch_size}"
                 )
-                # Gallileo does this subsetting at the microbatch level so we follow that for now
-                # Smallest h /w must be bigger than the smallest patch size
 
                 patch_size = np.random.choice(
                     np.arange(
@@ -232,15 +224,11 @@ class LatentMIMTrainModule(HeliosTrainModule):
                         self.model.encoder.max_patch_size,
                     )
                 )
-                microbatch = self.model.transform.apply(microbatch)
-                subsampled_batch = microbatch.subset(
-                    patch_size, token_budget, h_w_to_sample
+                microbatch = self.model.transform.apply(microbatch).to_device(
+                    self.device
                 )
-                subsampled_batch = subsampled_batch.to_device(self.device)
-                # Each microbatch should have about the same number of encoded tokens if
-                # we mask here
                 masked_batch = self.masking_strategy.apply_mask(
-                    subsampled_batch, patch_size=patch_size
+                    microbatch, patch_size=patch_size
                 )
 
                 # Run Encoder and decoder on the augmented input
