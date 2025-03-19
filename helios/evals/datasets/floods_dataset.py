@@ -281,7 +281,7 @@ class Sen1Floods11Dataset(Dataset):
         timestamp = repeat(torch.tensor(self.default_day_month_year), "d -> t d", t=1)
         masked_sample = MaskedHeliosSample.from_heliossample(
             HeliosSample(
-                sentinel2_l2a=torch.tensor(image).float(), timestamps=timestamp.long()
+                sentinel1=torch.tensor(image).float(), timestamps=timestamp.long()
             )
         )
         return masked_sample, label
