@@ -5,6 +5,7 @@ import logging
 from torch.utils.data import Dataset
 
 from .configs import ALL_DATASETS
+from .floods_dataset import FLOODS_DIR, Sen1Floods11Dataset
 from .geobench_dataset import GEOBENCH_DIR, GeobenchDataset
 from .mados_dataset import MADOS_DIR, MADOSDataset
 
@@ -37,6 +38,13 @@ def get_eval_dataset(
             )
         return MADOSDataset(
             path_to_splits=MADOS_DIR,
+            split=split,
+            partition=partition,
+            norm_stats_from_pretrained=norm_stats_from_pretrained,
+        )
+    elif eval_dataset == "floods":
+        return Sen1Floods11Dataset(
+            path_to_splits=FLOODS_DIR,
             split=split,
             partition=partition,
             norm_stats_from_pretrained=norm_stats_from_pretrained,

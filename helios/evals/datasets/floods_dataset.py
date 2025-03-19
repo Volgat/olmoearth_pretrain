@@ -25,7 +25,7 @@ BAND_STATS = {
 }
 
 
-MADOS_DIR = UPath("/weka/dfive-default/presto_eval_sets/mados")
+FLOODS_DIR = UPath("/weka/dfive-default/presto_eval_sets/floods")
 
 
 class Sen1Floods11Processor:
