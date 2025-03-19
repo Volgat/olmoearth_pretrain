@@ -20,8 +20,8 @@ from .constants import EVAL_S1_BAND_NAMES, EVAL_TO_HELIOS_S1_BANDS
 from .normalize import normalize_bands
 
 BAND_STATS = {
-    "VV": {"mean": -11.27174944, "std": 4.81716083},
-    "VH": {"mean": -18.4847947, "std": 5.79660676},
+    "vv": {"mean": -11.27174944, "std": 4.81716083},
+    "vh": {"mean": -18.4847947, "std": 5.79660676},
 }
 
 
