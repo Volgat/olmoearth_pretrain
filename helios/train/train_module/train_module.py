@@ -33,6 +33,10 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
 
+# move to another file
+from helios.nn.galileo import Galileo
+from helios.nn.latent_mim import LatentMIM
+
 logger = getLogger(__name__)
 
 
@@ -175,8 +179,17 @@ class HeliosTrainModule(TrainModule):
         super().__init__()
 
         self.model = model
-        num_params = sum(p.numel() for p in self.model.parameters())
-        logger.info(f"number of parameters: {num_params:,d}")
+        if isinstance(self.model, Galileo):
+            logger.info("Number of encoder parameters: %d", sum(p.numel() for p in self.model.encoder.parameters()))
+            logger.info("Number of decoder a parameters: %d", sum(p.numel() for p in self.model.decoder_a.parameters()))
+            logger.info("Number of decoder b parameters: %d", sum(p.numel() for p in self.model.decoder_b.parameters()))
+        elif isinstance(self.model, LatentMIM):
+            logger.info("Number of encoder parameters: %d", sum(p.numel() for p in self.model.encoder.parameters()))
+            logger.info("Number of decoder parameters: %d", sum(p.numel() for p in self.model.decoder.parameters()))
+        else:
+            num_params = sum(p.numel() for p in self.model.parameters())
+            logger.info(f"number of parameters: {num_params:,d}")
+
         self.device = device or get_default_device()
         self.world_mesh = build_world_mesh(dp=dp_config, device_type=self.device.type)
         logger.info(

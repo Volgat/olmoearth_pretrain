@@ -235,6 +235,10 @@ class GalileoTrainModule(HeliosTrainModule):
         # Set the model to train mode
         self.model.train()
 
+        if not hasattr(self, 'total_batch_loss'):
+            self.total_batch_loss = torch.zeros(1, device=self.device)
+        else:
+            self.total_batch_loss.fill_(0.0)
         # Set the maximum number of tokens
         total_batch_loss = torch.tensor(0.0, device=self.device)
         # Split into micro-batches.
