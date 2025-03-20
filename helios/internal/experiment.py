@@ -200,7 +200,7 @@ def launch(config: HeliosExperimentConfig) -> None:
     logger.info("Launching the experiment")
     logger.info(config)
     # Set follow=False if you don't want to stream the logs to the terminal
-    config.launch.launch(follow=False)
+    config.launch.launch(follow=True)
 
 
 def prep(config: HeliosExperimentConfig) -> None:
