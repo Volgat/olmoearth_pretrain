@@ -10,15 +10,14 @@ import torch
 from einops import rearrange, repeat
 from olmo_core.config import Config
 from torch import Tensor, nn
+from torch.distributed.fsdp import fully_shard
 
 from helios.data.constants import Modality, ModalitySpec
 from helios.dataset.utils import get_modality_specs_from_names
 from helios.nn.attention import Block
-from helios.nn.encodings import (
-    get_1d_sincos_pos_encoding,
-    get_2d_sincos_pos_encoding_with_resolution,
-    get_month_encoding_table,
-)
+from helios.nn.encodings import (get_1d_sincos_pos_encoding,
+                                 get_2d_sincos_pos_encoding_with_resolution,
+                                 get_month_encoding_table)
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed
 from helios.train.masking import MaskedHeliosSample, MaskValue
 
@@ -704,6 +703,13 @@ class FlexiHeliosBase(nn.Module):
 
         return tokens_only_dict
 
+    def apply_fsdp(self, **fsdp_kwargs) -> None:
+        """Apply FSDP to the model."""
+        for block in self.blocks:
+            block.apply_fsdp(**fsdp_kwargs)
+
+        fully_shard(self.composite_encodings, **fsdp_kwargs)
+
 
 class Encoder(FlexiHeliosBase):
     """Encoder module that processes masked input samples into token representations."""
@@ -1006,6 +1012,13 @@ class Encoder(FlexiHeliosBase):
             )
         return TokensAndMasks(**patchified_tokens_and_masks)
 
+    def apply_fsdp(self, **fsdp_kwargs) -> None:
+        """Apply FSDP to the model."""
+        super().apply_fsdp(**fsdp_kwargs)
+        fully_shard(self.patch_embeddings, **fsdp_kwargs)
+        # fully_shard(self.norm, **fsdp_kwargs)
+        fully_shard(self, **fsdp_kwargs)
+
 
 class Predictor(FlexiHeliosBase):
     """Predictor module that generates predictions from encoded tokens."""
@@ -1052,6 +1065,7 @@ class Predictor(FlexiHeliosBase):
             random_channel_embs=random_channel_embeddings,
             supported_modalities=supported_modalities,
         )
+        # TODO: Rename this weird misname
         self.learnable_channel_embeddings = learnable_channel_embeddings
         self.random_channel_embeddings = random_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size
@@ -1295,6 +1309,11 @@ class Predictor(FlexiHeliosBase):
             output_dict[modality] = torch.stack(per_modality_output_tokens, dim=-2)
             output_dict[masked_modality_name] = modality_mask
         return TokensAndMasks(**output_dict)
+
+    def apply_fsdp(self, **fsdp_kwargs) -> None:
+        """Apply FSDP to the model."""
+        super().apply_fsdp(**fsdp_kwargs)
+        fully_shard(self, **fsdp_kwargs)
 
 
 @dataclass

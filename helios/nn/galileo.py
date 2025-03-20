@@ -2,12 +2,16 @@
 
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import Optional
 
+import torch
 import torch.nn as nn
 from olmo_core.config import Config
+from torch.distributed import DeviceMesh
 
 from helios.data.transform import Transform, TransformConfig
-from helios.nn.flexihelios import EncoderConfig, PredictorConfig, TokensAndMasks
+from helios.nn.flexihelios import (EncoderConfig, PredictorConfig,
+                                   TokensAndMasks)
 from helios.nn.utils import DistributedMixins
 from helios.train.masking import MaskedHeliosSample
 
@@ -53,6 +57,20 @@ class Galileo(nn.Module, DistributedMixins):
         latent = self.encoder(x, patch_size=patch_size)
         decoded = self.decoder_b(latent, timestamps=x.timestamps, patch_size=patch_size)
         return decoded
+
+    def apply_fsdp(
+        self,
+        dp_mesh: Optional[DeviceMesh] = None,
+        param_dtype: Optional[torch.dtype] = None,
+        reduce_dtype: torch.dtype = torch.float32,
+        pp_enabled: bool = False,
+        prefetch_factor: int = 0,
+    ) -> None:
+        """Apply FSDP to the model."""
+        fsdp_config = dict(mesh=dp_mesh)
+        self.encoder.apply_fsdp(**fsdp_config)
+        self.decoder_a.apply_fsdp(**fsdp_config)
+        self.decoder_b.apply_fsdp(**fsdp_config)
 
 
 @dataclass
