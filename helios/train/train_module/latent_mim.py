@@ -222,13 +222,6 @@ class LatentMIMTrainModule(HeliosTrainModule):
                 logger.info(
                     f"Training microbatch {microbatch_idx} of {num_microbatches} with batch size {microbatch.batch_size}"
                 )
-
-                patch_size = np.random.choice(
-                    np.arange(
-                        self.model.encoder.min_patch_size,
-                        self.model.encoder.max_patch_size,
-                    )
-                )
                 microbatch = self.model.transform.apply(microbatch).to_device(
                     self.device
                 )
