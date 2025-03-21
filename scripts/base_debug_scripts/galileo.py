@@ -224,6 +224,14 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             norm_stats_from_pretrained=False,
             probe_lr=0.1,
         ),
+        DownstreamTaskConfig(
+            dataset="sen1floods11",
+            batch_size=128,
+            num_workers=8,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=True,
+            probe_lr=0.1,
+        ),
     ]
     # Let us not use garbage collector fallback
     trainer_config = (
