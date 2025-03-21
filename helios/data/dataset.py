@@ -267,7 +267,6 @@ class HeliosSample(NamedTuple):
             if attribute == "timestamps":
                 new_data_dict[attribute] = modality[start_t : start_t + max_t]
                 continue
-            # remember to add the batching back in
             modality_spec = Modality.get(attribute)
             if modality_spec.is_spacetime_varying:
                 # for now, lets assume fixed resolution
@@ -536,7 +535,7 @@ class HeliosDataset(Dataset):
     @property
     def is_dataset_prepared(self) -> bool:
         """Check if the dataset is prepared."""
-        return self.sample_indices is not None
+        return self.sample_indices is not None and self.h5py_dir.exists()
 
     @property
     def latlon_distribution_path(self) -> UPath:
