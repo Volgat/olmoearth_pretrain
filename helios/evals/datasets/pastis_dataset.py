@@ -323,7 +323,6 @@ class PASTISRDataset(Dataset):
             self.normalizer_computed = Normalizer(Strategy.COMPUTED)
 
         torch_obj = torch.load(path_to_splits / f"pastis_r_{split}.pt")
-        logger.info(f"torch_obj: {torch_obj.keys()}")
         self.s2_images = torch_obj["s2_images"]
         if self.is_multimodal:
             self.s1_images = torch_obj["s1_images"]
