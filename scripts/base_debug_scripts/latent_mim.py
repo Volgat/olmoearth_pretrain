@@ -37,6 +37,7 @@ from helios.train.masking import MaskingConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
 
 logger = logging.getLogger(__name__)
+
 MAX_PATCH_SIZE = 8
 MIN_PATCH_SIZE = 1
 
