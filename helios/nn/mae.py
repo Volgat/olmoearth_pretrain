@@ -25,9 +25,6 @@ class MAE(nn.Module, DistributedMixins):
         decoder: nn.Module,
         reconstructor: nn.Module,
         transform: Transform,
-        token_budget: int = 1500,
-        h_w_to_sample_min: int = 2,
-        h_w_to_sample_max: int = 13,
     ):
         """Initialize the MAE Module.
 
@@ -44,10 +41,7 @@ class MAE(nn.Module, DistributedMixins):
         self.encoder = encoder
         self.decoder = decoder
         self.reconstructor = reconstructor
-        self.token_budget = token_budget
         self.transform = transform
-        self.h_w_to_sample_min = h_w_to_sample_min
-        self.h_w_to_sample_max = h_w_to_sample_max
 
     def forward(self, x: MaskedHeliosSample, patch_size: int) -> TokensAndMasks:
         """Forward pass for the MAE Module."""
@@ -65,9 +59,6 @@ class MAEConfig(Config):
     decoder_config: "PredictorConfig"
     reconstructor_config: "ReconstructorConfig"
     transform_type: str = "no_transform"
-    token_budget: int = 1500
-    h_w_to_sample_min: int = 2
-    h_w_to_sample_max: int = 13
 
     def validate(self) -> None:
         """Validate the configuration."""
@@ -101,7 +92,4 @@ class MAEConfig(Config):
             decoder=decoder,
             reconstructor=reconstructor,
             transform=transform,
-            token_budget=self.token_budget,
-            h_w_to_sample_min=self.h_w_to_sample_min,
-            h_w_to_sample_max=self.h_w_to_sample_max,
         )
