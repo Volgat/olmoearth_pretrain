@@ -254,6 +254,8 @@ class PASTISRProcessor:
 
             torch.save(data["months"], split_dir / "months.pt")
             torch.save(data["targets"], split_dir / "targets.pt")
+            print(data["s2_images"].shape)
+            print(data["s1_images"].shape)
 
             s2_dir = split_dir / "s2_images"
             s1_dir = split_dir / "s1_images"
@@ -261,10 +263,12 @@ class PASTISRProcessor:
             os.makedirs(s1_dir, exist_ok=True)
 
             for idx in range(data["s2_images"].shape[0]):
-                torch.save(data["s2_images"][idx], s2_dir / f"{idx}.pt")
+                print(data["s2_images"][idx, :, :, :, :].shape)
+                torch.save(data["s2_images"][idx].clone(), s2_dir / f"{idx}.pt")
 
             for idx in range(data["s1_images"].shape[0]):
-                torch.save(data["s1_images"][idx], s1_dir / f"{idx}.pt")
+                print(data["s1_images"][idx, :, :, :, :].shape)
+                torch.save(data["s1_images"][idx].clone(), s1_dir / f"{idx}.pt")
 
         for split in ["train", "valid", "test"]:
             for key in ["s2_images", "s1_images", "months", "targets"]:
@@ -341,12 +345,17 @@ class PASTISRDataset(Dataset):
 
             self.normalizer_computed = Normalizer(Strategy.COMPUTED)
 
-        torch_obj = torch.load(path_to_splits / f"pastis_r_{split}.pt")
-        self.s2_images = torch_obj["s2_images"]
-        if self.is_multimodal:
-            self.s1_images = torch_obj["s1_images"]
-        self.labels = torch_obj["targets"]
-        self.months = torch_obj["months"]
+        # torch_obj = torch.load(path_to_splits / f"pastis_r_{split}.pt")
+        # self.s2_images = torch_obj["s2_images"]
+        # if self.is_multimodal:
+        #     self.s1_images = torch_obj["s1_images"]
+        # self.labels = torch_obj["targets"]
+        # self.months = torch_obj["months"]
+
+        self.s2_images_dir = path_to_splits / f"pastis_r_{split}" / "s2_images"
+        self.s1_images_dir = path_to_splits / f"pastis_r_{split}" / "s1_images"
+        self.labels = torch.load(path_to_splits / f"pastis_r_{split}" / "targets.pt")
+        self.months = torch.load(path_to_splits / f"pastis_r_{split}" / "months.pt")
 
     @staticmethod
     def _get_norm_stats(
@@ -363,16 +372,19 @@ class PASTISRDataset(Dataset):
 
     def __len__(self) -> int:
         """Length of the dataset."""
-        return self.s2_images.shape[0]
+        # return self.s2_images.shape[0]
+        return self.labels.shape[0]
 
     def __getitem__(self, idx: int) -> tuple[MaskedHeliosSample, torch.Tensor]:
         """Return a single PASTIS data instance."""
-        s2_image = self.s2_images[idx]  # (12, 13, 64, 64)
+        # s2_image = self.s2_images[idx]  # (12, 13, 64, 64)
+        s2_image = torch.load(self.s2_images_dir / f"{idx}.pt")
         s2_image = einops.rearrange(s2_image, "t c h w -> h w t c")  # (64, 64, 12, 13)
         s2_image = s2_image[:, :, :, EVAL_TO_HELIOS_S2_BANDS]
 
         if self.is_multimodal:
-            s1_image = self.s1_images[idx]  # (12, 2, 64, 64)
+            # s1_image = self.s1_images[idx]  # (12, 2, 64, 64)
+            s1_image = torch.load(self.s1_images_dir / f"{idx}.pt")
             s1_image = einops.rearrange(
                 s1_image, "t c h w -> h w t c"
             )  # (64, 64, 12, 2)
