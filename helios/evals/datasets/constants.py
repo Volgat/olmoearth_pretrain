@@ -23,6 +23,7 @@ EVAL_S1_BAND_NAMES = [
     "vh",
 ]
 
+
 def _eval_s2_band_index_from_helios_name(helios_name: str) -> int:
     for idx, band_name in enumerate(EVAL_S2_BAND_NAMES):
         if helios_name.endswith(band_name.split(" ")[0][-2:]):
