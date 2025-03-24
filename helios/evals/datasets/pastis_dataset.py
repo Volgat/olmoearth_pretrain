@@ -113,9 +113,14 @@ class PASTISRProcessor:
         return img
 
     def aggregate_months(
-        self, images: torch.Tensor, dates: dict[str, int]
+        self, modality_name: str, images: torch.Tensor, dates: dict[str, int]
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Aggregate images into monthly averages."""
+        if modality_name != "sentinel2" or modality_name != "sentinel1":
+            raise ValueError(
+                f"Unsupported modality: {modality_name} for PASTIS dataset!"
+            )
+
         months_dict = dict[str, list[torch.Tensor]]()
         for m in self.all_months:
             months_dict[m] = []
@@ -123,8 +128,14 @@ class PASTISRProcessor:
         for idx, date in dates.items():
             month = str(date)[:6]
             img = torch.tensor(images[int(idx)], dtype=torch.float32)
-            if images.shape[1] == 10:
-                img = self.impute(img)
+            # S2 in PASTIS has 10 bands, so imputation is always needed
+            if modality_name == "sentinel2":
+                if img.shape[1] == 10:
+                    img = self.impute(img)
+                else:
+                    raise ValueError(
+                        f"Sentinal2 image has {img.shape[0]} bands, expected 10!"
+                    )
             months_dict[month].append(img)
 
         img_list: list[torch.Tensor] = []
@@ -136,7 +147,7 @@ class PASTISRProcessor:
                 month_avg = stacked_imgs.mean(dim=0)
                 if len(img_list) < 12:
                     img_list.append(month_avg)
-                    month_list.append(int(month[4:]))
+                    month_list.append(int(month))
 
         return torch.stack(img_list), torch.tensor(month_list, dtype=torch.long)
 
@@ -159,12 +170,15 @@ class PASTISRProcessor:
 
         assert len(dates) == s2_images.shape[0], "Mismatch between S2 dates and images"
 
+        # Only extract the first two bands (vv/vh) for S1
         s1_images = s1_images[:, :2, ...]
-        s2_images, months = self.aggregate_months(s2_images, dates)
-        s1_images, _ = self.aggregate_months(s1_images, dates)
+        s2_images, months = self.aggregate_months("sentinel2", s2_images, dates)
+        s1_images, _ = self.aggregate_months("sentinel1", s1_images, dates)
 
         targets = torch.tensor(targets, dtype=torch.long)
-        targets[targets == 19] = -1  # Convert void class to -1
+        # PASTIS has 19 classes, the last one is void label, convert it to -1 to ignore
+        # https://github.com/VSainteuf/pastis-benchmark
+        targets[targets == 19] = -1
 
         def split_images(images: torch.Tensor) -> torch.Tensor:
             """Split images into 4 quadrants."""
@@ -178,7 +192,7 @@ class PASTISRProcessor:
             )
 
         return {
-            "fold": f'fold_{properties["Fold"]}',
+            "fold": f"fold_{properties['Fold']}",
             "s2_images": split_images(s2_images),
             "s1_images": split_images(s1_images),
             "months": torch.stack([months] * 4),
@@ -202,6 +216,7 @@ class PASTISRProcessor:
             for i in range(1, 6)
         }
 
+        # Count how many samples don't have 12 months of data
         doesnt_have_twelve = 0
 
         with ThreadPoolExecutor() as executor:
@@ -216,7 +231,7 @@ class PASTISRProcessor:
                 else:
                     doesnt_have_twelve += 1
 
-        print(f"doesnt_have_twelve: {doesnt_have_twelve}")
+        print(f"doesnt_have_twelve: {doesnt_have_twelve}")  # We got 0!
 
         for fold_idx in range(1, 6):
             fold_key = f"fold_{fold_idx}"
@@ -401,14 +416,13 @@ class PASTISRDataset(Dataset):
                 )
 
         timestamps = []
-        # A little hack to get the correct year for the timestamps
-        # Pastis months are mostly 2018-09 to 2019-08
-        year = 2018
         for month in months:
-            if month == 1:
-                year = 2019
+            item = int(month)
+            item_month, item_year = str(item)[4:], str(item)[:4]
             # NOTE: month is 0-indexed, from 0 to 11
-            timestamps.append(torch.tensor([1, month - 1, year], dtype=torch.long))
+            timestamps.append(
+                torch.tensor([1, int(item_month) - 1, int(item_year)], dtype=torch.long)
+            )
         timestamps = torch.stack(timestamps)
 
         if self.is_multimodal:
@@ -427,7 +441,3 @@ class PASTISRDataset(Dataset):
                 )
             )
         return masked_sample, labels.long()
-
-
-# if __name__ == "__main__":
-#     process_pastis()
