@@ -11,7 +11,6 @@ from typing import Any
 import numpy as np
 import torch
 import torch.distributed as dist
-from einops import rearrange
 from olmo_core.config import Config
 from olmo_core.data.data_loader import DataLoaderBase
 from olmo_core.data.utils import get_rng, memmap_to_write
@@ -303,13 +302,14 @@ class HeliosDataLoader(DataLoaderBase):
             mock_latlon = rng.random((2,), dtype=np.float32)
             output_dict["latlon"] = mock_latlon
         if Modality.OPENSTREETMAP_RASTER in self.dataset.supported_modalities:
-            mock_openstreetmap_raster = torch.rand(1, 256, 256, 1, 30)
+            mock_openstreetmap_raster = rng.random((256, 256, 1, 30), dtype=np.float32)
             output_dict["openstreetmap_raster"] = mock_openstreetmap_raster
-        days = torch.randint(0, 25, (1, 1, 12), dtype=torch.long)
-        months = torch.randint(0, 12, (1, 1, 12), dtype=torch.long)
-        years = torch.randint(2018, 2020, (1, 1, 12), dtype=torch.long)
-        timestamps = torch.cat([days, months, years], dim=1)
-        timestamps = rearrange(timestamps, "b t c -> b c t")
+
+        days = rng.integers(0, 25, (12, 1))
+        months = rng.integers(0, 12, (12, 1))
+        years = rng.integers(2018, 2020, (12, 1))
+        timestamps = np.concatenate([days, months, years], axis=1)  # shape: (12, 3)
+
         output_dict["timestamps"] = timestamps
 
         patch_size = 1
