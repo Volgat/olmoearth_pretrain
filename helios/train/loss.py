@@ -333,8 +333,8 @@ class ImageL2Loss(Loss):
         masks = []
         datas = []
         for modality in data.modalities:
-            pred = getattr(data, modality)
             modality_spec = Modality.get(modality)
+            pred = getattr(data, modality)
             if pred is not None:
                 mask = getattr(data, data.get_masked_modality_name(modality))
                 for idx, channel_set_idxs in enumerate(
@@ -365,7 +365,14 @@ class ImageL2Loss(Loss):
             The computed loss value.
         """
         data, masks = self._flatten_helios_data(predictions)
-        labels, label_masks = self._flatten_helios_data(targets)
+        valid_dict = {}
+        for modality in predictions.modalities:
+            if getattr(predictions, modality) is not None:
+                masked_name = targets.get_masked_modality_name(modality)
+                valid_dict[modality] = getattr(targets, modality)
+                valid_dict[masked_name] = getattr(targets, masked_name)
+        valid_targets = TokensAndMasks(**valid_dict)
+        labels, label_masks = self._flatten_helios_data(valid_targets)
         data = data * (masks == MaskValue.DECODER.value)
         labels = labels * (masks == MaskValue.DECODER.value)
         return F.mse_loss(data, labels)

@@ -41,13 +41,14 @@ from helios.train.masking import MaskingConfig
 from helios.train.train_module.mae import MAETrainModuleConfig
 
 logger = logging.getLogger(__name__)
-# TODO: Need to use the dynamic computation from trainer for this
-STEPS_PER_EPOCH = 100
-SUPPORTED_MODALITIES = [
-    Modality.SENTINEL2_L2A.name,
-]
 MAX_PATCH_SIZE = 16  # NOTE: actual patch_size <= max_patch_size
 MIN_PATCH_SIZE = 4
+
+MAE_MODALITIES = [
+    Modality.SENTINEL2_L2A.name,
+    Modality.SENTINEL1.name,
+    Modality.WORLDCOVER.name,
+]
 
 
 def build_model_config(common: CommonComponents) -> MAEConfig:
@@ -61,7 +62,7 @@ def build_model_config(common: CommonComponents) -> MAEConfig:
     MLP_RATIO = 4.0
     TRANSFORM_TYPE = "flip_and_rotate"
     encoder_config = EncoderConfig(
-        supported_modality_names=SUPPORTED_MODALITIES,
+        supported_modality_names=MAE_MODALITIES,
         embedding_size=ENCODER_EMBEDDING_SIZE,
         max_patch_size=MAX_PATCH_SIZE,
         min_patch_size=MIN_PATCH_SIZE,
@@ -79,11 +80,11 @@ def build_model_config(common: CommonComponents) -> MAEConfig:
         mlp_ratio=MLP_RATIO,
         num_heads=DECODER_NUM_HEADS,
         max_sequence_length=12,
-        supported_modality_names=SUPPORTED_MODALITIES,
+        supported_modality_names=MAE_MODALITIES,
         learnable_channel_embeddings=True,
     )
     reconstructor_config = ReconstructorConfig(
-        supported_modality_names=SUPPORTED_MODALITIES,
+        supported_modality_names=MAE_MODALITIES,
         embedding_size=ENCODER_EMBEDDING_SIZE,
         max_patch_size=MAX_PATCH_SIZE,
     )
@@ -118,7 +119,7 @@ def build_train_module_config(
             "type": "imagel2",  # TODO: Should be registered via enum names
         }
     )
-    token_exit_cfg = {modality: 0 for modality in SUPPORTED_MODALITIES}
+    token_exit_cfg = {modality: 0 for modality in common.supported_modality_names}
 
     WARMUP_EPOCHS = 2
     dp_config = DataParallelConfig(name=DataParallelType.ddp)
@@ -201,6 +202,14 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             num_workers=8,
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
+        ),
+        DownstreamTaskConfig(
+            dataset="mados",
+            batch_size=128,
+            num_workers=8,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=False,
+            probe_lr=0.1,
         ),
     ]
     trainer_config = (
