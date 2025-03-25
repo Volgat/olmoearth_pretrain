@@ -276,7 +276,7 @@ class AdjustedPatchDiscriminationLoss(Loss):
     Reference: https://proceedings.neurips.cc/paper_files/paper/2023/file/48aaa5ea741ae8430bd58e25917d267d-Paper-Conference.pdf
     """
 
-    name = "Adjusted Patch Discrimination"
+    name = "AdjustedPatchDisc"
 
     def __init__(
         self,
@@ -284,7 +284,6 @@ class AdjustedPatchDiscriminationLoss(Loss):
         mu: float = 0.7,
         sigma: float = 1.0,
         pred2unit: bool = False,
-        mask_other_samples: bool = True,
     ):
         """Initialize adjusted patch discrimination loss.
 
@@ -293,20 +292,16 @@ class AdjustedPatchDiscriminationLoss(Loss):
             mu: the mean of the Gaussian distribution
             sigma: the standard deviation of the Gaussian distribution
             pred2unit: whether to standardize the predictions using batch statistics
-            mask_other_samples: whether to apply the contrastive loss drawing samples
-                from within a sample (True) or using all other instances in a batch (False).
-                If this is False, then this is the AllDisc loss from the Galileo paper
         """
         self.tau = tau
         self.mu = mu
         self.sigma = sigma
         self.pred2unit = pred2unit
-        self.mask_other_samples = mask_other_samples
 
     def compute(
         self, predictions: TokensAndMasks, targets: TokensAndMasks, **kwargs: Any
     ) -> Tensor:
-        """Compute adjusted patch discrimination loss between predictions and targets.
+        """Compute patch discrimination loss between predictions and targets.
 
         Args:
             predictions: Model predictions.
@@ -331,43 +326,57 @@ class AdjustedPatchDiscriminationLoss(Loss):
         pred = F.normalize(pred, p=2, dim=-1)
         target = F.normalize(target, p=2, dim=-1)
 
-        scores = torch.einsum("npd,nqd->npq", pred, target) / self.tau
         count = (all_masks == MaskValue.DECODER.value).sum(dim=-1)
 
-        if self.mask_other_samples:
-            logit_mask = torch.full_like(scores, -torch.finfo(scores.dtype).max)
-            start = 0
-            for c in count:
-                end = start + c
-                logit_mask[:, start:end, start:end] = 0
-                start += c
-            logger.info(f"logit_mask: {logit_mask.shape}")
-            logger.info(f"scores: {scores.shape}")
-            scores = scores + logit_mask
+        losses = []
+        start = 0
+        for c in count:
+            end = start + c
+            pred_sample = pred[:, start:end, :]  # (1, c, d)
+            target_sample = target[:, start:end, :]  # (1, c, d)
 
-        # Extract the positive and negative scores
-        pos_scores = torch.diagonal(scores, dim1=1, dim2=2)
-        neg_scores = scores.clone().detach()
-        mask = torch.eye(
-            nt, device=pred.device, dtype=torch.bool
-        )  # Identity mask for positive pairs
-        neg_scores[:, mask] = -float(
-            "inf"
-        )  # Remove positive pairs from negative scores
+            sim_matrix = torch.einsum(
+                "npd,nqd->npq", pred_sample, target_sample
+            )  # (1, c, c)
 
-        # Compute the weight for negative samples
-        weight = (1.0 / (self.sigma * math.sqrt(2 * math.pi))) * torch.exp(
-            -((neg_scores - self.mu) ** 2) / (2 * self.sigma**2)
-        )
-        weight = weight / weight.mean(dim=-1, keepdim=True)
-        weighted_neg_sim = torch.sum(torch.exp(neg_scores) * weight.detach(), dim=-1)
+            pos_scores = torch.diagonal(sim_matrix, dim1=-2, dim2=-1)  # (1, c)
+            pos_scores = pos_scores / self.tau
 
-        pos_sim = torch.exp(pos_scores)
-        loss = -torch.log(pos_sim / (pos_sim + weighted_neg_sim))
+            # Mask out diagonal (positives) to get negatives
+            mask = ~torch.eye(c, dtype=torch.bool, device=pred.device)
+            neg_scores = sim_matrix.masked_select(mask).view(1, c, c - 1)  # (1, c, c-1)
+            neg_scores = neg_scores / self.tau
 
-        loss_multiplier = self._expand_and_reciprocate(count)
-        loss = (loss * loss_multiplier).sum() / all_preds.shape[0]
+            # Apply Gaussian-based weights to negatives
+            # Weight is computed based on the neg_scores from a sample
+            weight = (
+                1.0
+                / (self.sigma * math.sqrt(2 * math.pi))
+                * torch.exp(
+                    -((neg_scores * self.tau - self.mu) ** 2)
+                    / (2 * math.pow(self.sigma, 2))
+                )
+            )  # (1, c, c-1)
+            # Normalize the weights per query
+            weight = weight / weight.mean(dim=-1, keepdim=True)
+            neg_scores = neg_scores * weight.detach()
 
+            # Reconstruct the sim_matrix
+            sim_matrix = torch.zeros(1, c, c, device=pred.device)
+            sim_matrix.diagonal(dim1=-2, dim2=-1).copy_(pos_scores)
+            sim_matrix.masked_scatter_(mask, neg_scores)
+
+            labels = torch.arange(c, dtype=torch.long, device=pred.device)[None]
+            loss = F.cross_entropy(
+                sim_matrix.flatten(0, 1),
+                labels.flatten(0, 1),
+                reduction="none",
+            ) * (self.tau * 2)
+            loss = loss.mean()
+            losses.append(loss)
+            start = end
+
+        loss = torch.stack(losses).mean()
         return loss
 
 
