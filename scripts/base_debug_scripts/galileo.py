@@ -208,6 +208,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     logger.warning("WANDB Distribution Uploads are disabled for Debugging")
     EVAL_TASKS = {
         "m-eurosat": DownstreamTaskConfig(
+
             dataset="m-eurosat",
             batch_size=128,
             num_workers=8,
@@ -222,7 +223,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=False,
             probe_lr=0.1,
-            eval_interval=Duration.epochs(10),
+            eval_interval=Duration.epochs(20),
         ),
         "sen1floods11": DownstreamTaskConfig(
             dataset="sen1floods11",
@@ -231,7 +232,26 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
             probe_lr=0.1,
-            eval_interval=Duration.epochs(10),
+
+            eval_interval=Duration.epochs(20),
+        ),
+        "pastis": DownstreamTaskConfig(
+            dataset="pastis",
+            batch_size=8,
+            num_workers=2,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=True,
+            probe_lr=0.1,
+            eval_interval=Duration.epochs(20),
+        ),
+        "pastis-r": DownstreamTaskConfig(
+            dataset="pastis-r",
+            batch_size=8,
+            num_workers=2,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=True,
+            probe_lr=0.1,
+            eval_interval=Duration.epochs(20),
         ),
     }
     # Let us not use garbage collector fallback
