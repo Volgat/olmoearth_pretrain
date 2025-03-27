@@ -860,7 +860,6 @@ class HeliosDataset(Dataset):
         # THis io is the current bottleneck of the getitem operation
         with h5py.File(h5_file_path, "r") as f:
             sample_dict = {k: v[()] for k, v in f.items()}
-
         sample = HeliosSample(**sample_dict)
         if args.token_budget is not None:
             result = sample.subset(

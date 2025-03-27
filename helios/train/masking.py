@@ -508,8 +508,6 @@ class ModalityMaskingStrategy(MaskingStrategy):
         Returns:
             MaskedHeliosSample containing the masked data and mask
         """
-        if patch_size is not None:
-            raise ValueError("patch_size must not be provided for modality masking")
         output_dict: dict[str, ArrayTensor | None] = {"timestamps": batch.timestamps}
 
         present_modalities = list(batch.as_dict(ignore_nones=True).keys())
@@ -576,8 +574,10 @@ class SpaceTimeMaskingStrategy(MaskingStrategy):
         """Apply space or time masking to the input data."""
         has_enough_timesteps = batch.time >= 3
         if (self.generator.random() < 0.5) or (not has_enough_timesteps):
+            logger.info("Applying space masking")
             return self.space_strategy.apply_mask(batch, patch_size, **kwargs)
         else:
+            logger.info("Applying time masking")
             return self.time_strategy.apply_mask(batch, patch_size, **kwargs)
 
 

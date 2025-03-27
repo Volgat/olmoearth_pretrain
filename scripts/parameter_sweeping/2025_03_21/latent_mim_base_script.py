@@ -1,4 +1,4 @@
-"""Trying to prototype fitting everything into olmo core."""
+"""Base script for this collection of experiments."""
 
 import logging
 
@@ -10,6 +10,7 @@ from olmo_core.distributed.parallel.data_parallel import (
 from olmo_core.optim import AdamWConfig
 from olmo_core.optim.scheduler import CosWithWarmup
 from olmo_core.train.callbacks import (
+    CheckpointerCallback,
     ConfigSaverCallback,
     GarbageCollectorCallback,
     GPUMemoryMonitorCallback,
@@ -37,19 +38,19 @@ from helios.train.masking import MaskingConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
 
 logger = logging.getLogger(__name__)
-
 MAX_PATCH_SIZE = 8
 MIN_PATCH_SIZE = 1
 
 
 def build_model_config(common: CommonComponents) -> LatentMIMConfig:
     """Build the model config for an experiment."""
-    ENCODER_EMBEDDING_SIZE = 128
-    DECODER_EMBEDDING_SIZE = 128
-    ENCODER_DEPTH = 4
-    DECODER_DEPTH = 4
-    ENCODER_NUM_HEADS = 8
-    DECODER_NUM_HEADS = 8
+    # Fixed model parameters
+    ENCODER_EMBEDDING_SIZE = 192
+    DECODER_EMBEDDING_SIZE = 192
+    ENCODER_DEPTH = 12
+    DECODER_DEPTH = 12
+    ENCODER_NUM_HEADS = 3
+    DECODER_NUM_HEADS = 3
     MLP_RATIO = 4.0
     TRANSFORM_TYPE = "flip_and_rotate"
     encoder_config = EncoderConfig(
@@ -85,11 +86,11 @@ def build_train_module_config(
     common: CommonComponents,
 ) -> LatentMIMTrainModuleConfig:
     """Build the train module config for an experiment."""
-    LR = 0.002
+    LR = 2e-3
     RANK_MICROBATCH_SIZE = 128
     ENCODE_RATIO = 0.1
-    DECODE_RATIO = 0.75
-    WD = 0.02
+    DECODE_RATIO = 0.74
+    WD = 2e-3
     optim_config = AdamWConfig(lr=LR, weight_decay=WD)
     masking_config = MaskingConfig(
         strategy_config={
@@ -105,7 +106,7 @@ def build_train_module_config(
     )
     token_exit_cfg = {modality: 0 for modality in common.supported_modality_names}
 
-    WARMUP_EPOCHS = 20
+    WARMUP_EPOCHS = 10
     dp_config = DataParallelConfig(name=DataParallelType.ddp)
 
     # TODO: would need a scheduler config and registry to be able to change this with overrides
@@ -130,7 +131,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     # things should be set during building
     # TODO: Include collate function here
 
-    NUM_WORKERS = 8
+    NUM_WORKERS = 8  # should be 8
     GLOBAL_BATCH_SIZE = 128
     PREFETCH_FACTOR = 4
     TOKEN_BUDGET = 1500
@@ -153,7 +154,6 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 
 def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     """Build the dataset config for an experiment."""
-    # NOTE: Change this directory based on the supported modalities
     h5py_dir = "/weka/dfive-default/helios/dataset/presto/h5py_data/latlon_sentinel1_sentinel2_l2a_worldcover/98856"
     return HeliosDatasetConfig(
         h5py_dir=h5py_dir,
@@ -165,17 +165,22 @@ def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
 
 def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     """Build the trainer config for an experiment."""
-    MAX_DURATION = Duration.epochs(300)
-    METRICS_COLLECT_INTERVAL = 1
+    MAX_DURATION = Duration.epochs(200)
+    METRICS_COLLECT_INTERVAL = 10
     CANCEL_CHECK_INTERVAL = 1
     LOAD_STRATEGY = LoadStrategy.if_available
     WANDB_USERNAME = "eai-ai2"  # nosec
-    WANDB_PROJECT = "helios-debug"
-    checkpointer_config = CheckpointerConfig(work_dir=common.save_folder)
+    WANDB_PROJECT = "2025_03_21_latentmim_tiny_sweep"
+    PERMANENT_SAVE_INTERVAL = 5000
+    EPHERMERAL_SAVE_INTERVAL = 250
+    checkpointer_config = CheckpointerConfig(
+        work_dir=common.save_folder,
+    )
     wandb_callback = HeliosWandBCallback(
         name=common.run_name,
         project=WANDB_PROJECT,
         entity=WANDB_USERNAME,
+        cancel_check_interval=100,  # checks for cancel tag on wandb
         enabled=True,  # set to False to avoid wandb errors
     )
     # Safe to collect everys tep for now
@@ -196,7 +201,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=False,
             probe_lr=0.1,
-            eval_interval=Duration.epochs(20),
+            eval_interval=Duration.epochs(10),
         ),
         "sen1floods11": DownstreamTaskConfig(
             dataset="sen1floods11",
@@ -205,25 +210,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
             probe_lr=0.1,
-            eval_interval=Duration.epochs(20),
-        ),
-        "pastis": DownstreamTaskConfig(
-            dataset="pastis",
-            batch_size=8,
-            num_workers=2,
-            pooling_type=PoolingType.MEAN,
-            norm_stats_from_pretrained=True,
-            probe_lr=0.1,
-            eval_interval=Duration.epochs(20),
-        ),
-        "pastis-r": DownstreamTaskConfig(
-            dataset="pastis-r",
-            batch_size=8,
-            num_workers=2,
-            pooling_type=PoolingType.MEAN,
-            norm_stats_from_pretrained=True,
-            probe_lr=0.1,
-            eval_interval=Duration.epochs(20),
+            eval_interval=Duration.epochs(10),
         ),
     }
     trainer_config = (
@@ -247,6 +234,13 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             ),
         )
         .with_callback("garbage_collector", garbage_collector_callback)
+        .with_callback(
+            "checkpointer",
+            CheckpointerCallback(
+                save_interval=PERMANENT_SAVE_INTERVAL,
+                ephemeral_save_interval=EPHERMERAL_SAVE_INTERVAL,
+            ),
+        )
     )
     return trainer_config
 
