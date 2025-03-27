@@ -27,7 +27,7 @@ from torch.distributed.checkpoint.metadata import Metadata
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import Optimizer
-
+from torch.distributed.fsdp import register_fsdp_forward_method
 # move to another file
 from helios.nn.galileo import Galileo
 from helios.nn.latent_mim import LatentMIM
@@ -182,7 +182,7 @@ class HeliosTrainModule(TrainModule):
             f"Data parallel world size = {get_world_size(self.dp_process_group):,d}"
         )
         self.warmup_duration = warmup_duration
-
+        self.model.attach_world_mesh(self.world_mesh)
         # Maybe apply activation checkpointing.
         if ac_config is not None:
             self.model.apply_activation_checkpointing(
@@ -209,6 +209,8 @@ class HeliosTrainModule(TrainModule):
                     dp_mesh=dp_mesh,
                 )
                 logger.info("Applied FSDP to the model")
+                register_fsdp_forward_method(self.model, "forward_a")
+                register_fsdp_forward_method(self.model, "forward_b")
             elif dp_config.name == DataParallelType.ddp:
                 self.model.apply_ddp(dp_mesh=dp_mesh, compile_enabled=compile_model)
                 logger.info("Applied DDP to the model")
@@ -225,6 +227,8 @@ class HeliosTrainModule(TrainModule):
             self.model,
         )
 
+        # We need to be able to access the world mesh from the model to create DTensor objects
+        self.model.world_mesh = self.world_mesh
         self.rank_microbatch_size = rank_microbatch_size
         self.autocast_precision = autocast_precision
         self.max_grad_norm = max_grad_norm

@@ -3,6 +3,7 @@
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Optional
+import logging
 
 import torch
 import torch.nn as nn
@@ -15,8 +16,8 @@ from helios.nn.flexihelios import (EncoderConfig, PredictorConfig,
                                    TokensAndMasks)
 from helios.nn.utils import DistributedMixins
 from helios.train.masking import MaskedHeliosSample
-
-
+from torch.distributed.fsdp import register_fsdp_forward_method
+logger = logging.getLogger(__name__)
 class Galileo(nn.Module, DistributedMixins):
     """Galileo Style."""
 
@@ -59,6 +60,17 @@ class Galileo(nn.Module, DistributedMixins):
         decoded = self.decoder_b(latent, timestamps=x.timestamps, patch_size=patch_size)
         return decoded
 
+
+    def attach_world_mesh(self, world_mesh: DeviceMesh) -> None:
+        """Attach the world mesh to the model."""
+        self.world_mesh = world_mesh
+        self.encoder.world_mesh = world_mesh
+        self.encoder.patch_embeddings.world_mesh = world_mesh
+        self.decoder_a.world_mesh = world_mesh
+        self.decoder_b.world_mesh = world_mesh
+        self.target_encoder.world_mesh = world_mesh
+
+
     def apply_fsdp(
         self,
         dp_mesh: Optional[DeviceMesh] = None,
@@ -68,11 +80,15 @@ class Galileo(nn.Module, DistributedMixins):
     ) -> None:
         """Apply FSDP to the model."""
         fsdp_config = dict(mesh=dp_mesh)
-        self.encoder.apply_fsdp(**fsdp_config)
-        self.decoder_a.apply_fsdp(**fsdp_config)
-        self.decoder_b.apply_fsdp(**fsdp_config)
-        self.target_encoder.apply_fsdp(**fsdp_config)
+
+        fully_shard(self.encoder, **fsdp_config)
+        fully_shard(self.decoder_b, **fsdp_config)
+        fully_shard(self.decoder_a, **fsdp_config)
+        fully_shard(self.target_encoder, **fsdp_config)
+        # TODO: More finegrained wrapping next time
         fully_shard(self, **fsdp_config)
+        register_fsdp_forward_method(self, "forward_a")
+        register_fsdp_forward_method(self, "forward_b")
 
 
 @dataclass

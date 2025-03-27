@@ -248,9 +248,9 @@ class GalileoTrainModule(HeliosTrainModule):
                 logger.info(
                     f"Training microbatch {microbatch_idx} of {num_microbatches} with batch size {microbatch.batch_size}"
                 )
-                # IN FSDP because we use a NAMED TUPLE WE NEED TO MANUALLY MOVE THE TENSORS TO THE DEVICE
                 microbatch = self.model.transform.apply(microbatch)
-                microbatch = microbatch.distribute_tensors(self.world_mesh)
+                logger.info(f"model mesh: {self.model.world_mesh}")
+                microbatch = microbatch.to_device(self.device)
 
 
                 if microbatch_idx % 2 == 0:
