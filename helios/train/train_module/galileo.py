@@ -252,7 +252,6 @@ class GalileoTrainModule(HeliosTrainModule):
                     f"Training microbatch {microbatch_idx} of {num_microbatches} with batch size {microbatch.batch_size}"
                 )
                 microbatch = self.model.transform.apply(microbatch)
-                logger.info(f"model mesh: {self.model.world_mesh}")
                 microbatch = microbatch.to_device(self.device)
 
 
