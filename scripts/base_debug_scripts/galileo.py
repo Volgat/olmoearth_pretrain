@@ -111,12 +111,12 @@ def build_train_module_config(
     )
     loss_config_a = LossConfig(
         loss_config={
-            "type": "patch_discrimination",
+            "type": "patch_discrimination_new",
         }
     )
     loss_config_b = LossConfig(
         loss_config={
-            "type": "patch_discrimination",
+            "type": "patch_discrimination_new",
         }
     )
     token_exit_cfg_a = {
