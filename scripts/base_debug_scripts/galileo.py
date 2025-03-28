@@ -26,6 +26,7 @@ from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
 from helios.data.normalize import Strategy
+from helios.data.transform import TransformConfig
 from helios.internal.common import build_common_components
 from helios.internal.experiment import CommonComponents, HeliosVisualizeConfig, main
 from helios.nn.flexihelios import EncoderConfig, PoolingType, PredictorConfig
@@ -56,7 +57,6 @@ def build_model_config(common: CommonComponents) -> GalileoConfig:
     DECODER_NUM_HEADS = 8
     MLP_RATIO = 4.0
 
-    TRANSFORM_TYPE = "flip_and_rotate"
     encoder_config = EncoderConfig(
         supported_modality_names=common.supported_modality_names,
         embedding_size=ENCODER_EMBEDDING_SIZE,
@@ -81,7 +81,6 @@ def build_model_config(common: CommonComponents) -> GalileoConfig:
     model_config = GalileoConfig(
         encoder_config=encoder_config,
         decoder_config=decoder_config,
-        transform_type=TRANSFORM_TYPE,
     )
     return model_config
 
@@ -127,7 +126,10 @@ def build_train_module_config(
         Modality.WORLDCOVER.name: 0,
     }
     token_exit_cfg_b = {modality: 0 for modality in common.supported_modality_names}
-
+    TRANSFORM_TYPE = "flip_and_rotate"
+    transform_config = TransformConfig(
+        transform_type=TRANSFORM_TYPE,
+    )
     WARMUP_EPOCHS = 10
     dp_config = DataParallelConfig(name=DataParallelType.ddp)
 
@@ -136,6 +138,7 @@ def build_train_module_config(
     train_module_config = GalileoTrainModuleConfig(
         # TODO: change name to optim config
         optim_config=optim_config,
+        transform_config=transform_config,
         warmup_duration=Duration.epochs(WARMUP_EPOCHS),
         masking_config_a=masking_config_a,
         masking_config_b=masking_config_b,

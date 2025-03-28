@@ -21,6 +21,7 @@ from olmo_core.train.config import TrainerConfig
 from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
+from helios.data.transform import TransformConfig
 from helios.internal.common import build_common_components
 from helios.internal.experiment import CommonComponents, main
 from helios.nn.flexihelios import (
@@ -60,7 +61,6 @@ def build_model_config(common: CommonComponents) -> MAEConfig:
     ENCODER_NUM_HEADS = 8
     DECODER_NUM_HEADS = 8
     MLP_RATIO = 4.0
-    TRANSFORM_TYPE = "flip_and_rotate"
     encoder_config = EncoderConfig(
         supported_modality_names=MAE_MODALITIES,
         embedding_size=ENCODER_EMBEDDING_SIZE,
@@ -92,7 +92,6 @@ def build_model_config(common: CommonComponents) -> MAEConfig:
         encoder_config=encoder_config,
         decoder_config=decoder_config,
         reconstructor_config=reconstructor_config,
-        transform_type=TRANSFORM_TYPE,
     )
     return model_config
 
@@ -120,7 +119,10 @@ def build_train_module_config(
         }
     )
     token_exit_cfg = {modality: 4 for modality in common.supported_modality_names}
-
+    TRANSFORM_TYPE = "flip_and_rotate"
+    transform_config = TransformConfig(
+        transform_type=TRANSFORM_TYPE,
+    )
     WARMUP_EPOCHS = 2
     dp_config = DataParallelConfig(name=DataParallelType.ddp)
 
@@ -137,6 +139,7 @@ def build_train_module_config(
         max_grad_norm=1.0,
         dp_config=dp_config,
         scheduler=scheduler,
+        transform_config=transform_config,
     )
     return train_module_config
 
