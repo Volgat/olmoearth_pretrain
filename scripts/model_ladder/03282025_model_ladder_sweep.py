@@ -23,6 +23,14 @@ Eurosat best:
 
 import subprocess  # nosec
 
+MASKING_TYPES = [
+    "random",
+    "time",
+    "space",
+    "modality",
+    "space_time",
+    "modality_space_time",
+]
 MODEL_SIZE_ARGS = {
     "base": {
         "decoder_depth": 12,
@@ -74,21 +82,24 @@ BASE_COMMAND = (
     "--model.decoder_config.num_heads={decoder_num_heads} "
     "--model.encoder_config.mlp_ratio={mlp_ratio} "
     "--model.decoder_config.mlp_ratio={mlp_ratio} "
+    "--train_module.masking_config.strategy_config.type={masking_type} "
     "--launch.num_gpus=4"
 )
 
 # Iterate over all combinations of hyperparameters
 for size_str, args in MODEL_SIZE_ARGS.items():
     # Construct run name indicating hyperparameters
-    run_name = f"4latent_mim_random_masking_patch_disc_new_exit_zero_{size_str}"
+    for masking_type in MASKING_TYPES:
+        run_name = f"5latent_mim_{masking_type}_patch_disc_new_exit_zero_{size_str}"
 
-    # Construct full command
-    command = BASE_COMMAND.format(
-        run_name=run_name,
-        **args,
-    )
+        # Construct full command
+        command = BASE_COMMAND.format(
+            run_name=run_name,
+            **args,
+            masking_type=masking_type,
+        )
 
-    print(f"Launching: {command}")
+        print(f"Launching: {command}")
 
-    # # Execute the command
-    subprocess.run(command, shell=True, check=True)  # nosec
+        # # Execute the command
+        subprocess.run(command, shell=True, check=True)  # nosec
