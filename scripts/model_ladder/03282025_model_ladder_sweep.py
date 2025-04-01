@@ -92,7 +92,7 @@ BASE_COMMAND = (
 for size_str, args in MODEL_SIZE_ARGS.items():
     # Construct run name indicating hyperparameters
     for masking_type in MASKING_TYPES:
-        run_name = f"5latent_mim_{masking_type}_patch_disc_new_exit_zero_{size_str}"
+        run_name = f"6latent_mim_{masking_type}_patch_disc_new_exit_zero_{size_str}"
 
         # Construct full command
         command = BASE_COMMAND.format(
