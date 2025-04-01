@@ -1096,13 +1096,12 @@ class Encoder(FlexiHeliosBase):
 
         # Apply attn with varying encoder depths
         for i_blk, blk in enumerate(self.blocks):
-            # Skip the zeroth block because we want to use the exited tokens that don't have encodings
+            # Skip the zeroth block because we want to use the exited tokens that don't have encodings as this allows trivial solution of predicting the shared encodings
             if (exit_ids_seq is not None) and (i_blk > 0):
                 # this should only ever be called by the target encoder,
                 # in a torch.no_grad context
                 assert exited_tokens is not None
                 # If a token should exit, then we update the exit token with the current token at the same position
-                # Make sure varied is correct here
                 exited_tokens = torch.where(
                     condition=(exit_ids_seq == i_blk),
                     input=tokens,
