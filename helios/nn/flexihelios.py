@@ -1083,21 +1083,6 @@ class Encoder(FlexiHeliosBase):
         )
         # exited tokens are just the linear projection
         exited_tokens, _ = self.collapse_and_combine_hwtc(x)
-        # Get the keys of the modalities that should exit at depth 0
-        if token_exit_cfg:
-            exit_zero_modality_tokens_dict = {
-                k: v for k, v in tokens_only_dict.items() if token_exit_cfg[k] == 0
-            }
-            # Get the keys of the modalities that should exit at depth 0
-            # Remove modalities that exit at depth 0 from tokens_only_dict
-            exit_zero_modality_tokens_dict = {
-                k: v
-                for k, v in tokens_only_dict.items()
-                if token_exit_cfg and token_exit_cfg.get(k) == 0
-            }
-            # Remove these keys from tokens_only_dict
-            for k in exit_zero_modality_tokens_dict:
-                tokens_only_dict.pop(k)
 
         tokens_dict = self.composite_encodings.forward(
             tokens_only_dict,
@@ -1105,8 +1090,6 @@ class Encoder(FlexiHeliosBase):
             patch_size,
             input_res,
         )
-        if token_exit_cfg:
-            tokens_dict.update(exit_zero_modality_tokens_dict)
         tokens_dict.update(original_masks_dict)
         x, mask = self.collapse_and_combine_hwtc(tokens_dict)
 
@@ -1117,13 +1100,16 @@ class Encoder(FlexiHeliosBase):
             exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, mask)
             # still linear projections
             exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, mask)
+
         # Apply attn with varying encoder depths
         for i_blk, blk in enumerate(self.blocks):
-            if exit_ids_seq is not None:
+            # Skip the zeroth block because we want to use the exited tokens that don't have encodings
+            if (exit_ids_seq is not None) and (i_blk > 0):
                 # this should only ever be called by the target encoder,
                 # in a torch.no_grad context
                 assert exited_tokens is not None
                 # If a token should exit, then we update the exit token with the current token at the same position
+                # Make sure varied is correct here
                 exited_tokens = torch.where(
                     condition=(exit_ids_seq == i_blk),
                     input=tokens,
