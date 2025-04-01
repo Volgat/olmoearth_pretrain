@@ -121,7 +121,7 @@ def test_mae_with_loss(
     )
     transform = TransformConfig(transform_type="no_transform").build()
     mae = MAE(encoder, predictor, reconstructor, transform)
-    output = mae.forward(x, patch_size)
+    _, output = mae.forward(x, patch_size)
     assert output.sentinel2_l2a is not None
     assert output.sentinel2_l2a_mask is not None
     assert x.sentinel2_l2a is not None
