@@ -221,25 +221,25 @@ class MaskingStrategy:
         encode_tokens = int(num_tokens * self.encode_ratio)
         decode_tokens = int(num_tokens * self.decode_ratio)
         target_tokens = int(num_tokens - (encode_tokens + decode_tokens))
-
-        # we do this as a numpy array to take advantage of
-        # numpy's permuted function
-        flat_mask_tokens = np.concatenate(
-            (
-                np.ones(target_tokens, dtype=np.int_)
-                * MaskValue.TARGET_ENCODER_ONLY.value,
-                np.ones(decode_tokens, dtype=np.int_) * MaskValue.DECODER.value,
-                np.ones(encode_tokens, dtype=np.int_) * MaskValue.ONLINE_ENCODER.value,
-            )
+        flat_mask_tokens = torch.cat(
+            [
+                torch.full(
+                    (encode_tokens,), MaskValue.ONLINE_ENCODER.value, device=device
+                ),
+                torch.full((decode_tokens,), MaskValue.DECODER.value, device=device),
+                torch.full(
+                    (target_tokens,), MaskValue.TARGET_ENCODER_ONLY.value, device=device
+                ),
+            ]
         )
-        if modality.is_spatial or modality.is_multitemporal:
-            flat_mask_tokens = repeat(flat_mask_tokens, "t -> b t", b=b)
-            flat_mask_tokens = self.generator.permuted(flat_mask_tokens, axis=1)
-        else:
-            flat_mask_tokens = self.generator.permuted(flat_mask_tokens)
 
-        mask = torch.as_tensor(flat_mask_tokens, device=device)
-        mask = mask.view(*mask_shape)
+        if modality.is_spatial or modality.is_multitemporal:
+            masks = [flat_mask_tokens[torch.randperm(num_tokens)] for i in range(b)]
+            flat_mask_tokens = torch.stack(masks)
+        else:
+            flat_mask_tokens = flat_mask_tokens[torch.randperm(num_tokens)]
+
+        mask = flat_mask_tokens.view(*mask_shape)
         if modality.is_spatial:
             mask = repeat(
                 mask, "b h w ... -> b (h hp) (w wp) ...", hp=patch_size, wp=patch_size
