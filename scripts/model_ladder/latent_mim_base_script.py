@@ -84,7 +84,7 @@ def build_train_module_config(
 ) -> LatentMIMTrainModuleConfig:
     """Build the train module config for an experiment."""
     LR = 2e-3
-    RANK_MICROBATCH_SIZE = 16
+    RANK_MICROBATCH_SIZE = 32
     ENCODE_RATIO = 0.1
     DECODE_RATIO = 0.74
     WD = 2e-3
@@ -116,6 +116,7 @@ def build_train_module_config(
         loss_config=loss_config,
         rank_microbatch_size=RANK_MICROBATCH_SIZE,
         token_exit_cfg=token_exit_cfg,
+        autocast_precision="bfloat16",
         max_grad_norm=1.0,
         dp_config=dp_config,
         scheduler=scheduler,
