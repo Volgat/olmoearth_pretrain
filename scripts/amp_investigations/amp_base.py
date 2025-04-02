@@ -2,7 +2,6 @@
 
 import logging
 
-import torch
 from olmo_core.config import DType
 from olmo_core.distributed.parallel.data_parallel import (
     DataParallelConfig,
@@ -41,9 +40,6 @@ logger = logging.getLogger(__name__)
 
 MAX_PATCH_SIZE = 8
 MIN_PATCH_SIZE = 1
-
-
-
 
 
 def build_model_config(common: CommonComponents) -> LatentMIMConfig:

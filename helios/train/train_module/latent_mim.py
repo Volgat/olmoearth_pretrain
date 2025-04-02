@@ -237,7 +237,7 @@ class LatentMIMTrainModule(HeliosTrainModule):
 
     def model_forward(
         self, batch: MaskedHeliosSample, patch_size: int, token_exit_cfg: dict[str, int]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Run a forward pass."""
         with self._model_forward_context():
             decoded = self.model.forward(batch, patch_size)
@@ -249,4 +249,4 @@ class LatentMIMTrainModule(HeliosTrainModule):
                     token_exit_cfg=token_exit_cfg,
                 )
             loss = self.loss_fn(decoded, target_output)
-            return loss,decoded, target_output
+            return loss, decoded, target_output
