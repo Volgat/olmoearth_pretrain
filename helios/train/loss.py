@@ -14,7 +14,7 @@ from olmo_core.config import Config
 from torch import Tensor
 
 from helios.data.constants import Modality
-from helios.nn.flexihelios import TokensAndMasks
+from helios.nn.flexihelios import PoolingType, TokensAndMasks
 from helios.train.masking import MaskValue
 
 logger = logging.getLogger(__name__)
@@ -530,14 +530,19 @@ class KoLeoLoss(Loss):
 
     name = "KoLeo"
 
-    def __init__(self, eps: float = 1e-8) -> None:
+    def __init__(self, eps: float = 1e-8, mode: str = "instance") -> None:
         """Initialize KoLeo regularizer.
 
         Args:
             eps: small value to avoid division by zero.
+            mode: one of "instance" or "patch" - whether to compute
+                nearest neighbourst at the instance or patch level
         """
         self.eps = eps
         self.pdist = torch.nn.PairwiseDistance(2, eps=eps)
+        if mode not in ["instance", "patch"]:
+            raise ValueError(f"Unsupported mode {mode}")
+        self.mode = mode
 
     @staticmethod
     def pairwise_nearest_neighbours(x: torch.Tensor) -> torch.Tensor:
@@ -574,8 +579,13 @@ class KoLeoLoss(Loss):
         Returns:
             The computed loss value.
         """
-        all_preds, all_masks = predictions.flatten_tokens_and_masks()
-        online_encodings = all_preds[all_masks == MaskValue.ONLINE_ENCODER.value]
+        if self.mode == "patch":
+            all_preds, all_masks = predictions.flatten_tokens_and_masks()
+            online_encodings = all_preds[all_masks == MaskValue.ONLINE_ENCODER.value]
+        else:
+            online_encodings = predictions.pool_unmasked_tokens(
+                PoolingType.MEAN, spatial_pooling=False
+            )
 
         # apply l2 norm
         online_encodings = F.normalize(online_encodings, eps=self.eps, p=2, dim=-1)
