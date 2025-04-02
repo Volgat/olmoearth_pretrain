@@ -234,10 +234,15 @@ class MaskingStrategy:
         )
 
         if modality.is_spatial or modality.is_multitemporal:
-            masks = [flat_mask_tokens[torch.randperm(num_tokens)] for i in range(b)]
+            masks = [
+                flat_mask_tokens[torch.randperm(num_tokens, device=device)]
+                for i in range(b)
+            ]
             flat_mask_tokens = torch.stack(masks)
         else:
-            flat_mask_tokens = flat_mask_tokens[torch.randperm(num_tokens)]
+            flat_mask_tokens = flat_mask_tokens[
+                torch.randperm(num_tokens, device=device)
+            ]
 
         mask = flat_mask_tokens.view(*mask_shape)
         if modality.is_spatial:
