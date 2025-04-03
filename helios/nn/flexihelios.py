@@ -888,7 +888,10 @@ class FlexiHeliosBase(nn.Module):
         for block in self.blocks:
             block.apply_fsdp(**fsdp_kwargs)
 
-        # fully_shard(self.composite_encodings, **fsdp_kwargs)
+    def apply_compile(self) -> None:
+        """Apply torch.compile to the model."""
+        for block in self.blocks:
+            block.apply_compile()
 
 
 class Encoder(FlexiHeliosBase):

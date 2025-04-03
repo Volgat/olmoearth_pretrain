@@ -163,7 +163,6 @@ def train(config: HeliosExperimentConfig) -> None:
     config_dict = config.as_config_dict()
     cast(WandBCallback, trainer.callbacks["wandb"]).config = config_dict
     cast(ConfigSaverCallback, trainer.callbacks["config_saver"]).config = config_dict
-    warn_tensor_cycles()
     trainer.fit()
 
 

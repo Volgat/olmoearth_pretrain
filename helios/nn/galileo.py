@@ -77,6 +77,13 @@ class Galileo(nn.Module, DistributedMixins):
         register_fsdp_forward_method(self, "forward_a")
         register_fsdp_forward_method(self, "forward_b")
 
+    def apply_compile(self) -> None:
+        """Apply torch.compile to the model."""
+        self.encoder.apply_compile()
+        self.decoder_a.apply_compile()
+        self.decoder_b.apply_compile()
+        self.target_encoder.apply_compile()
+
 
 @dataclass
 class GalileoConfig(Config):
