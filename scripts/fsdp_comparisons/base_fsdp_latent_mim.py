@@ -45,7 +45,9 @@ MIN_PATCH_SIZE = 1
 def build_model_config(common: CommonComponents) -> LatentMIMConfig:
     """Build the model config for an experiment."""
     ENCODER_EMBEDDING_SIZE = 1536
-    DECODER_EMBEDDING_SIZE = 1536 # we should try to do this with a full depth just to check
+    DECODER_EMBEDDING_SIZE = (
+        1536  # we should try to do this with a full depth just to check
+    )
     ENCODER_DEPTH = 40
     DECODER_DEPTH = 12
     ENCODER_NUM_HEADS = 16
@@ -83,7 +85,7 @@ def build_train_module_config(
     common: CommonComponents,
 ) -> LatentMIMTrainModuleConfig:
     """Build the train module config for an experiment."""
-    LR = 0.002
+    LR = 0.0002
     RANK_MICROBATCH_SIZE = 64
     ENCODE_RATIO = 0.1
     DECODE_RATIO = 0.75
@@ -133,7 +135,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     # TODO: Include collate function here
 
     NUM_WORKERS = 2
-    GLOBAL_BATCH_SIZE = 512
+    GLOBAL_BATCH_SIZE = 256
     PREFETCH_FACTOR = 4
     TOKEN_BUDGET = 1500
 
