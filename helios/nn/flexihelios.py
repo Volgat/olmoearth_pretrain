@@ -981,8 +981,8 @@ class Encoder(FlexiHeliosBase):
         Implementation from https://stackoverflow.com/a/68621610/2332296
 
         On Input:
-        1 means this token should be removed
-        0 means this token should be kept
+        0 means this token should be removed
+        1 means this token should be kept
 
         Args:
             x: Tokens to remove masked tokens from
@@ -994,12 +994,8 @@ class Encoder(FlexiHeliosBase):
             updated_mask: [B, T]
             where T is the max number of unmasked tokens for an instance
         """
-        org_mask_dtype = mask.dtype
-        mask = mask.bool()
         # At this point when we flip the mask 1 means keep 0 means remove
-        sorted_mask, indices = torch.sort(
-            (~mask).int(), dim=1, descending=True, stable=True
-        )
+        sorted_mask, indices = torch.sort(mask, dim=1, descending=True, stable=True)
         # Now all the places where we want to keep the token are at the front of the tensor
         x = x.gather(1, indices[:, :, None].expand_as(x))
         # Now all tokens that should be kept are first in the tensor
@@ -1011,9 +1007,9 @@ class Encoder(FlexiHeliosBase):
         max_length = sorted_mask.sum(-1).max()
         x = x[:, :max_length]
         # New mask chopped to the longest sequence
-        updated_mask = 1 - sorted_mask[:, :max_length]
+        updated_mask = sorted_mask[:, :max_length]
 
-        return x, indices, updated_mask.to(dtype=org_mask_dtype)
+        return x, indices, updated_mask
 
     @staticmethod
     def add_removed_tokens(
@@ -1039,7 +1035,7 @@ class Encoder(FlexiHeliosBase):
         full_mask = torch.cat(
             (
                 mask,
-                torch.ones(
+                torch.zeros(
                     (x.shape[0], indices.shape[1] - x.shape[1]),
                     device=x.device,
                     dtype=mask.dtype,
@@ -1050,7 +1046,7 @@ class Encoder(FlexiHeliosBase):
         # can't set value on leaf variable
         out = masked_tokens.clone()
         # put tokens in full masked tensor (at the first N positions in every row)
-        out[~full_mask.bool()] = x[~mask.bool()]
+        out[full_mask] = x[mask]
         # then move them to their original positions
         out = out.scatter(1, indices[:, :, None].expand_as(out), out)
         full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
@@ -1106,13 +1102,13 @@ class Encoder(FlexiHeliosBase):
         tokens_dict.update(original_masks_dict)
         x, mask = self.collapse_and_combine_hwtc(tokens_dict)
 
-        new_mask = mask != MaskValue.ONLINE_ENCODER.value
+        bool_mask = mask == MaskValue.ONLINE_ENCODER.value
 
-        tokens, indices, new_mask = self.remove_masked_tokens(x, new_mask)
+        tokens, indices, new_mask = self.remove_masked_tokens(x, bool_mask)
         if exit_ids_seq is not None:
-            exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, mask)
+            exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, bool_mask)
             # still linear projections
-            exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, mask)
+            exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, bool_mask)
 
         # Apply attn with varying encoder depths
         for i_blk, blk in enumerate(self.blocks):
@@ -1131,7 +1127,7 @@ class Encoder(FlexiHeliosBase):
             # of True indicates the value *should* take part in
             # attention
             # WARNING: THIS MAY CHANGE DEPENDING ON THE ATTENTION IMPLEMENTATION
-            tokens = blk(x=tokens, y=None, attn_mask=~new_mask.bool())
+            tokens = blk(x=tokens, y=None, attn_mask=new_mask)
 
         if exit_ids_seq is not None:
             # this should only ever be called by the target encoder,
