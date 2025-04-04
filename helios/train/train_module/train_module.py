@@ -192,6 +192,11 @@ class HeliosTrainModule(TrainModule):
             "Number of encoder parameters: %d",
             sum(p.numel() for p in self.model.encoder.parameters()),
         )
+        if hasattr(self.model, "decoder"):
+            logger.info(
+                "Number of decoder parameters: %d",
+                sum(p.numel() for p in self.model.decoder.parameters()),
+            )
 
         self.device = device or get_default_device()
         self.world_mesh = build_world_mesh(dp=dp_config, device_type=self.device.type)
@@ -220,9 +225,16 @@ class HeliosTrainModule(TrainModule):
         if dp_config is not None:
             dp_mesh = get_dp_mesh(self.world_mesh)
             if dp_config.name in (DataParallelType.fsdp):
+                param_dtype = (
+                    dp_config.param_dtype.as_pt()
+                    if dp_config.param_dtype is not None
+                    else None
+                )
                 # TODO: MIXED PRecision is not yet supported
                 self.model.apply_fsdp(
                     dp_mesh=dp_mesh,
+                    param_dtype=param_dtype,
+                    reduce_dtype=dp_config.reduce_dtype.as_pt(),
                 )
                 logger.info("Applied FSDP to the model")
             elif dp_config.name == DataParallelType.ddp:
@@ -479,10 +491,9 @@ class HeliosTrainModule(TrainModule):
             for param, target_param in zip(
                 self.model.encoder.parameters(), self.model.target_encoder.parameters()
             ):
-                # TODO: Make this an in place operation
-                target_param.data = cur_ema_value * get_full_tensor(
-                    target_param.data
-                ) + (1 - cur_ema_value) * get_full_tensor(param.data)
+                get_full_tensor(target_param.data).mul_(cur_ema_value).add_(
+                    get_full_tensor(param.data), alpha=(1 - cur_ema_value)
+                )
 
     def eval_batch(
         self, batch: dict[str, Any], labels: torch.Tensor | None = None

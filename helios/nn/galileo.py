@@ -8,7 +8,11 @@ import torch
 import torch.nn as nn
 from olmo_core.config import Config
 from torch.distributed import DeviceMesh
-from torch.distributed.fsdp import fully_shard, register_fsdp_forward_method
+from torch.distributed.fsdp import (
+    MixedPrecisionPolicy,
+    fully_shard,
+    register_fsdp_forward_method,
+)
 
 from helios.nn.flexihelios import EncoderConfig, PredictorConfig, TokensAndMasks
 from helios.nn.utils import DistributedMixins
@@ -65,7 +69,10 @@ class Galileo(nn.Module, DistributedMixins):
         prefetch_factor: int = 0,
     ) -> None:
         """Apply FSDP to the model."""
-        fsdp_config = dict(mesh=dp_mesh)
+        mp_policy = MixedPrecisionPolicy(
+            param_dtype=param_dtype, reduce_dtype=reduce_dtype
+        )
+        fsdp_config = dict(mesh=dp_mesh, mp_policy=mp_policy)
 
         self.encoder.apply_fsdp(**fsdp_config)
         self.decoder_a.apply_fsdp(**fsdp_config)

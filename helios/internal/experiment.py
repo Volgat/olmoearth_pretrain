@@ -147,7 +147,7 @@ def train(config: HeliosExperimentConfig) -> None:
     seed_all(config.init_seed)
 
     # Build components.
-    # TODO: Setup init device arg and allow the model to be inited on device of our choice rather than moved over
+    # TODO: Setup init device arg and allow the model to be inited on device of our choice rather than moved over allowing for meta
     model = config.model.build()
     device = get_default_device()
     model = model.to(device)
