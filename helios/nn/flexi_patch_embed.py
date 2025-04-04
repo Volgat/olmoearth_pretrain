@@ -71,7 +71,8 @@ class FlexiPatchEmbed(nn.Module):
         self.patch_size_seq = patch_size_seq
 
         # Pre-calculate pinvs
-        self.pinvs = self._cache_pinvs()
+        self.pinvs = ParameterDict()
+        self._cache_pinvs()
 
     @staticmethod
     def to_2tuple(x: Any) -> Any:
@@ -93,15 +94,13 @@ class FlexiPatchEmbed(nn.Module):
             return tuple(x)
         return (x, x)
 
-    def _cache_pinvs(self) -> ParameterDict:
+    def _cache_pinvs(self) -> None:
         """Pre-calculate all pinv matrices."""
-        pinvs = {}
         for ps in self.patch_size_seq:
             tuple_ps = self.to_2tuple(ps)
-            pinvs[str(tuple_ps)] = Parameter(
+            self.pinvs[str(tuple_ps)] = Parameter(
                 self._calculate_pinv(self.patch_size, tuple_ps), requires_grad=False
             )
-        return ParameterDict(pinvs)
 
     def _resize(self, x: Tensor, shape: tuple[int, int]) -> Tensor:
         """Resize the input tensor to the target shape.
