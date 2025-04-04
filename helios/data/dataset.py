@@ -646,9 +646,10 @@ class HeliosDataset(Dataset):
                 for modality in sample.modalities
                 if not modality.ignore_when_parsing
             ):
+                logger.info("Skipping sample because it has unsupported modalities")
                 continue
 
-            if not self.use_samples_missing_supported_modalities:
+            if self.use_samples_missing_supported_modalities:
                 if any(
                     modality not in sample.modalities
                     for modality in self.supported_modalities
