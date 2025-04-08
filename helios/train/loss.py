@@ -514,6 +514,50 @@ class CrossEntropyLoss(Loss):
         return F.cross_entropy(pred, target.squeeze())
 
 
+@LOSS_REGISTRY.register("InfoNCE")
+class InfoNCELoss(Loss):
+    """Loss function for InfoNCE."""
+
+    name = "InfoNCE"
+
+    def __init__(
+        self,
+        tau: float = 0.1,
+    ):
+        """Initialize adjusted patch discrimination loss.
+
+        Args:
+            tau: the softmax temperature
+        """
+        self.tau = tau
+
+    def compute(
+        self, predictions: TokensAndMasks, targets: TokensAndMasks, **kwargs: Any
+    ) -> Tensor:
+        """Compute InfoNCE between predictions and targets.
+
+        Args:
+            predictions: Model predictions.
+            targets: Ground truth targets.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The computed loss value.
+        """
+        online_encodings_a = predictions.pool_unmasked_tokens(
+            PoolingType.MEAN, spatial_pooling=False
+        )
+        online_encodings_b = predictions.pool_unmasked_tokens(
+            PoolingType.MEAN, spatial_pooling=False
+        )
+        logits = online_encodings_a @ online_encodings_b.transpose(-2, -1)
+
+        # Positive keys are the entries on the diagonal
+        labels = torch.arange(len(online_encodings_a), device=online_encodings_a.device)
+
+        return F.cross_entropy(logits / self.tau, labels)
+
+
 @LOSS_REGISTRY.register("KoLeo")
 class KoLeoLoss(Loss):
     """Loss function for cross entropy.
