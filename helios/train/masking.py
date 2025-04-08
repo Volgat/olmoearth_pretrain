@@ -554,9 +554,10 @@ class ModalityMaskingStrategy(MaskingStrategy):
             for i in range(batch.batch_size)
         ]
         random_batch_mask = torch.stack(batch_masks)
-        for idx, modality in enumerate(present_modalities):
-            instance = getattr(batch, modality)
-            output_dict[modality] = instance
+        for idx, modality_name in enumerate(present_modalities):
+            instance = getattr(batch, modality_name)
+            output_dict[modality_name] = instance
+            modality = Modality.get(modality_name)
 
             if isinstance(instance, torch.Tensor):
                 device: torch.device | None = instance.device
@@ -565,13 +566,15 @@ class ModalityMaskingStrategy(MaskingStrategy):
 
             modality_mask = torch.tensor(random_batch_mask[:, idx], device=device)
             shape = instance.shape
-            b_s = shape[-1]
+            b_s = modality.num_band_sets
             b, h, w, t = list(shape[:-1]) + [1] * (4 - len(shape[:-1]))
             mask = repeat(modality_mask, "b -> b h w t b_s", h=h, w=w, b_s=b_s, t=t)
             # Ensure we don't do index_put_ on expanded tensors is deprecated.
-            mask = mask.view(*shape).contiguous()
+            mask = mask.view(*shape[:-1], b_s).contiguous()
             mask = self.fill_mask_with_missing_values(instance, mask)
-            output_dict[MaskedHeliosSample.get_masked_modality_name(modality)] = mask
+            output_dict[MaskedHeliosSample.get_masked_modality_name(modality_name)] = (
+                mask
+            )
 
         return MaskedHeliosSample(**output_dict)
 

@@ -155,7 +155,6 @@ def test_mae_with_loss(
                 "month_embed",
                 "composite_encodings.per_modality_channel_embeddings.worldcover",
                 "patch_embeddings.per_modality_embeddings.worldcover",
-                "pinv",
             ]
         ):
             assert param.grad is not None, name
