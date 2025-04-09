@@ -78,9 +78,10 @@ def main() -> None:
         raise FileNotFoundError(f"Base script not found: {args.base_script_path}")
 
     # Base command template using the provided script path
+    print(f"Base script path: {args.base_script_path}")
     base_command = (
         f"python3 {args.base_script_path} "
-        f"dry_run {{run_name}} {args.cluster} "
+        f"launch {{run_name}} {args.cluster} "
         f"--dataset.h5py_dir=/weka/dfive-default/helios/dataset/presto/h5py_data/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/118861 "
         f"{{modality_args}}"
     )
@@ -90,7 +91,7 @@ def main() -> None:
         # Generate a descriptive name for the run
         modality_combo_name = "_".join([m.name.lower() for m in modality_combo])
         script_name = os.path.basename(args.base_script_path).replace(".py", "")
-        run_name = f"{script_name}_modalities_{modality_combo_name}"
+        run_name = f"new_filtering_{script_name}_modalities_{modality_combo_name}"
 
         # Format the modality arguments
         modality_args = format_training_modalities(modality_combo)
