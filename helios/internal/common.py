@@ -23,7 +23,7 @@ WORKSPACE = "ai2/earth-systems"
 DEFAULT_HELIOS_WEKA_BUCKET = BeakerWekaBucket("dfive-default", "/weka/dfive-default")
 PROJECT_NAME = "helios"
 
-WEKA_CLUSTER_NAMES = ["jupiter", "saturn", "neptune", "ceres", "triton"]
+WEKA_CLUSTER_NAMES = ["jupiter", "saturn", "neptune", "ceres", "triton", "titan"]
 
 
 def get_root_dir(cluster: str) -> str:
