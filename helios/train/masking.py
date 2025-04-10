@@ -704,6 +704,57 @@ class RandomMaskingStrategy(MaskingStrategy):
         return MaskedHeliosSample(**output_dict)
 
 
+@MASKING_STRATEGY_REGISTRY.register("selectable_modality")
+class SelectableModalityMaskingStrategy(MaskingStrategy):
+    """Like modality masking but we mask some for decoding and others fully.
+
+    Plus we also apply random masking for the remaining modalities.
+    """
+
+    def __init__(
+        self,
+        decodable_modalities: list[str],
+        fully_mask_modalities: list[str],
+        max_to_mask: int,
+        encode_ratio: float = 0.5,
+        decode_ratio: float = 0.5,
+    ) -> None:
+        """Initialize the masking strategy."""
+        self.decodable_modalities = decodable_modalities
+        self.fully_mask_modalities = fully_mask_modalities
+        self.max_to_mask = max_to_mask
+        self._encode_ratio = encode_ratio
+        self._decode_ratio = decode_ratio
+        self.generator = np.random.default_rng(0)
+        self.random_strategy = RandomMaskingStrategy(encode_ratio, decode_ratio)
+
+    def apply_mask(
+        self, batch: HeliosSample, patch_size: int | None = None, **kwargs: Any
+    ) -> MaskedHeliosSample:
+        """Apply random masking, plus mask certain additional modalities."""
+        # First apply random masking.
+        masked_sample = self.random_strategy.apply_mask(batch, patch_size, **kwargs)
+
+        # Choose additional modalities to mask entirely (either set DECODER or
+        # MISSING).
+        all_modalities = self.decodable_modalities + self.fully_mask_modalities
+        modality_indices = np.arange(len(all_modalities))
+        self.generator.shuffle(modality_indices)
+        num_to_mask = self.generator.integers(self.max_to_mask + 1)
+        cur_mask_modalities = [
+            all_modalities[idx] for idx in modality_indices[0:num_to_mask]
+        ]
+
+        for modality in cur_mask_modalities:
+            if modality in self.decodable_modalities:
+                value = MaskValue.DECODER.value
+            else:
+                value = MaskValue.MISSING.value
+            getattr(masked_sample, modality)[:] = value
+
+        return masked_sample
+
+
 @dataclass
 class MaskingConfig(Config):
     """Configuration for masking strategies.
