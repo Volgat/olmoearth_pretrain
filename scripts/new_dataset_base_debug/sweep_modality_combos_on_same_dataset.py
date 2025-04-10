@@ -91,7 +91,7 @@ def main() -> None:
         # Generate a descriptive name for the run
         modality_combo_name = "_".join([m.name.lower() for m in modality_combo])
         script_name = os.path.basename(args.base_script_path).replace(".py", "")
-        run_name = f"new_filtering_{script_name}_modalities_{modality_combo_name}"
+        run_name = f"new_2filtering_{script_name}_modalities_{modality_combo_name}"
 
         # Format the modality arguments
         modality_args = format_training_modalities(modality_combo)
