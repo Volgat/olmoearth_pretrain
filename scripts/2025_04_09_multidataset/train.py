@@ -181,7 +181,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     CANCEL_CHECK_INTERVAL = 1
     LOAD_STRATEGY = LoadStrategy.if_available
     WANDB_USERNAME = "eai-ai2"  # nosec
-    WANDB_PROJECT = "2025_04_01_helios_multidataset"
+    WANDB_PROJECT = "2025_04_09_helios_multidataset"
     PERMANENT_SAVE_INTERVAL = 5000
     EPHERMERAL_SAVE_INTERVAL = 250
     checkpointer_config = CheckpointerConfig(
