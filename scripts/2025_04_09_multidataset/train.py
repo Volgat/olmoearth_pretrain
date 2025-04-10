@@ -1,7 +1,6 @@
 """Base script for this collection of experiments."""
 
 import logging
-import random
 
 from olmo_core.config import Config, DType
 from olmo_core.distributed.parallel.data_parallel import (
@@ -144,7 +143,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 
     dataloader_config = HeliosDataLoaderConfig(
         global_batch_size=GLOBAL_BATCH_SIZE,
-        seed=random.randint(0, 999999),
+        seed=123456,
         work_dir=common.save_folder,
         num_workers=NUM_WORKERS,
         sampled_hw_p_list=SAMPLE_HW_P_LIST,
