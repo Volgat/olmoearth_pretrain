@@ -10,9 +10,14 @@ import rasterio
 import rasterio.windows
 from pyproj import Transformer
 
-from helios.data.constants import (BASE_RESOLUTION, IMAGE_TILE_SIZE,
-                                   PROJECTION_CRS, Modality, ModalitySpec,
-                                   TimeSpan)
+from helios.data.constants import (
+    BASE_RESOLUTION,
+    IMAGE_TILE_SIZE,
+    PROJECTION_CRS,
+    Modality,
+    ModalitySpec,
+    TimeSpan,
+)
 
 from .parse import GridTile, ModalityTile
 

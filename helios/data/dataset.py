@@ -6,7 +6,6 @@ import random
 from collections.abc import Sequence
 from dataclasses import dataclass
 from math import floor
-from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 import h5py
@@ -14,17 +13,19 @@ import numpy as np
 import pandas as pd
 import torch
 from olmo_core.config import Config, DType
-from olmo_core.distributed.utils import get_fs_local_rank
-from pyproj import Transformer
 from torch.distributed import DeviceMesh
 from torch.distributed.tensor import distribute_tensor
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from upath import UPath
 
-from helios.data.constants import (BASE_RESOLUTION, IMAGE_TILE_SIZE,
-                                   MISSING_VALUE, PROJECTION_CRS, TIMESTAMPS,
-                                   Modality, ModalitySpec)
+from helios.data.constants import (
+    IMAGE_TILE_SIZE,
+    MISSING_VALUE,
+    TIMESTAMPS,
+    Modality,
+    ModalitySpec,
+)
 from helios.data.normalize import Normalizer, Strategy
 from helios.dataset.convert_to_h5py import ConvertToH5py
 from helios.dataset.sample import SampleInformation
@@ -351,18 +352,13 @@ class GetItemArgs(NamedTuple):
 class HeliosDataset(Dataset):
     """Helios dataset."""
 
-    PROJECTION_CRS = PROJECTION_CRS
-    h5py_folder: str = "h5py_data"
-
     def __init__(
         self,
+        h5py_dir: UPath,
+        training_modalities: list[str],
         dtype: DType,
-        training_modalities: list[str] | None = None,
-        h5py_dir: UPath | None = None,
-        tile_path: UPath | None = None,
         normalize: bool = True,
         use_samples_with_missing_supported_modalities: bool = False,
-        multiprocessed_h5_creation: bool = True,
     ):
         """Initialize the dataset.
 
@@ -374,31 +370,18 @@ class HeliosDataset(Dataset):
             :meth:`prepare()` in the main process before doing anything else.
 
         Args:
-            tile_path: The path to the raw dataset (image tile directory). If None we will use the h5py_dir to load the dataset. Mutually exclusive with h5py_dir.
+            h5py_dir: The path to the h5py directory containing preprocessed data.
+            training_modalities: The modalities to use for training.
             dtype: The dtype of the data.
-            use_samples_with_missing_supported_modalities: If True, use samples that are missing a supported modality.
             normalize: If True, apply normalization to the data, if False, do not apply
                 normalization.
-            h5py_dir: The path to the h5py directory containing preprocessed data. If None, the dataset will be created from raw data. Mutually exclusive with tile_path.
-
-            h5py_folder: The folder name to store the h5py files when creating from raw data.
-            multiprocessed_h5_creation: If True, create the h5py files in parallel using multiprocessing.
+            use_samples_with_missing_supported_modalities: If True, use samples that are missing a supported modality.
 
         Returns:
             None
         """
-        if h5py_dir is None and tile_path is None:
-            raise ValueError("Either h5py_dir or tile_path must be provided")
-        if h5py_dir is not None and tile_path is not None:
-            raise ValueError("Only one of h5py_dir or tile_path can be provided")
-        if h5py_dir is not None:
-            self.h5py_dir = h5py_dir
-            self.tile_path = h5py_dir.parent.parent
-        else:
-            self.tile_path = tile_path
-            self.h5py_dir: Path | None = None  # type: ignore
+        self.h5py_dir = h5py_dir
 
-        self.multiprocessed_h5_creation = multiprocessed_h5_creation
         self.training_modalities = training_modalities
         self.use_samples_with_missing_supported_modalities = (
             use_samples_with_missing_supported_modalities
@@ -410,9 +393,6 @@ class HeliosDataset(Dataset):
             self.normalizer_predefined = Normalizer(Strategy.PREDEFINED)
             self.normalizer_computed = Normalizer(Strategy.COMPUTED)
 
-        self._fs_local_rank = get_fs_local_rank()
-        self._work_dir: Path | None = None  # type: ignore
-        self._work_dir_set = False
         self.sample_indices: np.ndarray | None = None
         self.latlon_distribution: np.ndarray | None = None
 
@@ -693,8 +673,10 @@ class HeliosDataset(Dataset):
     def __getitem__(self, args: GetItemArgs) -> tuple[int, HeliosSample]:
         """Get the sample at the given index."""
         if hasattr(self, "sample_indices") and self.sample_indices is not None:
-            args.idx = self.sample_indices[args.idx]
-        h5_file_path = self._get_h5_file_path(args.idx)
+            index = self.sample_indices[args.idx]
+        else:
+            index = args.idx
+        h5_file_path = self._get_h5_file_path(index)
 
         if not h5_file_path.exists():
             raise FileNotFoundError(
