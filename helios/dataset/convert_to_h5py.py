@@ -3,24 +3,27 @@
 import logging
 import multiprocessing as mp
 import os
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 import h5py
 import numpy as np
 import pandas as pd
 from einops import rearrange
+from olmo_core.config import Config
 from tqdm import tqdm
 from upath import UPath
-from olmo_core.config import Config
-from helios.dataset.utils import get_modality_specs_from_names
 
 from helios.data.constants import Modality, ModalitySpec, TimeSpan
 from helios.data.utils import convert_to_db
 from helios.dataset.parse import parse_helios_dataset
-from helios.dataset.sample import (ModalityTile, SampleInformation,
-                                   image_tiles_to_samples,
-                                   load_image_for_sample)
+from helios.dataset.sample import (
+    ModalityTile,
+    SampleInformation,
+    image_tiles_to_samples,
+    load_image_for_sample,
+)
+from helios.dataset.utils import get_modality_specs_from_names
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +31,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ConvertToH5pyConfig(Config):
     """Configuration for converting GeoTiffs to H5py files."""
-    tile_path: str
-    supported_modality_names: list[str]  # List of modality names (e.g., ["SENTINEL2_L2A", "SENTINEL1"])
-    multiprocessed_h5_creation: bool = True
 
+    tile_path: str
+    supported_modality_names: list[
+        str
+    ]  # List of modality names (e.g., ["SENTINEL2_L2A", "SENTINEL1"])
+    multiprocessed_h5_creation: bool = True
 
     def build(self) -> "ConvertToH5py":
         """Build the ConvertToH5py object."""
         return ConvertToH5py(
             tile_path=UPath(self.tile_path),
-            supported_modalities=get_modality_specs_from_names(self.supported_modality_names),
+            supported_modalities=get_modality_specs_from_names(
+                self.supported_modality_names
+            ),
             multiprocessed_h5_creation=self.multiprocessed_h5_creation,
         )
 
@@ -56,6 +63,13 @@ class ConvertToH5py:
         supported_modalities: list[ModalitySpec],
         multiprocessed_h5_creation: bool = True,
     ) -> None:
+        """Initialize the ConvertToH5py object.
+
+        Args:
+            tile_path: The path to the tile directory, containing csvs for each modality and tiles
+            supported_modalities: The list of modalities to convert to h5py that will be available in this dataset
+            multiprocessed_h5_creation: Whether to create the h5py files in parallel
+        """
         self.tile_path = tile_path
         self.supported_modalities = supported_modalities
         self.multiprocessed_h5_creation = multiprocessed_h5_creation
@@ -243,19 +257,13 @@ class ConvertToH5py:
             modality_data = rearrange(image, "c h w -> h w c")
         return modality_data
 
-
     def _filter_samples(
         self, samples: list[SampleInformation]
     ) -> list[SampleInformation]:
         """Filter samples to adjust to the HeliosSample format."""
         logger.info(f"Number of samples before filtering: {len(samples)}")
         filtered_samples = []
-        # For now, we use sentinel2 as the base grid with resolution factor 16
-        # Avoid samples with NAIP which has a resolution factor of 1
-        resolution_factor = Modality.SENTINEL2_L2A.tile_resolution_factor
         for sample in samples:
-            has_landsat = Modality.LANDSAT in sample.modalities
-            has_naip = Modality.NAIP in sample.modalities
             if not all(
                 modality in self.supported_modalities
                 for modality in sample.modalities

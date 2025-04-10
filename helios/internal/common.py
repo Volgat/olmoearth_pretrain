@@ -145,14 +145,14 @@ def build_common_components(
 ) -> CommonComponents:
     """Build the common components for an experiment."""
     TRAINING_MODALITIES = [
-            Modality.SENTINEL2_L2A.name,
-            Modality.SENTINEL1.name,
-            Modality.WORLDCOVER.name,
-            # Modality.SRTM.name,
-            # Modality.NAIP.name,
-            # Modality.LANDSAT.name,
-            # Modality.OPENSTREETMAP_RASTER.name,
-        ]
+        Modality.SENTINEL2_L2A.name,
+        Modality.SENTINEL1.name,
+        Modality.WORLDCOVER.name,
+        # Modality.SRTM.name,
+        # Modality.NAIP.name,
+        # Modality.LANDSAT.name,
+        # Modality.OPENSTREETMAP_RASTER.name,
+    ]
     cmd_to_launch = SubCmd.train
     if cmd == SubCmd.launch_prep:
         cmd_to_launch = SubCmd.prep

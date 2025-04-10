@@ -1,12 +1,17 @@
 """Run the conversion of a dataset to h5py files."""
+
 import logging
 import sys
+from collections.abc import Callable
+from typing import Any
+
+from olmo_core.utils import prepare_cli_environment
 
 from helios.data.constants import Modality
-from olmo_core.utils import prepare_cli_environment
 from helios.dataset.convert_to_h5py import ConvertToH5pyConfig
 
 logger = logging.getLogger(__name__)
+
 
 def build_default_config() -> ConvertToH5pyConfig:
     """Build the default configuration for H5 conversion."""
@@ -25,7 +30,7 @@ def build_default_config() -> ConvertToH5pyConfig:
     )
 
 
-def main(config_builder=build_default_config, *args):
+def main(config_builder: Callable = build_default_config, *args: Any) -> None:
     """Parse arguments, build config, and run the H5 conversion."""
     prepare_cli_environment()
 
@@ -46,5 +51,3 @@ def main(config_builder=build_default_config, *args):
 
 if __name__ == "__main__":
     main()
-
-    crs,col,row,tile_time,image_idx,start_time,end_time

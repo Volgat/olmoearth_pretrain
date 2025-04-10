@@ -70,7 +70,9 @@ class SampleInformation:
                 timestamps = [i.start_time for i in sample_modality.images]
                 dt = pd.to_datetime(timestamps)
                 if len(timestamps) != 12:
-                    raise ValueError("Expected 12 timestamps for multitemporal modality, must adapt if this is to change")
+                    raise ValueError(
+                        "Expected 12 timestamps for multitemporal modality, must adapt if this is to change"
+                    )
                 return np.array([dt.day, dt.month - 1, dt.year]).T
 
         # Now try non-multitemporal modalities as backups

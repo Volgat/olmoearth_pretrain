@@ -3,18 +3,15 @@
 import argparse
 import json
 import logging
-import multiprocessing as mp
 import random
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
-import numpy as np
+from olmo_core.utils import prepare_cli_environment
 from tqdm import tqdm
-from upath import UPath
 
-from helios.data.constants import IMAGE_TILE_SIZE, Modality, MISSING_VALUE
+from helios.data.constants import IMAGE_TILE_SIZE, MISSING_VALUE, Modality
 from helios.data.dataset import GetItemArgs, HeliosDataset, HeliosDatasetConfig
 from helios.data.utils import update_streaming_stats
-from olmo_core.utils import prepare_cli_environment
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +48,9 @@ def compute_normalization_values(
             if modality_data is None:
                 continue
             if (modality_data == MISSING_VALUE).all():
-                logger.info(f"Skipping modality {i} because modality {modality} has no valid data")
+                logger.info(
+                    f"Skipping modality {i} because modality {modality} has no valid data"
+                )
                 continue
             if modality not in norm_dict:
                 norm_dict[modality] = {}
@@ -91,6 +90,7 @@ def compute_normalization_values(
 
     return norm_dict
 
+
 if __name__ == "__main__":
     prepare_cli_environment()
     args = argparse.ArgumentParser()
@@ -103,7 +103,6 @@ if __name__ == "__main__":
     logger.info(
         f"Computing normalization stats with modalities {args_dict['supported_modalities']}"
     )
-
 
     def parse_supported_modalities(supported_modalities: str) -> list[str]:
         """Parse the supported modalities from a string."""
@@ -130,7 +129,6 @@ if __name__ == "__main__":
 
     with open(args_dict["output_path"], "w") as f:
         json.dump(norm_dict, f)
-
 
     # Example usage:
     # 20250304 run:

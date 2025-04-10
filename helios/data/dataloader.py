@@ -310,7 +310,9 @@ class HeliosDataLoader(DataLoaderBase):
             mock_srtm = rng.random((256, 256, 1, 1), dtype=np.float32)
             output_dict["srtm"] = mock_srtm
         if Modality.LANDSAT.name in self.dataset.training_modalities:
-            mock_landsat = rng.random((256, 256, 12, Modality.LANDSAT.num_bands), dtype=np.float32)
+            mock_landsat = rng.random(
+                (256, 256, 12, Modality.LANDSAT.num_bands), dtype=np.float32
+            )
             output_dict["landsat"] = mock_landsat
 
         days = rng.integers(0, 25, (12, 1))

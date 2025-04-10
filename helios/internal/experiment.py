@@ -202,8 +202,7 @@ def launch(config: HeliosExperimentConfig) -> None:
 
 
 def prep(config: HeliosExperimentConfig) -> None:
-    """Prepare the dataset for an experiment.
-    """
+    """Prepare the dataset for an experiment."""
     dataset = config.dataset.build()
     # TODO: akward harcoding of the collator here
     data_loader = config.data_loader.build(

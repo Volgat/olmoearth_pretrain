@@ -20,7 +20,6 @@ from olmo_core.train.config import TrainerConfig
 from upath import UPath
 
 from helios.data.dataloader import HeliosDataLoaderConfig
-from helios.data.constants import Modality
 from helios.data.dataset import HeliosDatasetConfig
 from helios.data.normalize import Strategy
 from helios.internal.common import build_common_components
@@ -258,7 +257,6 @@ def build_visualize_config(common: CommonComponents) -> HeliosVisualizeConfig:
         normalize_strategy=Strategy.PREDEFINED,
         std_multiplier=2.0,
     )
-
 
 
 if __name__ == "__main__":
