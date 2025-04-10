@@ -115,7 +115,9 @@ BASE_COMMAND = (
     "python3 scripts/parameter_sweeping/2025_04_09_multidataset/train.py launch {run_name} ai2/jupiter-cirrascale-2 "
     "--train_module.rank_microbatch_size={rank_microbatch_size} "
     "{token_exit_args} "
-    "{model_args}"
+    "{model_args} "
+    "--launch.num_gpus=4 "
+    "--data_loader.global_batch_size 512"
 )
 
 # Iterate over all combinations of hyperparameters
