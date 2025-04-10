@@ -182,7 +182,7 @@ class HeliosDataLoader(DataLoaderBase):
             return self._global_indices
         if not self._global_indices_file.is_file():
             raise RuntimeError(
-                "Missing global indices file, did you forget to call 'reshuffle()'?"
+                f"Missing global indices file {self._global_indices_file}, did you forget to call 'reshuffle()'?"
             )
         return np.memmap(self._global_indices_file, mode="r", dtype=np.uint32)
 
