@@ -105,8 +105,6 @@ class MAETrainModule(HeliosTrainModule):
         optim_config: OptimConfig,
         transform_config: TransformConfig,
         masking_config: MaskingConfig,
-        mae_loss_config: LossConfig | None,
-        latent_mim_loss_config: LossConfig | None,
         rank_microbatch_size: int,
         token_exit_cfg: dict[str, int],
         compile_model: bool = False,
@@ -120,6 +118,8 @@ class MAETrainModule(HeliosTrainModule):
         state_dict_save_opts: dist_cp_sd.StateDictOptions | None = None,
         state_dict_load_opts: dist_cp_sd.StateDictOptions | None = None,
         warmup_duration: Duration = Duration.epochs(2),
+        mae_loss_config: LossConfig | None = None,
+        latent_mim_loss_config: LossConfig | None = None,
         regularizer_config: LossConfig | None = None,
     ):
         """Initialize the training module.
