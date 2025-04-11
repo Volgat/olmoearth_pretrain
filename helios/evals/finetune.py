@@ -29,8 +29,7 @@ from helios.train.masking import MaskedHeliosSample
 logger = logging.getLogger(__name__)
 
 
-# FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
-FT_LRs = [6e-4]
+FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
 
 
 def finetune_and_eval_cls(
@@ -133,9 +132,9 @@ def finetune_and_eval_seg(
             partition="default",
         ),
         collate_fn=eval_collate_fn,
-        batch_size=64,
-        num_workers=4,
-    )  # 4, 1 for pastis / 16, 2 for sen1floods11
+        batch_size=128,
+        num_workers=8,
+    )
     val_loader = DataLoader(
         get_eval_dataset(
             eval_dataset=task_name,
@@ -143,8 +142,8 @@ def finetune_and_eval_seg(
             partition="default",
         ),
         collate_fn=eval_collate_fn,
-        batch_size=64,
-        num_workers=4,
+        batch_size=128,
+        num_workers=8,
     )
     finetuned_model = finetune_seg(
         task_config=task_config,
@@ -274,7 +273,7 @@ def finetune_cls(
         loss_function = nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
-        print(f"Epoch {epoch} of {epochs}")
+        # print(f"Epoch {epoch} of {epochs}")
         for i, batch in enumerate(data_loader):
             masked_helios_sample, label = batch
             label = label.to(device=device)
@@ -414,7 +413,7 @@ def finetune_seg(
     loss_function = nn.CrossEntropyLoss(ignore_index=-1)
 
     for epoch in range(epochs):
-        print(f"Epoch {epoch} of {epochs}")
+        # print(f"Epoch {epoch} of {epochs}")
         for i, batch in enumerate(data_loader):
             masked_helios_sample, label = batch
             label = label.to(device=device)
@@ -547,13 +546,13 @@ def evaluate_seg(
 if __name__ == "__main__":
     final_scores = []
     num_runs = 1
-    task_name = "m-eurosat"  # 94% (norm_stats_from_pretrained=False is better)
-    # task_name = "mados"  # 75%
+    # task_name = "m-eurosat"  # 94%
+    task_name = "mados"  # 75%
     # task_name = "sen1floods11"  # 77%
     # task_name = "pastis"  # 54.9%
     task_config = DATASET_TO_CONFIG[task_name]
     task_type = task_config.task_type
-    checkpoint_path = "/weka/dfive-default/helios/checkpoints/yawenzzzz/galileo_presto_use_modality_S2/step30750"
+    checkpoint_path = "/weka/dfive-default/helios/checkpoints/henryh/missing_mosality_test_updated_2/step197250"
     patch_size = 4
     pooling_type = PoolingType.MEAN
     epochs = 50
@@ -565,6 +564,7 @@ if __name__ == "__main__":
     for _ in range(num_runs):
         for lr in FT_LRs:
             if task_type == TaskType.CLASSIFICATION:
+                print(f"Finetuning on {task_name} with lr {lr}")
                 val_score = finetune_and_eval_cls(
                     task_name=task_name,
                     checkpoint_path=Path(checkpoint_path),
@@ -575,6 +575,7 @@ if __name__ == "__main__":
                     device=device,
                 )
             elif task_type == TaskType.SEGMENTATION:
+                print(f"Finetuning on {task_name} with lr {lr}")
                 val_score = finetune_and_eval_seg(
                     task_name=task_name,
                     checkpoint_path=Path(checkpoint_path),

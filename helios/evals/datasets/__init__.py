@@ -41,14 +41,14 @@ def get_eval_dataset(
             path_to_splits=MADOS_DIR,
             split=split,
             partition=partition,
-            norm_stats_from_pretrained=norm_stats_from_pretrained,
+            norm_stats_from_pretrained=False,
         )
     elif eval_dataset == "sen1floods11":
         return Sen1Floods11Dataset(
             path_to_splits=FLOODS_DIR,
             split=split,
             partition=partition,
-            norm_stats_from_pretrained=norm_stats_from_pretrained,
+            norm_stats_from_pretrained=True,
         )
     elif eval_dataset == "pastis":
         return PASTISRDataset(
@@ -64,7 +64,7 @@ def get_eval_dataset(
             path_to_splits=PASTIS_DIR,
             split=split,
             partition=partition,
-            norm_stats_from_pretrained=norm_stats_from_pretrained,
+            norm_stats_from_pretrained=True,
             is_multimodal=True,
         )
     else:
