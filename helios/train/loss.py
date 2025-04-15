@@ -532,16 +532,15 @@ class InfoNCELoss(Loss):
 
     name = "InfoNCE"
 
-    def __init__(
-        self,
-        tau: float = 0.1,
-    ):
+    def __init__(self, tau: float = 0.1, weight: float = 1):
         """Initialize adjusted patch discrimination loss.
 
         Args:
             tau: the softmax temperature
+            weight: the weight to apply to this loss
         """
         self.tau = tau
+        self.weight = weight
 
     def compute(
         self, predictions: torch.Tensor, targets: torch.Tensor, **kwargs: Any
@@ -569,7 +568,7 @@ class InfoNCELoss(Loss):
         # Positive keys are the entries on the diagonal
         labels = torch.arange(len(predictions), device=predictions.device)
 
-        return F.cross_entropy(logits / self.tau, labels)
+        return self.weight * F.cross_entropy(logits / self.tau, labels)
 
 
 @LOSS_REGISTRY.register("KoLeo")
