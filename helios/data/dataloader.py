@@ -3,6 +3,10 @@
 import logging
 import math
 import multiprocessing as mp
+import os
+import shutil
+import signal
+import sys
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +37,25 @@ logger = logging.getLogger(__name__)
 BASE_TOKEN_BUDGET = 1500
 
 
+def get_cleanup_signal_handler(tmp_dir: str) -> Callable[[int, Any], None]:
+    """Make a signal handler that cleans up the specified directory before exiting.
+
+    This should be passed as the handler to signal.signal.
+
+    Args:
+        tmp_dir: the directory to delete when the signal is received.
+    """
+
+    def cleanup_signal_handler(signo: int, stack_frame: Any) -> None:
+        logger.error(
+            f"cleanup_signal_handler: caught signal {signo}, cleaning up {tmp_dir}"
+        )
+        shutil.rmtree(tmp_dir)
+        sys.exit(1)
+
+    return cleanup_signal_handler
+
+
 class HeliosDataLoader(DataLoaderBase):
     """Helios dataloader.
 
@@ -61,6 +84,7 @@ class HeliosDataLoader(DataLoaderBase):
         drop_last: bool = True,
         persistent_workers: bool = True,
         multiprocessing_context: str = "spawn",
+        cache_dir: UPath | None = None,
     ):
         """Initialize the HeliosDataLoader."""
         super().__init__(
@@ -91,6 +115,15 @@ class HeliosDataLoader(DataLoaderBase):
         if self.num_workers > 0 and self.multiprocessing_context == "forkserver":
             # Overhead of loading modules on import by preloading them
             mp.set_forkserver_preload(["torch", "rasterio"])
+        self.cache_dir = cache_dir
+        if self.cache_dir is not None:
+            os.makedirs(self.cache_dir, exist_ok=True)
+            self.dataset.set_cache_dir(self.cache_dir)
+            if fs_local_rank == 0:
+                logger.info(f"preparing cache directory at {self.cache_dir}")
+                signal.signal(
+                    signal.SIGTERM, get_cleanup_signal_handler(self.cache_dir)
+                )
 
     @property
     def total_batches(self) -> int:
@@ -474,6 +507,7 @@ class HeliosDataLoaderConfig(Config):
     prefetch_factor: int | None = None
     target_device_type: str | None = None
     drop_last: bool = True
+    cache_dir: str | None = None
 
     def validate(self) -> None:
         """Validate the configuration."""
@@ -486,6 +520,11 @@ class HeliosDataLoaderConfig(Config):
     def work_dir_upath(self) -> UPath:
         """Get the work directory."""
         return UPath(self.work_dir)
+
+    @property
+    def cache_dir_upath(self) -> UPath:
+        """Get the cache directory."""
+        return UPath(self.cache_dir)
 
     def build(
         self,
@@ -515,4 +554,5 @@ class HeliosDataLoaderConfig(Config):
             max_patch_size=self.max_patch_size,
             sampled_hw_p_list=self.sampled_hw_p_list,
             token_budget=self.token_budget,
+            cache_dir=self.cache_dir_upath,
         )

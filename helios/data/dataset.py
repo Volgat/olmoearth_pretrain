@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import random
+import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from math import floor
@@ -397,6 +398,7 @@ class HeliosDataset(Dataset):
 
         self.sample_indices: np.ndarray | None = None
         self.latlon_distribution: np.ndarray | None = None
+        self.cache_dir: UPath | None = None
 
     @property
     def fingerprint_version(self) -> str:
@@ -452,6 +454,13 @@ class HeliosDataset(Dataset):
     def is_dataset_prepared(self) -> bool:
         """Check if the dataset is prepared."""
         return self.sample_indices is not None
+
+    def set_cache_dir(self, cache_dir: UPath) -> None:
+        """Set the cache directory to cache H5 files.
+
+        This is called by the data loader if cache_dir option is set there.
+        """
+        self.cache_dir = cache_dir
 
     def _filter_sample_indices_for_training(self) -> None:
         """Filter the sample indices for training.
@@ -663,6 +672,18 @@ class HeliosDataset(Dataset):
 
     def read_h5_file(self, h5_file_path: UPath) -> dict[str, Any]:
         """Read the h5 file."""
+        if self.cache_dir is not None:
+            cache_file_path = self.cache_dir / h5_file_path.name
+            logger.info(f"Caching H5 file {h5_file_path} to {cache_file_path}")
+            if not cache_file_path.exists():
+                # Copy to a temp file first and then atomically rename it to avoid
+                # concurrency issues.
+                tmp_file_path = self.cache_dir / (h5_file_path.name + ".tmp")
+                with h5_file_path.open("rb") as src, tmp_file_path.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
+                tmp_file_path.rename(cache_file_path)
+            h5_file_path = cache_file_path
+
         sample_dict = {}
         with h5_file_path.open("rb") as f:
             with h5py.File(f, "r") as h5file:
