@@ -1,6 +1,6 @@
 """Script for running a sweep of the Galileo model."""
 
-# (1) model size: base, large
+# (1) model size: base
 # (2) dataset size: presto + osm
 # (3) contrastive loss weight: 0.05, 0.1, 0.2
 # (4) decoder depth: 2, 4
@@ -16,14 +16,14 @@ MODEL_CONFIGS = {
         "decoder_num_heads": 12,
         "mlp_ratio": 4.0,
     },
-    "large": {
-        "encoder_embedding_size": 1024,
-        "decoder_embedding_size": 1024,
-        "encoder_depth": 24,
-        "encoder_num_heads": 16,
-        "decoder_num_heads": 16,
-        "mlp_ratio": 4.0,
-    },
+    # "large": {
+    #     "encoder_embedding_size": 1024,
+    #     "decoder_embedding_size": 1024,
+    #     "encoder_depth": 24,
+    #     "encoder_num_heads": 16,
+    #     "decoder_num_heads": 16,
+    #     "mlp_ratio": 4.0,
+    # },
 }
 
 DECODER_DEPTHS = [2, 4]
@@ -48,6 +48,7 @@ BASE_COMMAND = (
     "--launch.num_gpus=8"
 )
 
+# 12 experiments
 for model_name, model_config in MODEL_CONFIGS.items():
     for decoder_depth in DECODER_DEPTHS:
         for lr in LEARNING_RATES:
