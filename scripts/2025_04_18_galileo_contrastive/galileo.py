@@ -202,8 +202,7 @@ def build_dataset_config(common: CommonComponents) -> Config:
             use_samples_with_missing_supported_modalities=True,  # Check if we want to set this to True
             dtype=DType.float32,
             cache_dir="/helios_cache/presto",
-            samples_per_sec=2
-            / NUM_DATA_LOADER_WORKERS,  # Check if this is properly set
+            samples_per_sec=4 / NUM_DATA_LOADER_WORKERS,  # 2/ GBS
         ),
         HeliosDatasetConfig(
             h5py_dir="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data/sentinel1_sentinel2_l2a_worldcover/283204/",
