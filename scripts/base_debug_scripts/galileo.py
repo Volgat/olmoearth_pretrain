@@ -161,7 +161,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     # TODO: Include collate function here
 
     NUM_WORKERS = 8
-    GLOBAL_BATCH_SIZE = 512
+    GLOBAL_BATCH_SIZE = 128
     PREFETCH_FACTOR = 4
     TOKEN_BUDGET = 1500
     SAMPLE_HW_P_LIST = list(range(5, 13))
@@ -217,7 +217,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             batch_size=128,
             num_workers=8,
             pooling_type=PoolingType.MEAN,
-            norm_stats_from_pretrained=False,
+            norm_stats_from_pretrained=True,
             eval_interval=Duration.epochs(5),
         ),
         "mados": DownstreamTaskConfig(
