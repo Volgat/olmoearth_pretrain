@@ -778,9 +778,6 @@ class STEncoder(STBase):
                 attention_mode = AttentionMode.TEMPORAL
             else:
                 attention_mode = AttentionMode.SPATIAL
-            print(f"STEncoder doing attention {attention_mode} in block {i_blk}")
-            # for modality, val in x.items():
-            #    print(modality, val.min(), val.max())
 
             x, mask = self.collapse_and_combine(x, attention_mode)
             bool_mask = mask == MaskValue.ONLINE_ENCODER.value
@@ -1084,9 +1081,6 @@ class STPredictor(STBase):
                 attention_mode = AttentionMode.TEMPORAL
             else:
                 attention_mode = AttentionMode.SPATIAL
-            print(f"STPredictor doing attention {attention_mode} in block {i_blk}")
-            # for modality, val in x.items():
-            #    print(modality, val.min(), val.max())
 
             x, mask = self.collapse_and_combine(x, attention_mode)
             x, y, x_mask, y_mask, indices = self.split_x_y(x, mask)
