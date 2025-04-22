@@ -497,7 +497,6 @@ class ReconstructorConfig(Config):
 
     decoder_config: "PredictorConfig"
     supported_modality_names: list[str]
-    embedding_size: int = 16
     max_patch_size: int = 8
 
     def validate(self) -> None:
