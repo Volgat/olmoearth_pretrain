@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 MAX_PATCH_SIZE = 8
 MIN_PATCH_SIZE = 1
-NUM_DATA_LOADER_WORKERS = 4
+NUM_DATA_LOADER_WORKERS = 32
 
 
 def build_model_config(common: CommonComponents) -> LatentMIMConfig:
@@ -156,14 +156,14 @@ def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
             training_modalities=common.training_modalities,
             use_samples_with_missing_supported_modalities=False,
             dtype=DType.float32,
-            cache_dir="/helios_cache/presto",
+            cache_dir=None,
         ),
         HeliosDatasetConfig(
-            h5py_dir="ai2-helios-us-central1/dataset/osm_sampling/h5py_data/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/324192",
+            h5py_dir="gs://ai2-helios-us-central1/dataset/osm_sampling/h5py_data/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/324192",
             training_modalities=common.training_modalities,
             use_samples_with_missing_supported_modalities=False,
             dtype=DType.float32,
-            cache_dir="/helios_cache/osm_sampling",
+            cache_dir=None,
         ),
     ]
     return HeliosConcatDatasetConfig(dataset_configs=dataset_configs)
