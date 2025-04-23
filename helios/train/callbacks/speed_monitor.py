@@ -21,6 +21,24 @@ class HeliosSpeedMonitorCallback(SpeedMonitorCallback):
     _total_tokens_decoded = 0
     _total_tokens_target_encoder = 0
 
+    def __init__(self) -> None:
+        """Initialize the speed monitor callback."""
+        super().__init__()
+        self._bps_avg = 0.0
+
+    @property
+    def bps_avg(self) -> float:
+        """Get the average batches per second.
+
+        Used by beaker callback to estimate time remaining.
+        """
+        return self._bps_avg
+
+    @bps_avg.setter
+    def bps_avg(self, value: float) -> None:
+        """Set the average batches per second."""
+        self._bps_avg = value
+
     def pre_train(self) -> None:
         """Pre-train callback for the speed monitor."""
         super().pre_train()
