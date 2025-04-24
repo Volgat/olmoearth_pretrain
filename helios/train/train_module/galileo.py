@@ -298,7 +298,6 @@ class GalileoTrainModule(HeliosTrainModule):
                     self.trainer.record_metric(
                         "step_skipped", 1, ReduceType.sum, namespace="optim"
                     )
-                    del latent_a, latent_b
                     # Temporary hack to skip bad batches by zeroing out the loss
                     # Eventually may want to switch to skip step optimizer
                     # This may be modality related
