@@ -76,7 +76,7 @@ class HeliosExperimentConfig(Config):
     data_loader: HeliosDataLoaderConfig  # will likely be fixed for us
     train_module: HeliosTrainModuleConfig
     trainer: TrainerConfig
-    visualize_config: HeliosVisualizeConfig | None = None
+    visualize: HeliosVisualizeConfig | None = None
     init_seed: int = 12536
 
 
@@ -129,7 +129,7 @@ def build_config(
         data_loader=dataloader_config,
         train_module=train_module_config,
         trainer=trainer_config,
-        visualize_config=visualize_config,
+        visualize=visualize_config,
         launch=common.launch,
     )
     logger.info("Overrides: %s", overrides)
