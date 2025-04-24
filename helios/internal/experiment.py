@@ -165,9 +165,9 @@ def train(config: HeliosExperimentConfig) -> None:
 def visualize(config: HeliosExperimentConfig) -> None:
     """Visualize the dataset for an experiment."""
     logger.info("Visualizing the dataset")
-    if config.visualize_config is None:
+    if config.visualize is None:
         raise ValueError("visualize_config is not set")
-    global_step = config.visualize_config.global_step
+    global_step = config.visualize.global_step
     dataset = config.dataset.build()
     if global_step is not None:
         data_loader = config.data_loader.build(
@@ -176,11 +176,11 @@ def visualize(config: HeliosExperimentConfig) -> None:
         sample_indices = data_loader.fast_forward(global_step)
     else:
         sample_indices = np.random.randint(
-            0, len(dataset), config.visualize_config.num_samples
+            0, len(dataset), config.visualize.num_samples
         )
     logger.info(f"sample indices: {sample_indices}")
     for sample_index in sample_indices:
-        visualize_sample(dataset, sample_index, config.visualize_config.output_dir)
+        visualize_sample(dataset, sample_index, config.visualize.output_dir)
     logger.info("Done visualizing the dataset")
 
 
