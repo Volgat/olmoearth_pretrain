@@ -1,17 +1,22 @@
 """SICKLE dataset class."""
 
-import os
 import glob
-import torch
+import os
+import warnings
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
+from typing import Any
+
+import albumentations as A
 import numpy as np
 import pandas as pd
 import rasterio
-from tqdm import tqdm
-from pathlib import Path
-from datetime import date
-import albumentations as A
-import cv2
+import torch
 
+CSV_PATH = "/weka/dfive-default/helios/evaluation/SICKLE/sickle_dataset_tabular.csv"
+DATA_DIR = "/weka/dfive-default/helios/evaluation/SICKLE"
+SICKLE_DIR = "/weka/dfive-default/presto_eval_sets/sickle"
 
 MONTH_TO_INT = {
     "jan": 1,
@@ -28,28 +33,30 @@ MONTH_TO_INT = {
     "dec": 12,
 }
 
-
-S2_BANDS = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B11', 'B12']
-S1_BANDS = ['VV', 'VH']
-# NOTE: We need to handle missing bands in L8
+# Original bands from the SICKLE dataset
+S2_BANDS = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B8A", "B9", "B11", "B12"]
+S1_BANDS = ["VV", "VH"]
 L8_BANDS = ["SR_B1", "SR_B2", "SR_B3", "SR_B4", "SR_B5", "SR_B6", "SR_B7", "ST_B10"]
+# Landsat 8 bands after imputing missing bands
+L8_BANDS_IMPUTED = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B8A", "B9", "B10"]
 
 
 class SICKLEProcessor:
     """Process SICKLE dataset into PyTorch objects."""
 
-    def __init__(self, csv_path: Path, data_dir: Path, output_dir: Path):
+    def __init__(self, csv_path: str, data_dir: str, output_dir: str):
         """Initialize SICKLE processor.
 
         Args:
-            csv_path: Path to the CSV file.
-            data_dir: Path to the data directory.
-            output_dir: Path to the output directory.
+            csv_path: path to the CSV file.
+            data_dir: path to the data directory.
+            output_dir: path to the output directory.
         """
         self.csv_path = csv_path
-        self.data_dir = UPath(data_dir)
-        self.output_dir = UPath(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.data_dir = data_dir
+        self.output_dir = output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
+        # We resize images and masks to 32*32
         self.resize = A.Resize(height=32, width=32)
 
     def impute_l8_bands(self, img: torch.Tensor) -> torch.Tensor:
@@ -69,12 +76,13 @@ class SICKLEProcessor:
                 img[7, ...],  # fill B11 with B10, IMPUTED!
             ]
         )
+        return img
 
-    def _read_mask(self, mask_path: Path) -> np.ndarray:
+    def _read_mask(self, mask_path: str) -> np.ndarray:
         """Read a mask from a path."""
         with rasterio.open(mask_path) as fp:
             mask = fp.read()
-        
+
         # There're multiple layers in the mask, we only use the first two layers
         # Which is the plot_mask and crop_type_mask
         mask = mask[:2, ...]
@@ -87,31 +95,60 @@ class SICKLEProcessor:
         mask[mask < 0] = -1
         return mask
 
-    def _get_image_date(self, image_path: Path) -> str:
+    def _get_image_date(self, image_path: str) -> str:
         """Get the date of the image.
-        
+
         Args:
             image_path: Path to the image.
 
         Returns:
             year-month string.
         """
-        if "S2" in image_path.name:
+        if "S2" in image_path:
             # For S2 2018 data?
             if os.path.basename(image_path)[0] == "T":
                 image_date = os.path.basename(image_path).split("_")[1][:8]
             else:
                 image_date = os.path.basename(image_path).split("_")[0][:8]
-        elif "S1" in image_path.name:
+        elif "S1" in image_path:
             image_date = os.path.basename(image_path).split("_")[4][:8]
-        elif "L8" in image_path.name:
+        elif "L8" in image_path:
             image_date = os.path.basename(image_path).split("_")[2][:8]
-        
+
         return f"{image_date[:4]}-{image_date[4:6]}"  # year-month string
 
-    def _aggregate_months(self, images: list[str], start_date: date, end_date: date) -> tuple[torch.Tensor, torch.Tensor]:
+    def _read_image(self, image_path: str) -> torch.Tensor:
+        """Read an image from a path."""
+        data_file = np.load(image_path)
+        if "S2" in image_path:
+            bands = S2_BANDS
+        elif "S1" in image_path:
+            bands = S1_BANDS
+        elif "L8" in image_path:
+            bands = L8_BANDS
+        try:
+            all_channels = [
+                self.resize(image=data_file[band])["image"] for band in bands
+            ]
+        except Exception:
+            # Not quite sure why we need this, get from the SICKLE code repo
+            all_channels = [
+                self.resize(image=data_file[band])["image"] for band in bands[:-1]
+            ]
+            all_channels += [np.zeros((32, 32), dtype=np.float32)]
+
+        data = torch.tensor(np.stack(all_channels, axis=0))  # (C, H, W)
+        # Imput missing bands in L8
+        if "L8" in image_path:
+            data = self.impute_l8_bands(data)
+
+        return data
+
+    def _aggregate_months(
+        self, images: list[str], start_date: date, end_date: date
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Aggregate images by month.
-        
+
         Args:
             images: List of image paths.
             start_date: Start date.
@@ -121,40 +158,46 @@ class SICKLEProcessor:
             Tuple of aggregated images and dates.
         """
         images = sorted(images)
-        # Get all the unique year-month strings between start_date and end_date
-        all_dates = []
+        # Get all the unique year-month between start_date and end_date
+        all_months: list[str] = []
         current_date = start_date
         while current_date <= end_date:
-            all_dates.append(current_date.strftime("%Y-%m"))
+            all_months.append(current_date.strftime("%Y-%m"))
             current_date = current_date.replace(day=1) + timedelta(days=32)
             current_date = current_date.replace(day=1)
-        all_dates = list(set(all_dates))
-        all_dates.sort()
+        all_months = list(set(all_months))
+        all_months.sort()
 
-        dates_dict = dict[str, list[torch.Tensor]]()
-        for date in all_dates:
-            dates_dict[date] = []
-        
+        months_dict = dict[str, list[torch.Tensor]]()
+        for month in all_months:
+            months_dict[month] = []
+
         for image_path in images:
-            image_date = self._get_image_date(image_path)
-            dates_dict[image_date].append(image_path)
-        
-        img_list: list[torch.Tensor] = []
-        date_list: list[str] = []
-        for date in all_dates:
-            if dates_dict[date]:
-                stacked_imgs = torch.stack(dates_dict[date])
-                month_avg = stacked_imgs.mean(dim=0)
-                if len(img_list) < 12:
-                    img_list.append(month_avg)
-                    date_list.append(date)
-        
-        return torch.stack(img_list), torch.tensor(date_list, dtype=torch.long)
+            year_month = self._get_image_date(image_path)
+            img = self._read_image(image_path)
+            months_dict[year_month].append(img)
 
-    def process_sample(self, sample: dict[str, Any]) -> dict[str, torch.Tensor]:
-        """Process a single sample from the SICKLE dataset."""
+        img_list: list[torch.Tensor] = []
+        month_list: list[int] = []
+        for month in all_months:
+            if months_dict[month]:
+                stacked_imgs = torch.stack(months_dict[month])
+                month_avg = stacked_imgs.mean(dim=0)
+                img_list.append(month_avg)
+                month_list.append(int(month.replace("-", "")))
+
+        return torch.stack(img_list), torch.tensor(month_list, dtype=torch.long)
+
+    def process_sample(self, sample: dict[str, Any]) -> dict[str, torch.Tensor] | None:
+        """Process a single sample from the SICKLE dataset.
+
+        Args:
+            sample: A dictionary containing the sample information.
+
+        Returns:
+            A dictionary containing the processed sample.
+        """
         uid = sample["uid"]
-        plot_id = sample["plot_id"]
         standard_season = sample["standard_season"]
         year = sample["year"]
         split = sample["split"]
@@ -166,15 +209,33 @@ class SICKLEProcessor:
             end_date = end_date.replace(year=end_date.year + 1)
 
         # Get all the S2, S1, and L8 images for the sample
-        s2_path = self.data_dir / f"images/S2/npy/{uid}/*.npz"
-        s1_path = self.data_dir / f"images/S1/npy/{uid}/*.npz"
-        l8_path = self.data_dir / f"images/L8/npy/{uid}/*.npz"
-        s2_images = glob.glob(s2_path)
-        s1_images = glob.glob(s1_path)
-        l8_images = glob.glob(l8_path)
-        
+        s2_path = os.path.join(self.data_dir, f"images/S2/npy/{uid}")
+        s1_path = os.path.join(self.data_dir, f"images/S1/npy/{uid}")
+        l8_path = os.path.join(self.data_dir, f"images/L8/npy/{uid}")
+        s2_image_paths = glob.glob(os.path.join(s2_path, "*.npz"))
+        s1_image_paths = glob.glob(os.path.join(s1_path, "*.npz"))
+        l8_image_paths = glob.glob(os.path.join(l8_path, "*.npz"))
+
+        if (
+            len(s2_image_paths) == 0
+            or len(s1_image_paths) == 0
+            or len(l8_image_paths) == 0
+        ):
+            return None
+
+        # Aggregate images by month
+        s2_images, s2_months = self._aggregate_months(
+            s2_image_paths, start_date, end_date
+        )
+        s1_images, s1_months = self._aggregate_months(
+            s1_image_paths, start_date, end_date
+        )
+        l8_images, l8_months = self._aggregate_months(
+            l8_image_paths, start_date, end_date
+        )
+
         # For now, we only use the 10m mask, there're also 3m, 30m masks
-        mask_path = self.data_dir / f"masks/10m/{uid}.tif"
+        mask_path = os.path.join(self.data_dir, f"masks/10m/{uid}.tif")
         mask = self._read_mask(mask_path)
         plot_mask, crop_type_mask = mask[0], mask[1]
 
@@ -182,34 +243,38 @@ class SICKLEProcessor:
         unmatched_plot_ids = set(np.unique(plot_mask)) - set(self.split_plot_ids[split])
         for unmatched_plot_id in unmatched_plot_ids:
             crop_type_mask[plot_mask == unmatched_plot_id] = -1
-        
+
         # Resize the mask to 32*32
         crop_type_mask = crop_type_mask.transpose(1, 2, 0)
         crop_type_mask = self.resize(image=crop_type_mask)["image"].transpose(2, 0, 1)
         targets = torch.tensor(crop_type_mask, dtype=torch.long)
 
-        return {
-            "split": split,
-            "s2_images": s2_images,
-            "s1_images": s1_images,
-            "l8_images": l8_images,
-            "targets": targets,
-        }
+        if len(s2_months) == len(s1_months) == len(l8_months):
+            months = s2_months
+            return {
+                "split": split,
+                "s2_images": s2_images,
+                "s1_images": s1_images,
+                "l8_images": l8_images,
+                "months": months,
+                "targets": targets,
+            }
+        else:
+            warnings.warn(
+                f"Number of images for S2, S1, and L8 are not the same for {uid}"
+            )
+            return None
 
-    
     def process(self) -> None:
         """Process the SICKLE dataset."""
-        
         all_samples = []
         df = pd.read_csv(self.csv_path)
         for _, row in df.iterrows():
             sample = {
                 "uid": row["UNIQUE_ID"],
-                # NOTE: One sample may have multiple plot_ids
-                "plot_id": row["PLOT_ID"],
                 "standard_season": row["STANDARD_SEASON"],
                 "year": row["YEAR"],
-                "split": row["SPLIT"]
+                "split": row["SPLIT"],
             }
             all_samples.append(sample)
 
@@ -218,10 +283,134 @@ class SICKLEProcessor:
         for split in ["train", "val", "test"]:
             plot_ids = df[df["SPLIT"] == split]["PLOT_ID"].unique()
             self.split_plot_ids[split] = plot_ids
-        
+
         with ThreadPoolExecutor() as executor:
             results = list(executor.map(self.process_sample, all_samples))
-        
-        
+
+        doesnt_have_five = 0
+
+        all_data: dict[str, dict[str, list[torch.Tensor]]] = {
+            f"{i}": {
+                "s2_images": [],
+                "s1_images": [],
+                "l8_images": [],
+                "months": [],
+                "targets": [],
+            }
+            for i in ["train", "val", "test"]
+        }
+        for res in results:
+            if res:
+                # Samples usually have 5-6 months of data, if more than 5, cut it
+                if len(res["months"]) < 5:
+                    doesnt_have_five += 1
+                else:
+                    res["s2_images"] = res["s2_images"][:5, ...]
+                    res["s1_images"] = res["s1_images"][:5, ...]
+                    res["l8_images"] = res["l8_images"][:5, ...]
+                    res["months"] = res["months"][:5]
+                    res["targets"] = res["targets"][:5, ...]
+
+                    for key in [
+                        "s2_images",
+                        "s1_images",
+                        "l8_images",
+                        "months",
+                        "targets",
+                    ]:
+                        all_data[res["split"]][key].append(res[key])
+
+        print(f"doesnt_have_five: {doesnt_have_five}")
+
+        all_data_cat: dict[str, dict[str, torch.Tensor]] = {}
+        for split in ["train", "val", "test"]:
+            for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]:
+                all_data_cat[split][key] = torch.cat(all_data[split][key], dim=0)
+
+        all_data_splits = {
+            "train": {
+                key: all_data_cat["train"][key]
+                for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]
+            },
+            "val": {
+                key: all_data_cat["val"][key]
+                for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]
+            },
+            "test": {
+                key: all_data_cat["test"][key]
+                for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]
+            },
+        }
+
+        for split, data in all_data_splits.items():
+            split_dir = os.path.join(self.output_dir, f"sickle_{split}")
+            os.makedirs(split_dir, exist_ok=True)
+
+            torch.save(data["months"], os.path.join(split_dir, "months.pt"))
+            torch.save(data["targets"], os.path.join(split_dir, "targets.pt"))
+
+            s2_dir = os.path.join(split_dir, "s2_images")
+            s1_dir = os.path.join(split_dir, "s1_images")
+            l8_dir = os.path.join(split_dir, "l8_images")
+            os.makedirs(s2_dir, exist_ok=True)
+            os.makedirs(s1_dir, exist_ok=True)
+            os.makedirs(l8_dir, exist_ok=True)
+
+            for idx in range(data["s2_images"].shape[0]):
+                print(data["s2_images"][idx, :, :, :, :].shape)
+                torch.save(
+                    data["s2_images"][idx].clone(), os.path.join(s2_dir, f"{idx}.pt")
+                )
+
+            for idx in range(data["s1_images"].shape[0]):
+                print(data["s1_images"][idx, :, :, :, :].shape)
+                torch.save(
+                    data["s1_images"][idx].clone(), os.path.join(s1_dir, f"{idx}.pt")
+                )
+
+            for idx in range(data["l8_images"].shape[0]):
+                print(data["l8_images"][idx, :, :, :, :].shape)
+                torch.save(
+                    data["l8_images"][idx].clone(), os.path.join(l8_dir, f"{idx}.pt")
+                )
+
+        for split in ["train", "val", "test"]:
+            for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]:
+                print(f"{split} {key}: {all_data_splits[split][key].shape}")
+
+        for channel_idx in range(13):
+            channel_data = all_data_splits["train"]["s2_images"][
+                :, :, channel_idx, :, :
+            ]
+            print(
+                f"S2 Channel {channel_idx}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
+            )
+
+        for channel_idx in range(2):
+            channel_data = all_data_splits["train"]["s1_images"][
+                :, :, channel_idx, :, :
+            ]
+            print(
+                f"S1 Channel {channel_idx}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
+            )
+
+        for channel_idx in range(10):
+            channel_data = all_data_splits["train"]["l8_images"][
+                :, :, channel_idx, :, :
+            ]
+            print(
+                f"L8 Channel {channel_idx}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
+            )
 
 
+def process_sickle(
+    data_dir: str = DATA_DIR,
+    output_dir: str = SICKLE_DIR,
+) -> None:
+    """Process SICKLE dataset."""
+    processor = SICKLEProcessor(
+        csv_path=CSV_PATH,
+        data_dir=data_dir,
+        output_dir=output_dir,
+    )
+    processor.process()
