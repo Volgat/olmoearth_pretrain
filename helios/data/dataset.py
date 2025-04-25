@@ -677,6 +677,7 @@ class HeliosDataset(Dataset):
                     # Create a broadcastable mask
                     # Fill in missing values where mask is True
                     modality_data[..., zero_timesteps, :] = MISSING_VALUE
+                pass
         return HeliosSample(**sample_dict), missing_modalities
 
     def apply_subset(self, sample: HeliosSample, args: GetItemArgs) -> HeliosSample:
@@ -748,7 +749,7 @@ class HeliosDataset(Dataset):
         else:
             index = args.idx
         h5_file_path = self._get_h5_file_path(index)
-        logger.info(f"H5 file path: {h5_file_path}")
+        logger.debug(f"H5 file path: {h5_file_path}")
         if not h5_file_path.exists():
             raise FileNotFoundError(
                 f"H5 file {h5_file_path} does not exist, Be Sure to run prepare before starting Training"
@@ -761,7 +762,7 @@ class HeliosDataset(Dataset):
         sample, missing_modalities = self.fill_sample_with_missing_values(sample_dict)
         subset_sample = self.apply_subset(sample, args)
         sample_dict = subset_sample.as_dict(ignore_nones=True)
-        logger.info(f"Sample dict keys {sample_dict.keys()}")
+        logger.debug(f"Sample dict keys {sample_dict.keys()}")
         # Sample modalities should be written into the metadata of the h5 dataset
         sample_modalities = list(
             [Modality.get(key) for key in sample_dict.keys() if key != "timestamps"]
