@@ -303,11 +303,11 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
 def build_common_components_limited_modalities(*args: Any) -> CommonComponents:
     """Build the common components for an experiment."""
     config = build_common_components(*args)
-    # config.training_modalities = [
-    #     Modality.SENTINEL1.name,
-    #     Modality.SENTINEL2_L2A.name,
-    #     Modality.WORLDCOVER.name,
-    # ]
+    config.training_modalities = [
+        Modality.SENTINEL1.name,
+        Modality.SENTINEL2_L2A.name,
+        Modality.WORLDCOVER.name,
+    ]
     return config
 
 
