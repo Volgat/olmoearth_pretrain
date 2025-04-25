@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import logging
 from copy import deepcopy
 from pathlib import Path
 
@@ -26,8 +25,6 @@ from helios.evals.metrics import mean_iou
 from helios.evals.utils import adjust_learning_rate
 from helios.nn.flexihelios import Encoder, PoolingType
 from helios.train.masking import MaskedHeliosSample
-
-logger = logging.getLogger(__name__)
 
 # Fine-tuning learning rates
 FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
@@ -315,7 +312,7 @@ def finetune_cls(
         loss_function = nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
-        logger.info(f"Epoch {epoch} of {epochs}")
+        print(f"Epoch {epoch} of {epochs}")
         for i, batch in enumerate(data_loader):
             masked_helios_sample, label = batch
             label = label.to(device=device)
@@ -336,7 +333,7 @@ def finetune_cls(
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
                 logits = finetuned_model(masked_helios_sample)
                 loss = loss_function(logits, label)
-                logger.info(f"Loss: {loss.item()}")
+                print(f"Loss: {loss.item()}")
 
             loss.backward()
             adjust_learning_rate(
@@ -458,7 +455,7 @@ def finetune_seg(
     loss_function = nn.CrossEntropyLoss(ignore_index=-1)
 
     for epoch in range(epochs):
-        logger.info(f"Epoch {epoch} of {epochs}")
+        print(f"Epoch {epoch} of {epochs}")
         for i, batch in enumerate(data_loader):
             masked_helios_sample, label = batch
             label = label.to(device=device)
@@ -497,7 +494,7 @@ def finetune_seg(
                     align_corners=True,
                 )  # (bs, num_classes, H, W)
                 loss = loss_function(logits, label)
-                logger.info(f"Loss: {loss.item()}")
+                print(f"Loss: {loss.item()}")
 
             loss.backward()
             adjust_learning_rate(
@@ -626,7 +623,7 @@ def sweep_lr(
     for _ in range(num_runs):
         for lr in lrs:
             if task_type == TaskType.CLASSIFICATION:
-                logger.info(f"Finetuning on {task_name} with lr {lr}")
+                print(f"Finetuning on {task_name} with lr {lr}")
                 val_score = finetune_and_eval_cls(
                     task_name=task_name,
                     checkpoint_path=Path(checkpoint_path),
@@ -640,7 +637,7 @@ def sweep_lr(
                     device=device,
                 )
             elif task_type == TaskType.SEGMENTATION:
-                logger.info(f"Finetuning on {task_name} with lr {lr}")
+                print(f"Finetuning on {task_name} with lr {lr}")
                 val_score = finetune_and_eval_seg(
                     task_name=task_name,
                     checkpoint_path=Path(checkpoint_path),
@@ -653,16 +650,15 @@ def sweep_lr(
                     num_workers=num_workers,
                     device=device,
                 )
-            logger.info(f"Val score: {val_score}")
+            print(f"Val score: {val_score}")
             final_scores[lr] = val_score
 
-    logger.info(
+    print(
         f"Task: {task_name}, Freeze encoder: {freeze_encoder}, Final scores: {final_scores}"
     )
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(
         description="Finetune and evaluate Helios checkpoint on task"
     )
