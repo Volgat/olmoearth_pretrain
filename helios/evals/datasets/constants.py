@@ -23,6 +23,20 @@ EVAL_S1_BAND_NAMES = [
     "vh",
 ]
 
+EVAL_L8_BAND_NAMES = [
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7",
+    "B8",
+    "B9",
+    "B10",
+    "B11",
+]
+
 
 def _eval_s2_band_index_from_helios_name(helios_name: str) -> int:
     for idx, band_name in enumerate(EVAL_S2_BAND_NAMES):
@@ -38,6 +52,13 @@ def _eval_s1_band_index_from_helios_name(helios_name: str) -> int:
     raise ValueError(f"Unmatched band name {helios_name}")
 
 
+def _eval_l8_band_index_from_helios_name(helios_name: str) -> int:
+    for idx, band_name in enumerate(EVAL_L8_BAND_NAMES):
+        if helios_name == band_name:
+            return idx
+    raise ValueError(f"Unmatched band name {helios_name}")
+
+
 # For now, with Sentinel2 L2A, we will drop the B10 band in the eval datasets
 EVAL_TO_HELIOS_S2_BANDS = [
     _eval_s2_band_index_from_helios_name(b) for b in Modality.SENTINEL2_L2A.band_order
@@ -45,4 +66,8 @@ EVAL_TO_HELIOS_S2_BANDS = [
 
 EVAL_TO_HELIOS_S1_BANDS = [
     _eval_s1_band_index_from_helios_name(b) for b in Modality.SENTINEL1.band_order
+]
+
+EVAL_TO_HELIOS_L8_BANDS = [
+    _eval_l8_band_index_from_helios_name(b) for b in Modality.LANDSAT.band_order
 ]
