@@ -39,22 +39,10 @@ S2_BANDS = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B8A", "B9", "B11", 
 S1_BANDS = ["VV", "VH"]
 L8_BANDS = ["SR_B1", "SR_B2", "SR_B3", "SR_B4", "SR_B5", "SR_B6", "SR_B7", "ST_B10"]
 # Landsat 8 bands after imputing missing bands
-L8_BANDS_IMPUTED = [
-    "B1",
-    "B2",
-    "B3",
-    "B4",
-    "B5",
-    "B6",
-    "B7",
-    "B8",
-    "B8A",
-    "B9",
-    "B10",
-    "B11",
-]
+L8_BANDS_IMPUTED = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11"]
 
 # Minimum number of months of data required for each modality
+# The growing season is usually 5 or 6 months
 MIN_MONTHS = 5
 
 
@@ -267,6 +255,7 @@ class SICKLEProcessor:
         targets = torch.tensor(crop_type_mask, dtype=torch.long)
         # Here we require at least 5 months of data for each modality
         # Also make sure the first month is the same for all modalities
+        print(f"Finish processing {uid}")
         if (
             min(len(s2_months), len(s1_months), len(l8_months)) >= MIN_MONTHS
             and s2_months[0] == s1_months[0] == l8_months[0]
@@ -293,6 +282,7 @@ class SICKLEProcessor:
         df = pd.read_csv(self.csv_path)
         # Remove test split as there're not ground truth labels for it
         df = df[df["SPLIT"] != "test"]
+        df = df.sample(frac=0.01)
         for _, row in df.iterrows():
             sample = {
                 "uid": row["UNIQUE_ID"],
@@ -314,17 +304,18 @@ class SICKLEProcessor:
         doesnt_have_five = 0
 
         all_data: dict[str, dict[str, list[torch.Tensor]]] = {
-            f"{i}": {
+            split: {
                 "s2_images": [],
                 "s1_images": [],
                 "l8_images": [],
                 "months": [],
                 "targets": [],
             }
-            for i in ["train", "val"]
+            for split in ["train", "val"]
         }
         for res in results:
             if res:
+                # There can be 5 or 6 months of data, we cut it to 5
                 res["s2_images"] = res["s2_images"][:MIN_MONTHS, ...]
                 res["s1_images"] = res["s1_images"][:MIN_MONTHS, ...]
                 res["l8_images"] = res["l8_images"][:MIN_MONTHS, ...]
@@ -344,18 +335,21 @@ class SICKLEProcessor:
 
         print(f"doesnt_have_five: {doesnt_have_five}")
 
-        all_data_cat: dict[str, dict[str, torch.Tensor]] = {}
-        for split in ["train", "val"]:
-            for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]:
-                all_data_cat[split][key] = torch.cat(all_data[split][key], dim=0)
+        all_data_stacked = {
+            split: {
+                key: torch.stack(all_data[split][key], dim=0)
+                for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]
+            }
+            for split in ["train", "val"]
+        }
 
         all_data_splits = {
             "train": {
-                key: all_data_cat["train"][key]
+                key: all_data_stacked["train"][key]
                 for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]
             },
             "val": {
-                key: all_data_cat["val"][key]
+                key: all_data_stacked["val"][key]
                 for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]
             },
         }
@@ -396,28 +390,28 @@ class SICKLEProcessor:
             for key in ["s2_images", "s1_images", "l8_images", "months", "targets"]:
                 print(f"{split} {key}: {all_data_splits[split][key].shape}")
 
-        for channel_idx in range(13):
+        for channel_idx, band_name in enumerate(S2_BANDS):
             channel_data = all_data_splits["train"]["s2_images"][
                 :, :, channel_idx, :, :
             ]
             print(
-                f"S2 Channel {channel_idx}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
+                f"S2 {band_name}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
             )
 
-        for channel_idx in range(2):
+        for channel_idx, band_name in enumerate(S1_BANDS):
             channel_data = all_data_splits["train"]["s1_images"][
                 :, :, channel_idx, :, :
             ]
             print(
-                f"S1 Channel {channel_idx}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
+                f"S1 {band_name}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
             )
 
-        for channel_idx in range(10):
+        for channel_idx, band_name in enumerate(L8_BANDS_IMPUTED):
             channel_data = all_data_splits["train"]["l8_images"][
                 :, :, channel_idx, :, :
             ]
             print(
-                f"L8 Channel {channel_idx}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
+                f"L8 {band_name}: Mean {channel_data.mean().item():.4f}, Std {channel_data.std().item():.4f}"
             )
 
 
