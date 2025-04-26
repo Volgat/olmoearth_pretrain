@@ -288,13 +288,19 @@ class HeliosSample(NamedTuple):
         max_t = self._get_max_t_within_token_budget(
             sampled_hw_p, max_tokens_per_instance
         )
+        logger.info(f"max_t: {max_t}")
         sampled_hw = sampled_hw_p * patch_size
         start_h = np.random.choice(self.height - sampled_hw + 1)
         start_w = np.random.choice(self.width - sampled_hw + 1)
         start_t = np.random.choice(self.time - max_t + 1)
+        logger.info(f"start_h: {start_h}, start_w: {start_w}, start_t: {start_t}")
         new_data_dict: dict[str, ArrayTensor] = {}
         for attribute, modality in self.as_dict(ignore_nones=True).items():
             assert modality is not None
+            # check if the modality is missing timesteps
+            if (modality == MISSING_VALUE).sum() > 0:
+                logger.info(f"Modality {attribute} has missing timesteps")
+                logger.info(f"Modality {attribute} missing timesteps: {(modality == MISSING_VALUE).sum()}")
             if attribute == "timestamps":
                 new_data_dict[attribute] = modality[start_t : start_t + max_t]
                 continue
@@ -657,6 +663,7 @@ class HeliosDataset(Dataset):
         missing_modalities = []
         sample = HeliosSample(**sample_dict)
         for modality in self.training_modalities:
+            filled_any_missing = False
             if modality not in sample_dict.keys():
                 logger.debug(f"Filling {modality} with missing values")
                 sample_dict[modality] = np.full(
@@ -665,20 +672,51 @@ class HeliosDataset(Dataset):
                     dtype=self.dtype,
                 )
                 missing_modalities.append(modality)
+                filled_any_missing = True
+
+
             modality_data = sample_dict[modality]
+
+            if modality == Modality.SRTM.name:
+                # SRTM can natively be all 0 if we are on the ocean! Seems like this could be reduced patchified tokenized etc
+                continue
+            # cast to appropriate dtype to prevent overflow
+            modality_data = modality_data.astype(self.dtype)
             # Landsat Currently has some misssing timesteps that are all zeros
             # if modality == Modality.LANDSAT.name:
             # Create a mask for timesteps that are all zeros
-            zero_timesteps = np.all(modality_data == 0, axis=(0, 1, 3))  # Shape: [T]
-            if np.any(zero_timesteps):
-                logger.info(f"Filling {modality} timesteps with missing values")
-                logger.info(
-                    f"Filling missing timesteps for {modality} with shape {modality_data.shape} for zero timesteps {zero_timesteps.sum()}"
-                )
-                # Create a broadcastable mask
-                # Fill in missing values where mask is True
-                modality_data[..., zero_timesteps, :] = MISSING_VALUE
-            pass
+            num_timesteps = modality_data.shape[2]
+            # if modality == Modality.LANDSAT.name:
+            # Loop over each timestep and fill with missing values if it's all zeros
+            missing_timesteps = []
+            for t in range(num_timesteps):
+                if np.all(modality_data[..., t, :] == 0):
+                    if modality == Modality.SRTM.name:
+                        logger.info(f"latlon: {sample_dict["latlon"]}")
+                    if modality != Modality.LANDSAT.name:
+                        logger.warning(
+                            f"Filling {modality} timestep {t} with missing values, this should not happen"
+                        )
+                    else:
+                        logger.info(
+                            f"Filling {modality} timestep {t} with missing values"
+                        )
+                    modality_data[..., t, :] = np.full_like(
+                        modality_data[..., t, :],
+                        fill_value=MISSING_VALUE,
+                        dtype=self.dtype,
+                    )
+                    # logger.info(f"modality dtype: {modality_data[..., t, :]}")
+                    filled_any_missing = True
+                    missing_timesteps.append(t)
+
+            sample_dict[modality] = modality_data
+            logger.info(f"missing timesteps: {missing_timesteps}")
+            logger.info(f"modality dtype: {sample_dict[modality].dtype}")
+            if filled_any_missing:
+                # Ensure missing values are actually assigned by ensuring there are some missing values
+                if (sample_dict[modality] == MISSING_VALUE).sum() == 0:
+                    raise ValueError(f"No missing values assigned for {modality}")
         return HeliosSample(**sample_dict), missing_modalities
 
     def apply_subset(self, sample: HeliosSample, args: GetItemArgs) -> HeliosSample:
@@ -745,6 +783,7 @@ class HeliosDataset(Dataset):
 
     def __getitem__(self, args: GetItemArgs) -> tuple[int, HeliosSample]:
         """Get the sample at the given index."""
+        logger.info(f"Getting item at index {args.idx}")
         if hasattr(self, "sample_indices") and self.sample_indices is not None:
             index = self.sample_indices[args.idx]
         else:
@@ -761,10 +800,21 @@ class HeliosDataset(Dataset):
 
         # Fill any training modalities that are not present in the h5 file with missing values
         sample, missing_modalities = self.fill_sample_with_missing_values(sample_dict)
+        missing_values_dict = {}
+        for modality in sample.modalities:
+            # count number of missing values before and after normalization
+            missing_values_before_subset = (
+                sample_dict[modality] == MISSING_VALUE
+            ).sum()
+            logger.info(
+                f"Missing values before subset: {missing_values_before_subset}"
+            )
+            missing_values_dict[modality] = missing_values_before_subset
         subset_sample = self.apply_subset(sample, args)
         sample_dict = subset_sample.as_dict(ignore_nones=True)
         logger.debug(f"Sample dict keys {sample_dict.keys()}")
         # Sample modalities should be written into the metadata of the h5 dataset
+        # the modality get here is super redundant
         sample_modalities = list(
             [Modality.get(key) for key in sample_dict.keys() if key != "timestamps"]
         )
@@ -774,11 +824,22 @@ class HeliosDataset(Dataset):
                 # DO NOT NORMALIZE MISSING MODALITIES otherwise the MISSING_VALUE will be normalized
                 if modality.name in missing_modalities:
                     continue
-                sample_dict[modality.name] = self.normalize_image(
-                    modality, sample_dict[modality.name]
+                logger.info(f"Normalizing {modality.name}")
+                modality_data = sample_dict[modality.name]
+                missing_mask = modality_data == MISSING_VALUE
+                # count number of missing values before and after normalization
+                missing_values_before = (
+                    modality_data == MISSING_VALUE
+                ).sum()
+                normalized_data = self.normalize_image(
+                    modality, modality_data
                 )
-                sample_dict[modality.name] = sample_dict[modality.name].astype(
-                    self.dtype
+                sample_dict[modality.name] = np.where(missing_mask, modality_data, normalized_data)
+                missing_values_after = (
+                    sample_dict[modality.name] == MISSING_VALUE
+                ).sum()
+                logger.info(
+                    f"Missing values before: {missing_values_before}, after: {missing_values_after}"
                 )
 
         return args.patch_size, HeliosSample(**sample_dict)

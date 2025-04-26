@@ -170,7 +170,7 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
     GLOBAL_BATCH_SIZE = 512
     PREFETCH_FACTOR = 4
     TOKEN_BUDGET = 1500
-    SAMPLE_HW_P_LIST = list(range(5, 32))
+    SAMPLE_HW_P_LIST = list(range(5, 13))
     # GBS * PREFETCH_FACTOR * NUM_WORKERS is the total number of instances that can be put into prefetch queue
 
     dataloader_config = HeliosDataLoaderConfig(
@@ -195,16 +195,16 @@ def build_dataset_config(common: CommonComponents) -> Config:
             training_modalities=common.training_modalities,
             use_samples_with_missing_supported_modalities=True,  # Check if we want to set this to True
             dtype=DType.float32,
-            cache_dir="/helios_cache/presto",
-            samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
+            # cache_dir="/helios_cache/presto",
+            # samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
         ),
         HeliosDatasetConfig(
             h5py_dir="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data_gzip_3_shuffle/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/324192",
             training_modalities=common.training_modalities,
             use_samples_with_missing_supported_modalities=True,
             dtype=DType.float32,
-            cache_dir="/helios_cache/osm_sampling",
-            samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
+            # cache_dir="/helios_cache/osm_sampling",
+            # samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
         ),
     ]
     return HeliosConcatDatasetConfig(dataset_configs=dataset_configs)
@@ -304,11 +304,14 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
 def build_common_components_limited_modalities(*args: Any) -> CommonComponents:
     """Build the common components for an experiment."""
     config = build_common_components(*args)
-    config.training_modalities = [
-        Modality.SENTINEL1.name,
-        Modality.SENTINEL2_L2A.name,
-        Modality.WORLDCOVER.name,
-    ]
+    # config.training_modalities = [
+    #     Modality.SENTINEL1.name,
+    #     Modality.SENTINEL2_L2A.name,
+    #     Modality.WORLDCOVER.name,
+    #     Modality.LANDSAT.name,
+    #     Modality.OPENSTREETMAP_RASTER.name,
+    #     Modality.SRTM.name,
+    # ]
     return config
 
 

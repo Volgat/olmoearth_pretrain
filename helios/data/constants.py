@@ -17,7 +17,7 @@ IMAGE_TILE_SIZE = 256
 
 PROJECTION_CRS = "EPSG:4326"
 
-MISSING_VALUE = -99999
+MISSING_VALUE = -999.0
 
 
 def get_resolution(resolution_factor: int) -> float | int:

@@ -204,18 +204,37 @@ class MaskingStrategy:
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    def get_missing_mask(self, instance: torch.Tensor) -> torch.Tensor:
+    def get_missing_mask(
+        self, instance: torch.Tensor, modality: ModalitySpec, mask: torch.Tensor
+    ) -> torch.Tensor:
         """Get the missing mask for the input data."""
-        missing_mask = instance == MISSING_VALUE
-        mask = missing_mask.all(dim=tuple(range(1, instance.ndim)))
-        return mask
+        missing_mask = mask.new_zeros(mask.shape)
+        logger.info(f"Missing mask shape: {mask.shape}")
+        # expected shape
+        for i, band_set_indices in enumerate(modality.bandsets_as_indices()):
+            logger.info(f"Band set indices: {band_set_indices}")
+            logger.info(f"modality: {modality.name}")
+            instance_band_set = instance[..., band_set_indices]
+            missing_mask_band_set = instance_band_set == MISSING_VALUE
+            logger.info(f"Missing mask band set: {missing_mask_band_set.shape}")
+            logger.info(f"mask band set shape: {missing_mask[..., i].shape}")
+            # If any band in the band set is missing, set the whole band set to missing
+            missing_mask[..., i] = missing_mask_band_set.any(dim=-1)
+        if missing_mask.any():
+            return missing_mask
+        return None
 
     def fill_mask_with_missing_values(
-        self, instance: torch.Tensor, mask: torch.Tensor
+        self, instance: torch.Tensor, mask: torch.Tensor, modality: ModalitySpec
     ) -> torch.Tensor:
         """Apply a missing mask to the input data."""
-        missing_mask = self.get_missing_mask(instance)
+        logger.info(f"Mask shape: {mask.shape}")
+        logger.info(f"num encoded tokens of mask before missing mask: {(mask == MaskValue.ONLINE_ENCODER.value).sum()}")
+        missing_mask = self.get_missing_mask(instance, modality, mask)
         if missing_mask is not None:
+            logger.info(f"Filling mask with missing values: {missing_mask.shape}")
+            logger.info(f"Mask shape: {mask.shape}")
+            logger.info(f"num encoded tokens of mask after missing mask: {(mask == MaskValue.ONLINE_ENCODER.value).sum()}")
             mask[missing_mask] = MaskValue.MISSING.value
         return mask
 
@@ -310,10 +329,13 @@ class TimeMaskingStrategy(MaskingStrategy):
         b = shape[0]
         t = shape[-2]
         assert t >= 3
-
+        logger.info(f"t: {t}")
         encode_times = max(int(self.encode_ratio * t), 1)
         decode_times = max(int(self.decode_ratio * t), 1)
         target_times = t - encode_times - decode_times
+        logger.info(f"encode_times: {encode_times}")
+        logger.info(f"decode_times: {decode_times}")
+        logger.info(f"target_times: {target_times}")
 
         flat_mask = torch.cat(
             [
@@ -382,7 +404,7 @@ class TimeMaskingStrategy(MaskingStrategy):
                         temporal_mask, "b t -> b h w t b_s", h=h, w=w, b_s=b_s
                     )
                     mask = mask.view(*shape[:-1], b_s).contiguous()
-                mask = self.fill_mask_with_missing_values(instance, mask)
+                mask = self.fill_mask_with_missing_values(instance, mask, modality)
                 output_dict[modality_name] = instance
                 output_dict[
                     MaskedHeliosSample.get_masked_modality_name(modality_name)
@@ -423,6 +445,9 @@ class SpaceMaskingStrategy(MaskingStrategy):
         encode_patches = int(self.encode_ratio * patches)
         decode_patches = int(self.decode_ratio * patches)
         target_patches = patches - encode_patches - decode_patches
+        logger.info(f"encode_patches: {encode_patches}")
+        logger.info(f"decode_patches: {decode_patches}")
+        logger.info(f"target_patches: {target_patches}")
 
         flat_mask = torch.cat(
             [
@@ -501,7 +526,7 @@ class SpaceMaskingStrategy(MaskingStrategy):
                     b_s = modality.num_band_sets
                     mask = repeat(spatial_mask, "... -> ... t b_s", t=t, b_s=b_s)
                     mask = mask.view(*shape[:-1], b_s).contiguous()
-                mask = self.fill_mask_with_missing_values(instance, mask)
+                mask = self.fill_mask_with_missing_values(instance, mask, modality)
                 output_dict[modality_name] = instance
                 output_dict[
                     MaskedHeliosSample.get_masked_modality_name(modality_name)
@@ -577,7 +602,7 @@ class ModalityMaskingStrategy(MaskingStrategy):
             mask = repeat(modality_mask, "b -> b h w t b_s", h=h, w=w, b_s=b_s, t=t)
             # Ensure we don't do index_put_ on expanded tensors is deprecated.
             mask = mask.view(*shape[:-1], b_s).contiguous()
-            mask = self.fill_mask_with_missing_values(instance, mask)
+            mask = self.fill_mask_with_missing_values(instance, mask, modality)
             output_dict[MaskedHeliosSample.get_masked_modality_name(modality_name)] = (
                 mask
             )
@@ -710,11 +735,11 @@ class RandomMaskingStrategy(MaskingStrategy):
                     device: torch.device | None = instance.device
                 else:
                     device = None
-
+                modality = Modality.get(modality_name)
                 mask = self._create_random_mask(
-                    Modality.get(modality_name), instance.shape, patch_size, device
+                    modality, instance.shape, patch_size, device
                 )
-                mask = self.fill_mask_with_missing_values(instance, mask)
+                mask = self.fill_mask_with_missing_values(instance, mask, modality)
                 output_dict[modality_name] = instance
                 output_dict[
                     MaskedHeliosSample.get_masked_modality_name(modality_name)

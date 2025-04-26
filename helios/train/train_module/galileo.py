@@ -341,6 +341,27 @@ class GalileoTrainModule(HeliosTrainModule):
     ) -> tuple[torch.Tensor, TokensAndMasks, torch.Tensor]:
         """Apply masks and compute losses and latents."""
         masked_batch = mask_fn(microbatch, patch_size=patch_size)
+        from helios.train.masking import MaskValue
+        for modality in masked_batch.modalities:
+            masked_attribute_name = f"{modality}_mask"
+            masked_attribute = getattr(masked_batch, masked_attribute_name)
+            logger.info(f"Masked attribute for {modality}: {masked_attribute.shape}")
+            logger.info(f"Masked attribute for {modality}: {torch.any(masked_attribute == MaskValue.ONLINE_ENCODER.value).item()}")
+            if not torch.any(masked_attribute == MaskValue.ONLINE_ENCODER.value).item():
+                logger.info(f"No encoded tokens for {modality}")
+            else:
+                num_encoded_tokens = (masked_attribute == MaskValue.ONLINE_ENCODER.value).sum()
+                logger.info(f"Number of encoded tokens for {modality}: {num_encoded_tokens}")
+            if not torch.any(masked_attribute == MaskValue.DECODER.value).item():
+                logger.info(f"No decoded tokens for {modality}")
+            else:
+                num_decoded_tokens = (masked_attribute == MaskValue.DECODER.value).sum()
+                logger.info(f"Number of decoded tokens for {modality}: {num_decoded_tokens}")
+            if not torch.any(masked_attribute == MaskValue.MISSING.value).item():
+                logger.info(f"No missing tokens for {modality}")
+            else:
+                num_missing_tokens = (masked_attribute == MaskValue.MISSING.value).sum()
+                logger.info(f"Number of missing tokens for {modality}: {num_missing_tokens}")
 
         # Run Encoder and decoder on the augmented input
         loss, latent, _, _, pooled = model_forward_fn(

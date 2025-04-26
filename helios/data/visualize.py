@@ -185,3 +185,31 @@ def visualize_sample(
     logger.info(f"Saved visualization to {out_path}")
     logger.info(f"type(fig): {type(fig)}")
     return fig
+
+
+if __name__ == "__main__":
+    import h5py
+    sample_path ="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data_gzip_3_shuffle/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/324192/sample_76827"
+    with sample_path.open("rb") as f:
+        with h5py.File(f, "r") as h5file:
+            logger.info(f"Reading h5 file {sample_path} with keys {h5file.keys()}")
+            # Not sure lat lon should be here
+            sample_dict = {
+                k: v[()]
+                for k, v in h5file.items()
+
+            }
+
+        s2_data = sample_dict["sentinel2_l2a"]
+        num_timesteps = s2_data.shape[2]
+        logger.info(f"Number of timesteps: {num_timesteps}")
+        for i in range(num_timesteps):
+            s2_data_i = s2_data[:, :, i]
+            logger.info(f"S2 data shape: {s2_data_i.shape}")
+            logger.info(f"S2 data type: {s2_data_i.dtype}")
+            logger.info(f"S2 data min: {s2_data_i.min()}")
+            logger.info(f"S2 data max: {s2_data_i.max()}")
+            logger.info(f"S2 data mean: {s2_data_i.mean()}")
+            logger.info(f"S2 data std: {s2_data_i.std()}")
+            logger.info(f"S2 data range: {s2_data_i.max() - s2_data_i.min()}")
+            logger.info(f"S2 data range: {s2_data_i.max() - s2_data_i.min()}")
