@@ -261,7 +261,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
             probe_lr=0.1,
-            eval_interval=Duration.epochs(1),
+            eval_interval=Duration.epochs(0),
         ),
         "sickle-r": DownstreamTaskConfig(
             dataset="sickle-r",
@@ -270,7 +270,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
             probe_lr=0.1,
-            eval_interval=Duration.epochs(1),
+            eval_interval=Duration.epochs(0),
         ),
     }
     trainer_config = (
