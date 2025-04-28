@@ -233,18 +233,14 @@ class MaskingStrategy:
         self, instance: torch.Tensor, mask: torch.Tensor, modality: ModalitySpec
     ) -> torch.Tensor:
         """Apply a missing mask to the input data."""
-        logger.info(f"Mask shape: {mask.shape}")
-        logger.warning(f"mask dtype: {mask.dtype}")
-        logger.info(f"num encoded tokens of mask before missing mask: {(mask == MaskValue.ONLINE_ENCODER.value).sum()}")
         missing_mask = self.get_missing_mask(instance, modality, mask)
-        output_mask = mask.clone()
+
+        # If we are changing the mask, we need to clone it as it may be a view of a masked used by different modalities
         if missing_mask.any():
-            logger.warning(f"Filling mask with missing values: {missing_mask.shape}")
-            logger.warning(f"num  missing tokens assigning missing mask: {(missing_mask == 1).sum()}")
-            logger.warning(f"assigning missing mask shape : {missing_mask.shape} to mask shape: {mask.shape}")
+            output_mask = mask.clone()
             output_mask[missing_mask] = MaskValue.MISSING.value
-        logger.info(f"Mask shape: {mask.shape}")
-        logger.warning(f"missing mask dtype: {missing_mask.dtype} shape: {missing_mask.shape}")
+        else:
+            output_mask = mask
         return output_mask
 
     def _create_random_mask(
@@ -539,6 +535,7 @@ class SpaceMaskingStrategy(MaskingStrategy):
                 else:
                     t = 1
                 b_s = modality.num_band_sets
+                # Mask is a view of the spatial mask, so changes to mask will change spatial_mask
                 mask = repeat(spatial_mask, "... -> ... t b_s", t=t, b_s=b_s)
                 mask = mask.view(*shape[:-1], b_s).contiguous()
                 if (mask == MaskValue.MISSING.value).all():

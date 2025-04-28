@@ -161,15 +161,10 @@ class PatchDiscriminationLossNew(Loss):
         target = F.normalize(target, p=2, dim=-1)
 
         count = (all_masks == MaskValue.DECODER.value).sum(dim=-1)
-        encoder_count = (all_masks == MaskValue.ONLINE_ENCODER.value).sum(dim=-1)
-        missing_count = (all_masks == MaskValue.MISSING.value).sum(dim=-1)
 
         losses = []
         start = 0
-        sample_num = 0
         for c in count:
-            logger.info(f"encoder_count: {encoder_count[sample_num]}")
-            logger.info(f"missing_count: {missing_count[sample_num]}")
             end = start + c
             pred_sample = pred[:, start:end, :]
             target_sample = target[:, start:end, :]
@@ -183,23 +178,8 @@ class PatchDiscriminationLossNew(Loss):
                 reduction="none",
             ) * (self.tau * 2)
             loss = loss.mean()
-            if torch.isnan(loss).any() or torch.isinf(loss).any():
-                logger.warning(f"loss is nan or inf at sample {sample_num}")
-                logger.warning(f"loss: {loss}")
-                logger.warning(f"score_sample: {score_sample}")
-                logger.warning(f"target_sample: {target_sample}")
-                logger.warning(f"pred_sample: {pred_sample}")
-                raise ValueError(f"loss is nan or inf at sample {sample_num}")
             losses.append(loss)
             start = end
-            sample_num += 1
-        sample_num = 0
-        logger.info(f"number of losses: {len(losses)}")
-        for loss in losses:
-            sample_num += 1
-            if torch.isnan(loss).any() or torch.isinf(loss).any():
-                logger.warning(f"loss is nan or inf at sample {sample_num}")
-                logger.warning(f"loss: {loss}")
         loss = torch.stack(losses).mean()
         return loss
 
