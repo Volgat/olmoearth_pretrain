@@ -526,18 +526,7 @@ class SpaceMaskingStrategy(MaskingStrategy):
                 # Mask is a view of the spatial mask, so changes to mask will change spatial_mask
                 mask = repeat(spatial_mask, "... -> ... t b_s", t=t, b_s=b_s)
                 mask = mask.view(*shape[:-1], b_s).contiguous()
-                if (mask == MaskValue.MISSING.value).all():
-                    logger.warning(f"All tokens are missing for modality {modality.name} before missing values are assigned at reshape")
             mask = self.fill_mask_with_missing_values(instance, mask, modality)
-            if (spatial_mask == MaskValue.MISSING.value).all():
-                raise ValueError(f"spatial mask should never have all missing values and should not be altered by the masking strategy")
-            # log the number of masks types for the modality
-            logger.info(f"Number of missing tokens for modality {modality.name}: {(mask == MaskValue.MISSING.value).sum()}")
-            logger.info(f"Number of online encoder tokens for modality {modality.name}: {(mask == MaskValue.ONLINE_ENCODER.value).sum()}")
-            logger.info(f"Number of decoder tokens for modality {modality.name}: {(mask == MaskValue.DECODER.value).sum()}")
-            logger.info(f"Number of target encoder only tokens for modality {modality.name}: {(mask == MaskValue.TARGET_ENCODER_ONLY.value).sum()}")
-            if (mask == MaskValue.MISSING.value).all():
-                logger.warning(f"All tokens are missing for modality {modality.name} after missing values are assigned")
 
             # Keep data as is
             output_dict[modality_name] = instance
