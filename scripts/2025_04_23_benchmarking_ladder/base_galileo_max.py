@@ -15,6 +15,7 @@ from olmo_core.train.callbacks import (
     ConfigSaverCallback,
     GarbageCollectorCallback,
     GPUMemoryMonitorCallback,
+    ProfilerCallback,
 )
 from olmo_core.train.checkpoint import CheckpointerConfig
 from olmo_core.train.common import Duration, LoadStrategy
@@ -157,7 +158,7 @@ def build_train_module_config(
         token_exit_cfg_a=token_exit_cfg_a,
         token_exit_cfg_b=token_exit_cfg_b,
         autocast_precision=DType.bfloat16,  # how does this interact with the fsdp?
-        compile_model=False,
+        compile_model=True,
         max_grad_norm=1.0,
         dp_config=dp_config,
         scheduler=scheduler,
@@ -195,16 +196,16 @@ def build_dataset_config(common: CommonComponents) -> Config:
             training_modalities=common.training_modalities,
             use_samples_with_missing_supported_modalities=True,  # Check if we want to set this to True
             dtype=DType.float32,
-            cache_dir="/helios_cache/presto",
-            samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
+            # cache_dir="/helios_cache/presto",
+            # samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
         ),
         HeliosDatasetConfig(
             h5py_dir="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data_gzip_3_shuffle/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/324192",
             training_modalities=common.training_modalities,
             use_samples_with_missing_supported_modalities=True,
             dtype=DType.float32,
-            cache_dir="/helios_cache/osm_sampling",
-            samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
+            # cache_dir="/helios_cache/osm_sampling",
+            # samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
         ),
     ]
     return HeliosConcatDatasetConfig(dataset_configs=dataset_configs)
@@ -297,6 +298,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         )
         .with_callback("garbage_collector", garbage_collector_callback)
         .with_callback("beaker", BeakerCallback())
+        .with_callback("profiler", ProfilerCallback())
     )
     return trainer_config
 
