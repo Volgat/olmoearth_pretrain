@@ -139,7 +139,7 @@ def test_latentmim_with_loss(
     loss_fn = PatchDiscriminationLoss()
     with torch.no_grad():
         logger.info("target encoder running here")
-        target_output = latentmim.target_encoder.forward(
+        target_output, _ = latentmim.target_encoder.forward(
             x.unmask(),
             patch_size=patch_size,
             token_exit_cfg={
