@@ -127,7 +127,9 @@ def build_launch_config(
             "conda shell.bash activate base",
             # Install torch==2.7 if we're targetting titan
             "pip install -e '.[all]'",
-            "pip install --upgrade beaker-py",
+            # commenting out the pip install beaker-py line, since
+            # it is incomaptible with olmo-core
+            # "pip install --upgrade beaker-py",
             # Quickly try a new version of PyTorch like this
             #  "pip install --upgrade --pre torch==2.6.0.dev20241112+cu121 --index-url https://download.pytorch.org/whl/nightly/cu121",
             pytorch_upgrade,
