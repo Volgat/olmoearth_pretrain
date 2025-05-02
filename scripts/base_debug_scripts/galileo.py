@@ -242,7 +242,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             num_workers=8,
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
-            eval_interval=Duration.epochs(1),
+            eval_interval=Duration.epochs(20),
         ),
         "breizhcrops": DownstreamTaskConfig(
             dataset="breizhcrops",
