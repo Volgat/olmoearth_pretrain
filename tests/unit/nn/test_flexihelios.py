@@ -744,6 +744,26 @@ class TestTokensAndMasks:
         assert pooled_max.shape == (b, h, w, d)
         assert (pooled_max == 2).all()  # check the 3 tokens have been ignored
 
+    def test_missing_modalities_ignored(self) -> None:
+        """Test TokensAndMasks.modalities does not return missing modalities."""
+        b, h, w, t, b_s, d = 2, 4, 4, 3, 3, 128
+        # Setup for mean pooling
+        sentinel_2_mean = torch.ones((b, h, w, t, b_s, d))
+        sentinel_2_mask_mean = torch.zeros((b, h, w, t, b_s)).long()
+        # s1 should be ignored since its masked
+        sentinel_1_mean = torch.ones((b, h, w, t, b_s, d)) * 2
+        sentinel_1_mask_mean = torch.ones((b, h, w, t, b_s)).long()
+        t_and_m_mean = TokensAndMasks(
+            sentinel2_l2a=sentinel_2_mean,
+            sentinel2_l2a_mask=sentinel_2_mask_mean,
+            sentinel1=sentinel_1_mean,
+            sentinel1_mask=sentinel_1_mask_mean,
+        )
+
+        modalities = t_and_m_mean.modalities
+        assert len(modalities) == 2  # s2, s1
+        assert set(modalities) == set(["sentinel2_l2a", "sentinel1"])
+
 
 class TestProjectionAndAggregation:
     """Test ProjectAndAggregate."""
