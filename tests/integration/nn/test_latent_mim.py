@@ -159,6 +159,7 @@ def test_latentmim_with_loss(
                 "composite_encodings.per_modality_channel_embeddings.worldcover",
                 "patch_embeddings.per_modality_embeddings.latlon",
                 "patch_embeddings.per_modality_embeddings.worldcover",
+                "project_and_aggregate",
             ]
         ):
             assert param.grad is not None, name
