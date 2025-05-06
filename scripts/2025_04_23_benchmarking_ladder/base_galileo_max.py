@@ -139,9 +139,9 @@ def build_train_module_config(
     token_exit_cfg_b = {modality: 0 for modality in common.training_modalities}
     WARMUP_EPOCHS = 20
     dp_config = DataParallelConfig(
-        name=DataParallelType.ddp,
-        # param_dtype=DType.bfloat16,
-        # reduce_dtype=DType.float32,
+        name=DataParallelType.fsdp,
+        param_dtype=DType.bfloat16,
+        reduce_dtype=DType.float32,
     )
 
     # TODO: would need a scheduler config and registry to be able to change this with overrides
@@ -191,21 +191,21 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 def build_dataset_config(common: CommonComponents) -> Config:
     """Build the dataset config for an experiment."""
     dataset_configs = [
+        # HeliosDatasetConfig(
+        #     h5py_dir="/weka/dfive-default/helios/dataset/presto/h5py_data_gzip_3_shuffle/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/118861",
+        #     training_modalities=common.training_modalities,
+        #     use_samples_with_missing_supported_modalities=True,  # Check if we want to set this to True
+        #     dtype=DType.float32,
+        #     # cache_dir="/helios_cache/presto",
+        #     # samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
+        # ),
         HeliosDatasetConfig(
-            h5py_dir="/weka/dfive-default/helios/dataset/presto/h5py_data_gzip_3_shuffle/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/118861",
-            training_modalities=common.training_modalities,
-            use_samples_with_missing_supported_modalities=True,  # Check if we want to set this to True
-            dtype=DType.float32,
-            cache_dir="/helios_cache/presto",
-            samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
-        ),
-        HeliosDatasetConfig(
-            h5py_dir="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data_gzip_3_shuffle/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/324192",
+            h5py_dir="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data_gzip_3/landsat_naip_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/323681",
             training_modalities=common.training_modalities,
             use_samples_with_missing_supported_modalities=True,
             dtype=DType.float32,
-            cache_dir="/helios_cache/osm_sampling",
-            samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
+            # cache_dir="/helios_cache/osm_sampling",
+            # samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
         ),
     ]
     return HeliosConcatDatasetConfig(dataset_configs=dataset_configs)
@@ -214,8 +214,8 @@ def build_dataset_config(common: CommonComponents) -> Config:
 def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     """Build the trainer config for an experiment."""
     MAX_DURATION = Duration.epochs(400)
-    METRICS_COLLECT_INTERVAL = 10  # SHould be turned off for final run
-    CANCEL_CHECK_INTERVAL = 25  # should be turned off for final run
+    METRICS_COLLECT_INTERVAL = 1 #10  # SHould be turned off for final run
+    CANCEL_CHECK_INTERVAL = 1 # 25  # should be turned off for final run
     LOAD_STRATEGY = LoadStrategy.if_available
     WANDB_USERNAME = "eai-ai2"  # nosec
     WANDB_PROJECT = "2025-04-23-galileo-contrastive-ladder"
