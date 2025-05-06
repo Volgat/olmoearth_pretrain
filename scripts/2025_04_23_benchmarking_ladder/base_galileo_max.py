@@ -214,11 +214,11 @@ def build_dataset_config(common: CommonComponents) -> Config:
 def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     """Build the trainer config for an experiment."""
     MAX_DURATION = Duration.epochs(400)
-    METRICS_COLLECT_INTERVAL = 1 #10  # SHould be turned off for final run
-    CANCEL_CHECK_INTERVAL = 1 # 25  # should be turned off for final run
+    METRICS_COLLECT_INTERVAL = 1  # 10  # SHould be turned off for final run
+    CANCEL_CHECK_INTERVAL = 1  # 25  # should be turned off for final run
     LOAD_STRATEGY = LoadStrategy.if_available
     WANDB_USERNAME = "eai-ai2"  # nosec
-    WANDB_PROJECT = "2025-04-23-galileo-contrastive-ladder"
+    WANDB_PROJECT = "helios-debug"
     checkpointer_config = CheckpointerConfig(work_dir=common.save_folder)
     wandb_callback = HeliosWandBCallback(
         name=common.run_name,

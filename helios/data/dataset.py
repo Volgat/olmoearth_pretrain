@@ -329,10 +329,10 @@ class HeliosSample(NamedTuple):
         return HeliosSample(**new_data_dict)
 
 
-def find_timesteps_with_at_least_one_modality_present(sample: HeliosSample, missing_timesteps_dict: dict[str, list[int]]) -> list[int]:
-    """Find the timesteps with at least one modality present."""
-    # what we actually want is different start_t and max_t combinations that are eligible for subsetting
-    pass
+# def find_timesteps_with_at_least_one_modality_present(sample: HeliosSample, missing_timesteps_dict: dict[str, list[int]]) -> list[int]:
+#     """Find the timesteps with at least one modality present."""
+#     # what we actually want is different start_t and max_t combinations that are eligible for subsetting
+#     pass
 
 def collate_helios(batch: list[tuple[int, HeliosSample]]) -> tuple[int, HeliosSample]:
     """Collate function that automatically handles any modalities present in the samples."""
