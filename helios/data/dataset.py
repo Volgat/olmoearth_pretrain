@@ -278,7 +278,6 @@ class HeliosSample(NamedTuple):
         patch_size: int,
         max_tokens_per_instance: int,
         sampled_hw_p: int,
-        missing_timesteps_dict: dict[str, list[int]],
     ) -> "HeliosSample":
         """Subset a HelioSample that is unbatched ie no batch dimension.
 
@@ -288,7 +287,6 @@ class HeliosSample(NamedTuple):
                 to determine the maximum number of timesteps possible for a given
                 height and width.
             sampled_hw_p: The number of tokens in the height and width dimensions.
-            missing_timesteps_dict: A dictionary of missing timesteps for each modality.
 
         The returned sample will have shape:
             height = hw_t * patch_size
@@ -666,11 +664,10 @@ class HeliosDataset(Dataset):
 
     def fill_sample_with_missing_values(
         self, sample_dict: dict[str, Any]
-    ) -> tuple[HeliosSample, list[str], dict[str, list[int]]]:
+    ) -> tuple[HeliosSample, list[str]]:
         """Fill the sample with missing values."""
         # TODO: This is still relatively slow
         missing_modalities = []
-        missing_timesteps_dict: dict[str, list[int]] = {}
         sample = HeliosSample(**sample_dict)
         for modality in self.training_modalities:
             if modality not in sample_dict.keys():
@@ -708,14 +705,12 @@ class HeliosDataset(Dataset):
                 modality_data[..., missing_timesteps, :] = MISSING_VALUE
 
             sample_dict[modality] = modality_data
-            missing_timesteps_dict[modality] = missing_timesteps
-        return HeliosSample(**sample_dict), missing_modalities, missing_timesteps_dict
+        return HeliosSample(**sample_dict), missing_modalities
 
     def apply_subset(
         self,
         sample: HeliosSample,
         args: GetItemArgs,
-        missing_timesteps_dict: dict[str, list[int]],
     ) -> HeliosSample:
         """Apply the subset to the sample."""
         if args.token_budget is not None:
@@ -723,7 +718,6 @@ class HeliosDataset(Dataset):
                 patch_size=args.patch_size,
                 max_tokens_per_instance=args.token_budget,
                 sampled_hw_p=args.sampled_hw_p,
-                missing_timesteps_dict=missing_timesteps_dict,
             )
         else:
             sample_subset = sample
@@ -796,10 +790,8 @@ class HeliosDataset(Dataset):
 
         sample_dict = self.read_h5_file(h5_file_path)
         # fill sample currently takes like .08 seconds which may bottleneck smaller models
-        sample, missing_modalities, missing_timesteps_dict = (
-            self.fill_sample_with_missing_values(sample_dict)
-        )
-        subset_sample = self.apply_subset(sample, args, missing_timesteps_dict)
+        sample, missing_modalities = self.fill_sample_with_missing_values(sample_dict)
+        subset_sample = self.apply_subset(sample, args)
 
         sample_dict = subset_sample.as_dict(ignore_nones=True)
         logger.debug(f"Sample dict keys {sample_dict.keys()}")
