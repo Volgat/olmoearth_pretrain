@@ -263,7 +263,7 @@ def load_image_for_sample(
                     IMAGE_TILE_SIZE
                     * image_tile.grid_tile.image_tile_size_factor
                     // factor
-                )  # if factor >= 1 else subtile_size
+                )
                 if desired_subtile_size < subtile_size:
                     # In this case we need to downscale.
                     # This should not be common, since usually bands would be stored at
