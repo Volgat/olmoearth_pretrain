@@ -213,6 +213,7 @@ class ConvertToH5py:
             if modality == Modality.SENTINEL1:
                 image = convert_to_db(image)
             sample_dict[modality.name] = image
+        # Need to see how the data with missing timestamps comes in
         # w+b as sometimes metadata needs to be read as well for different chunking/compression settings
         with h5_file_path.open("w+b") as f:
             with h5py.File(f, "w") as h5file:
@@ -326,7 +327,7 @@ class ConvertToH5py:
                 continue
 
             if sample.time_span != TimeSpan.YEAR:
-                logger.info(
+                logger.debug(
                     "Skipping sample because it is not the yearly frequency data"
                 )
                 continue
@@ -336,13 +337,13 @@ class ConvertToH5py:
             ]
             total_multitemporal_modalities = len(multitemporal_modalities)
             # Pop off any modalities that don't have 12 months of data
-            for modality in multitemporal_modalities:
-                if len(sample.modalities[modality].images) != 12:
-                    logger.info(
-                        f"Skipping {modality} because it has less than 12 months of data"
-                    )
-                    sample.modalities.pop(modality)
-                    total_multitemporal_modalities -= 1
+            # for modality in multitemporal_modalities:
+            #     if len(sample.modalities[modality].images) != 12:
+            #         logger.info(
+            #             f"Skipping {modality} because it has less than 12 months of data"
+            #         )
+            #         sample.modalities.pop(modality)
+            #         total_multitemporal_modalities -= 1
             # If there's no multitemporal modalities, skip the sample
             if total_multitemporal_modalities == 0:
                 logger.info(
@@ -395,7 +396,7 @@ class ConvertToH5py:
         self.save_sample_metadata(samples)
         self.save_latlon_distribution(samples)
         logger.info("Attempting to create H5 files may take some time...")
-        self.create_h5_dataset(samples)
+        # self.create_h5_dataset(samples)
 
     def run(self) -> None:
         """Run the conversion."""
