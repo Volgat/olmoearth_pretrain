@@ -262,10 +262,10 @@ class ProjectAndAggregate(nn.Module):
                 decoder_emedded_dict[masked_modality_name] = getattr(
                     x, masked_modality_name
                 )
-                x_projected = TokensAndMasks(**decoder_emedded_dict)
-                return x_projected.pool_unmasked_tokens(
-                    PoolingType.MEAN, spatial_pooling=False
-                )
+            x_projected = TokensAndMasks(**decoder_emedded_dict)
+            return x_projected.pool_unmasked_tokens(
+                PoolingType.MEAN, spatial_pooling=False
+            )
 
 
 class FlexiHeliosPatchEmbeddings(nn.Module):
