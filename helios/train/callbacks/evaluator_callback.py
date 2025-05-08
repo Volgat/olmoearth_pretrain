@@ -209,6 +209,8 @@ class DownstreamEvaluatorCallbackConfig(CallbackConfig):
                 raise ValueError(
                     f"input_modalities must be set for multimodal tasks, got {task.dataset}"
                 )
+            # Sort to ensure consistent order
+            task.input_modalities.sort()
 
             evaluators.append(
                 DownstreamEvaluator(

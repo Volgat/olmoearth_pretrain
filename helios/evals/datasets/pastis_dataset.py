@@ -341,9 +341,6 @@ class PASTISRDataset(Dataset):
         assert split in ["train", "valid", "test"]
 
         assert len(input_modalities) > 0, "input_modalities must be set"
-        assert len(input_modalities) == len(
-            set(input_modalities)
-        ), "input_modalities must be unique"
         assert all(
             modality in ["sentinel1", "sentinel2"] for modality in input_modalities
         ), "input_modalities must be a subset of ['sentinel1', 'sentinel2']"

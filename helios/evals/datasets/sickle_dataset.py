@@ -505,7 +505,7 @@ class SICKLEDataset(Dataset):
             partition: Partition to use
             norm_stats_from_pretrained: Whether to use normalization stats from pretrained model
             norm_method: Normalization method to use, only when norm_stats_from_pretrained is False
-            input_modalities: List of modalities to use, must be a subset of ["sentinel2", "sentinel1", "landsat"]
+            input_modalities: List of modalities to use, must be a subset of ["landsat8", "sentinel1", "sentinel2"]
         """
         assert split in ["train", "valid"]
         split = "val" if split == "valid" else split
@@ -515,9 +515,9 @@ class SICKLEDataset(Dataset):
             set(input_modalities)
         ), "input_modalities must be unique"
         assert all(
-            modality in ["sentinel2", "sentinel1", "landsat8"]
+            modality in ["landsat8", "sentinel1", "sentinel2"]
             for modality in input_modalities
-        ), "input_modalities must be a subset of ['sentinel2', 'sentinel1', 'landsat8']"
+        ), "input_modalities must be a subset of ['landsat8', 'sentinel1', 'sentinel2']"
 
         self.input_modalities = input_modalities
 
@@ -608,7 +608,7 @@ class SICKLEDataset(Dataset):
         timestamps = torch.stack(timestamps)
 
         # Support the combinations in Table 3 from the SICKLE paper
-        if self.input_modalities == ["sentinel2", "sentinel1", "landsat8"]:
+        if self.input_modalities == ["landsat8", "sentinel1", "sentinel2"]:
             masked_sample = MaskedHeliosSample.from_heliossample(
                 HeliosSample(
                     sentinel2_l2a=torch.tensor(s2_image).float(),
