@@ -511,9 +511,6 @@ class SICKLEDataset(Dataset):
         split = "val" if split == "valid" else split
 
         assert len(input_modalities) > 0, "input_modalities must be set"
-        assert len(input_modalities) == len(
-            set(input_modalities)
-        ), "input_modalities must be unique"
         assert all(
             modality in ["landsat8", "sentinel1", "sentinel2"]
             for modality in input_modalities

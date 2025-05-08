@@ -226,6 +226,11 @@ class DownstreamEvaluatorCallbackConfig(CallbackConfig):
                 raise ValueError(
                     f"input_modalities must be set for multimodal tasks, got {task.dataset}"
                 )
+            # Make sure input_modalities contains only unique modalities
+            if len(task.input_modalities) != len(set(task.input_modalities)):
+                raise ValueError(
+                    f"input_modalities must contain unique modalities, got {task.input_modalities}"
+                )
             # Sort to ensure consistent order
             task.input_modalities.sort()
 
