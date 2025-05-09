@@ -377,13 +377,17 @@ def collate_helios(batch: list[tuple[int, HeliosSample]]) -> tuple[int, HeliosSa
         if all_nones:
             return None
         else:
-            stacked_tensor = torch.stack(
-                [
-                    torch.from_numpy(sample.get_attribute_including_missing(attr))
-                    for _, sample in batch
-                ],
-                dim=0,
-            )
+            try:
+                stacked_tensor = torch.stack(
+                    [
+                        torch.from_numpy(sample.get_attribute_including_missing(attr))
+                        for _, sample in batch
+                    ],
+                    dim=0,
+                )
+            except RuntimeError as e:
+                timestamps = [cast(np.ndarray, b[1].timestamps).shape for b in batch]
+                raise RuntimeError(f"{e} for {attr}, {timestamps}")
         return stacked_tensor
 
     patch_size, batch_zero = batch[0]
