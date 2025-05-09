@@ -766,16 +766,33 @@ class RandomRangeMaskingStrategy(MaskingStrategy):
         self,
         min_encode_ratio: float = 0.1,
         max_encode_ratio: float = 0.5,
-        min_decode_ratio: float = 0.1,
-        max_decode_ratio: float = 0.5,
+        min_decode_ratio: float | None = None,
+        max_decode_ratio: float | None = None,
     ) -> None:
-        """Initialize the masking strategy."""
+        """Initialize the masking strategy.
+
+        Args:
+            min_encode_ratio: lower bound of range to sample encode ratio.
+            max_encode_ratio: upper bound of range to sample encode ratio.
+            min_decode_ratio: lower bound of range to sample decode ratio. If None, the
+                decode ratio is 1 - (sampled encode ratio).
+            max_decode_ratio: upper bound of range to sample decode ratio.
+        """
         self.min_encode_ratio = min_encode_ratio
         self.max_encode_ratio = max_encode_ratio
         self.min_decode_ratio = min_decode_ratio
         self.max_decode_ratio = max_decode_ratio
         self._encode_ratio = (min_encode_ratio + max_encode_ratio) / 2
-        self._decode_ratio = (min_decode_ratio + max_decode_ratio) / 2
+
+        if min_decode_ratio is not None and max_decode_ratio is not None:
+            self._decode_ratio = (min_decode_ratio + max_decode_ratio) / 2
+        elif min_decode_ratio is not None or max_decode_ratio is not None:
+            raise ValueError(
+                "min_decode_ratio and max_decode_ratio must be both None or both not None"
+            )
+        else:
+            self._decode_ratio = 1 - self._encode_ratio
+
         self.generator = np.random.default_rng(0)
 
     def apply_mask(
@@ -833,9 +850,13 @@ class RandomRangeMaskingStrategy(MaskingStrategy):
                     example_encode_ratios = self.generator.uniform(
                         self.min_encode_ratio, self.max_encode_ratio, (batch_size,)
                     )
-                    example_decode_ratios = self.generator.uniform(
-                        self.min_decode_ratio, self.max_decode_ratio, (batch_size,)
-                    )
+                    if self.min_decode_ratio is not None:
+                        example_decode_ratios = self.generator.uniform(
+                            self.min_decode_ratio, self.max_decode_ratio, (batch_size,)
+                        )
+                    else:
+                        example_decode_ratios = 1 - example_encode_ratios
+
                     example_masks = []
                     for batch_idx in range(batch_size):
                         example_masks.append(
@@ -933,19 +954,19 @@ class SelectableRandomRangeModalityMaskingStrategy(MaskingStrategy):
         max_to_mask: int,
         min_encode_ratio: float = 0.1,
         max_encode_ratio: float = 0.5,
-        min_decode_ratio: float = 0.1,
-        max_decode_ratio: float = 0.5,
+        min_decode_ratio: float | None = None,
+        max_decode_ratio: float | None = None,
     ) -> None:
         """Initialize the masking strategy."""
         self.decodable_modalities = decodable_modalities
         self.fully_mask_modalities = fully_mask_modalities
         self.max_to_mask = max_to_mask
-        self._encode_ratio = (min_encode_ratio + max_encode_ratio) / 2
-        self._decode_ratio = (min_decode_ratio + max_decode_ratio) / 2
         self.generator = np.random.default_rng(0)
         self.random_strategy = RandomRangeMaskingStrategy(
             min_encode_ratio, max_encode_ratio, min_decode_ratio, max_decode_ratio
         )
+        self._encode_ratio = self.random_strategy._encode_ratio
+        self._decode_ratio = self.random_strategy._decode_ratio
 
     def apply_mask(
         self, batch: HeliosSample, patch_size: int | None = None, **kwargs: Any
