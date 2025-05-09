@@ -356,14 +356,10 @@ class HeliosSample(NamedTuple):
         if getattr(self, modality) is not None:
             return getattr(self, modality)
         else:
-            return self._replace(
-                **{
-                    modality: np.full(
-                        self.get_expected_shape(modality),
-                        fill_value=MISSING_VALUE,
-                        dtype=self.dtype,
-                    )
-                }
+            return np.full(
+                self.get_expected_shape(modality),
+                fill_value=MISSING_VALUE,
+                dtype=self.dtype,
             )
 
 
