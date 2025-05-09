@@ -448,6 +448,9 @@ class HeliosDataset(Dataset):
             supported_modalities.remove("raster")
             supported_modalities.remove("openstreetmap")
             supported_modalities.append("openstreetmap_raster")
+        # latlons are saved with every h5py file, see
+        # helios.dataset.convert_to_h5py.ConvertToH5py._create_h5_file
+        supported_modalities.append("latlon")
         num_samples = int(self.h5py_dir.name)
 
         tile_path = self.h5py_dir.parent.parent.parent
