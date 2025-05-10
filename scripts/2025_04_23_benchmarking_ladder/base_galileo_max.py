@@ -158,7 +158,7 @@ def build_train_module_config(
         token_exit_cfg_a=token_exit_cfg_a,
         token_exit_cfg_b=token_exit_cfg_b,
         autocast_precision=DType.bfloat16,  # how does this interact with the fsdp?
-        compile_model=False,  #True,
+        compile_model=False,  # True,
         max_grad_norm=1.0,
         dp_config=dp_config,
         scheduler=scheduler,
@@ -202,6 +202,7 @@ def build_dataset_config(common: CommonComponents) -> Config:
         HeliosDatasetConfig(
             h5py_dir="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data_gzip_3_shuffle/landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/75000",
             training_modalities=common.training_modalities,
+            use_modalities_with_missing_timesteps=False,
             dtype=DType.float32,
             # cache_dir="/helios_cache/osm_sampling",
             # samples_per_sec=4 / NUM_WORKERS,  # 2/ GBS
@@ -265,6 +266,26 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             norm_stats_from_pretrained=True,
             probe_lr=0.1,
             eval_interval=Duration.epochs(20),
+        ),
+        "sickle": DownstreamTaskConfig(
+            dataset="sickle",
+            batch_size=8,
+            num_workers=2,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=True,
+            probe_lr=0.1,
+            eval_interval=Duration.epochs(20),
+            input_modalities=["landsat8"],
+        ),
+        "sickle-r": DownstreamTaskConfig(
+            dataset="sickle",
+            batch_size=8,
+            num_workers=2,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=True,
+            probe_lr=0.1,
+            eval_interval=Duration.epochs(20),
+            input_modalities=["landsat8", "sentinel1", "sentinel2"],
         ),
         # "pastis-r": DownstreamTaskConfig(
         #     dataset="pastis-r",
