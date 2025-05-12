@@ -670,24 +670,28 @@ class FlexiHeliosCompositeEncodings(nn.Module):
         # TODO: Improve this implementation it is quite bad
 
         modality = Modality.get(modality_name)
-        logger.debug(f"Applying encodings to modality {modality}")
+        logger.info(f"Applying encodings to modality {modality}")
 
         if modality_tokens.ndim == 3:
             # modality_tokens = [B, Band_Sets, D]; static in space, static in time
             b, b_s, _ = modality_tokens.shape
             ein_string, ein_dict = "b b_s d", {"b": b, "b_s": b_s}
+            logger.info(f"Using 3D tensor format for {modality_name}: static in space, static in time")
         elif modality_tokens.ndim == 4:
             b, t, b_s, _ = modality_tokens.shape
             ein_string, ein_dict = "b t b_s d", {"b": b, "t": t, "b_s": b_s}
+            logger.info(f"Using 4D tensor format for {modality_name}: static in space, varying in time")
         elif modality_tokens.ndim == 5:
             b, h, w, b_s, _ = modality_tokens.shape
             ein_string, ein_dict = "b h w b_s d", {"b": b, "h": h, "w": w, "b_s": b_s}
+            logger.info(f"Using 5D tensor format for {modality_name}: varying in space, static in time")
         elif modality_tokens.ndim == 6:
             b, h, w, t, b_s, _ = modality_tokens.shape
             ein_string, ein_dict = (
                 "b h w t b_s d",
                 {"b": b, "h": h, "w": w, "t": t, "b_s": b_s},
             )
+            logger.info(f"Using 6D tensor format for {modality_name}: varying in space and time")
         else:
             raise ValueError(f"Unsupported tokens shape: {modality_tokens.shape}")
 
@@ -711,6 +715,9 @@ class FlexiHeliosCompositeEncodings(nn.Module):
             assert timestamps is not None
             months = timestamps[:, :, 1]
             month_embed = self.month_embed(months)
+            logger.info(f"Month embed shape: {month_embed.shape}")
+            logger.info(f"Ein string: {ein_string}")
+            logger.info(f"Ein dict: {ein_dict}")
             month_embed = repeat(month_embed, f"b t d -> {ein_string}", **ein_dict)
             modality_embed[..., n * 2 : n * 3] += month_embed.to(device)
         if modality.is_spatial:

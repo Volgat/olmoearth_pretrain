@@ -373,6 +373,7 @@ class HeliosDataset(Dataset):
         training_modalities: list[str],
         dtype: DType,
         use_modalities_with_missing_timesteps: bool = True,
+        max_sequence_length: int = 12,
         normalize: bool = True,
         cache_dir: UPath | None = None,
         samples_per_sec: float | None = None,
@@ -415,6 +416,7 @@ class HeliosDataset(Dataset):
         if self.normalize:
             self.normalizer_predefined = Normalizer(Strategy.PREDEFINED)
             self.normalizer_computed = Normalizer(Strategy.COMPUTED)
+        self.max_sequence_length = max_sequence_length
 
         if samples_per_sec is None:
             self.sec_per_sample = None
@@ -697,7 +699,9 @@ class HeliosDataset(Dataset):
 
                         # Create a new array with all timesteps (both present and missing)
                         # This will have the same shape as the original but with all timesteps
-                        full_timesteps_data = np.full((h, w, len(mask), c), MISSING_VALUE, dtype=self.dtype)
+                        if len(mask) < self.max_sequence_length:
+                            logger.warning(f"Mask length {len(mask)} is less than max_sequence_length {self.max_sequence_length}. Padding with MISSING_VALUE")
+                        full_timesteps_data = np.full((h, w, self.max_sequence_length, c), MISSING_VALUE, dtype=self.dtype)
 
                         # Copy the existing data to the appropriate timestep positions
                         present_indices = np.where(mask)[0]
@@ -713,7 +717,30 @@ class HeliosDataset(Dataset):
                         modality_data = full_timesteps_data
 
             # Update the sample dictionary with the potentially imputed data
+
+            logger.info(f"Modality after imputation {modality} shape: {modality_data.shape}")
+            if modality_data.shape[2] > 1 and modality_data.shape[2] < 12:
+                raise ValueError(f"Modality {modality} has {modality_data.shape[2]} timesteps, expected 12")
             sample_dict[modality] = modality_data
+
+        timestamps_data = sample_dict["timestamps"]
+        current_length = timestamps_data.shape[0] # Timestamps shape is likely (T, 3) before batching
+
+        if current_length < self.max_sequence_length:
+            pad_width = ((0, self.max_sequence_length - current_length), (0, 0))
+
+            # Pad to last value so month embeddings still work
+            logger.warning(f"Padding timestamps to {self.max_sequence_length} from {current_length}")
+            padded_timestamps = np.pad(
+                timestamps_data,
+                pad_width=pad_width,
+                mode='edge'
+            )
+            sample_dict["timestamps"] = padded_timestamps
+        elif current_length > self.max_sequence_length:
+                # This case might indicate an issue or require truncation
+                logger.warning(f"Timestamp length {current_length} exceeds max_sequence_length {self.max_sequence_length}. Truncating.")
+                sample_dict["timestamps"] = timestamps_data[:self.max_sequence_length, :]
         return HeliosSample(**sample_dict), missing_modalities
 
     def apply_subset(
