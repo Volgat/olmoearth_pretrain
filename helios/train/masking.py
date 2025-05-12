@@ -724,6 +724,7 @@ class ModalityCrossSpaceMaskingStrategy(MaskingStrategy):
         self._encode_ratio = encode_ratio
         self._decode_ratio = decode_ratio
         self.space_strategy = SpaceMaskingStrategy(encode_ratio, decode_ratio)
+        # Stop using the generator pattern here and use the torch random as above
         self.generator = np.random.default_rng(0)
         self.max_unmasking_bandsets = max_unmasking_bandsets
         self.min_encoding_bandsets = min_encoding_bandsets
@@ -829,6 +830,8 @@ class ModalityCrossSpaceMaskingStrategy(MaskingStrategy):
                     modality_mask[..., bandset_idx] = MaskValue.ONLINE_ENCODER.value
 
             space_masked_sample_dict[masked_modality_name] = modality_mask
+
+
         # Loop to handle the decoding bandset clamping
         for modality in batch.modalities:
             if modality == "timestamps":
