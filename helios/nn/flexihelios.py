@@ -1530,7 +1530,7 @@ class Predictor(FlexiHeliosBase):
         Returns:
             TokensAndMasks containing the predicted tokens and their masks
         """
-        decoder_emedded_dict = x._asdict()
+        decoder_emedded_dict = x.as_dict(return_none=False)
         # Apply Input Norms and encoder to decoder embeds to each modality
         available_modalities = x.modalities
         modalities_to_process = get_modalities_to_process(
