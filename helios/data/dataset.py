@@ -299,12 +299,16 @@ class HeliosSample(NamedTuple):
         max_t = self._get_max_t_within_token_budget(
             sampled_hw_p, max_tokens_per_instance
         )
+        logger.info(f"Max t: {max_t}")
         sampled_hw = sampled_hw_p * patch_size
         start_h = np.random.choice(self.height - sampled_hw + 1)
         start_w = np.random.choice(self.width - sampled_hw + 1)
 
         # TODO:Try to pick a start_t and a max_t such that there is at least one modality present at each timestep
+        if self.time < max_t:
+            raise ValueError(f"Max t: {max_t} is greater than the number of timesteps: {self.time}")
         start_t = np.random.choice(self.time - max_t + 1)
+        logger.info(f"Start t: {start_t}")
         new_data_dict: dict[str, ArrayTensor] = {}
         for attribute, modality in self.as_dict(ignore_nones=True).items():
             assert modality is not None
@@ -546,11 +550,6 @@ class HeliosDataset(Dataset):
         self.sample_indices = np.arange(num_samples)
         self._filter_sample_indices_for_training()
 
-    def save_latlon_distribution(self, latlons: np.ndarray) -> None:
-        """Save the latlon distribution to a file."""
-        logger.info(f"Saving latlon distribution to {self.latlon_distribution_path}")
-        with self.latlon_distribution_path.open("wb") as f:
-            np.save(f, latlons)
 
     def _log_modality_distribution(self, samples: list[SampleInformation]) -> None:
         """Log the modality distribution."""
@@ -663,6 +662,7 @@ class HeliosDataset(Dataset):
         self, sample_dict: dict[str, Any], missing_timesteps_masks: dict[str, Any]
     ) -> tuple[HeliosSample, list[str]]:
         """Fill the sample with missing values."""
+        assert sample_dict["timestamps"].shape[0] == self.max_sequence_length, f"Timestamps shape {sample_dict['timestamps'].shape[0]} does not match max_sequence_length {self.max_sequence_length}"
         missing_modalities = []
         sample = HeliosSample(**sample_dict)
         for modality in self.training_modalities:
@@ -685,11 +685,11 @@ class HeliosDataset(Dataset):
             if modality in missing_timesteps_masks:
                 mask = missing_timesteps_masks[modality]
 
-                # If we have any missing timesteps (where mask is False)
-                if not np.all(mask):
+                # If we have any missing timesteps
+                if not np.all(mask) or len(mask) < self.max_sequence_length:
                     if self.use_modalities_with_missing_timesteps:
                         modality_data = np.full(
-                            sample.get_expected_shape(modality),
+                            sample.get_expected_shape(modality), # does this work if full timesteps are not present across the modality?
                             fill_value=MISSING_VALUE,
                             dtype=self.dtype,
                         )
@@ -717,31 +717,22 @@ class HeliosDataset(Dataset):
                         modality_data = full_timesteps_data
 
             # Update the sample dictionary with the potentially imputed data
-
-            logger.info(f"Modality after imputation {modality} shape: {modality_data.shape}")
-            if modality_data.shape[2] > 1 and modality_data.shape[2] < 12:
-                raise ValueError(f"Modality {modality} has {modality_data.shape[2]} timesteps, expected 12")
             sample_dict[modality] = modality_data
+        return HeliosSample(**sample_dict), missing_modalities
 
+    def _pad_timestamps(self, sample_dict: dict[str, Any]) -> dict[str, Any]:
+        """Pad the timestamps to the max_sequence_length."""
         timestamps_data = sample_dict["timestamps"]
-        current_length = timestamps_data.shape[0] # Timestamps shape is likely (T, 3) before batching
-
+        current_length = timestamps_data.shape[0]
         if current_length < self.max_sequence_length:
             pad_width = ((0, self.max_sequence_length - current_length), (0, 0))
-
-            # Pad to last value so month embeddings still work
-            logger.warning(f"Padding timestamps to {self.max_sequence_length} from {current_length}")
             padded_timestamps = np.pad(
                 timestamps_data,
                 pad_width=pad_width,
                 mode='edge'
             )
             sample_dict["timestamps"] = padded_timestamps
-        elif current_length > self.max_sequence_length:
-                # This case might indicate an issue or require truncation
-                logger.warning(f"Timestamp length {current_length} exceeds max_sequence_length {self.max_sequence_length}. Truncating.")
-                sample_dict["timestamps"] = timestamps_data[:self.max_sequence_length, :]
-        return HeliosSample(**sample_dict), missing_modalities
+        return sample_dict
 
     def apply_subset(
         self,
@@ -828,8 +819,18 @@ class HeliosDataset(Dataset):
             )
 
         sample_dict, missing_timesteps_masks = self.read_h5_file(h5_file_path)
+        sample_dict = self._pad_timestamps(sample_dict)
         # fill sample currently takes like .08 seconds which may bottleneck smaller models
         sample, missing_modalities = self.fill_sample_with_missing_values(sample_dict, missing_timesteps_masks)
+
+        # Debugging where we are getting the collate shape mismatch
+        for modality in sample.modalities:
+             if modality == "timestamps":
+                continue
+             if Modality.get(modality).is_multitemporal:
+                logger.info(f"Modality {modality} has {sample.shape(modality)[2]} timesteps")
+                if sample.shape(modality)[2] < self.max_sequence_length:
+                    raise ValueError(f"Modality {modality} has {sample.shape(modality)[2]} timesteps, expected {self.max_sequence_length}")
         subset_sample = self.apply_subset(sample, args)
 
         sample_dict = subset_sample.as_dict(ignore_nones=True)
