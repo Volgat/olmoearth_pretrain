@@ -787,11 +787,9 @@ class ModalityCrossSpaceMaskingStrategy(MaskingStrategy):
         decoded_bandset_idxs = candidate_decoding_bandset_combinations[
             self.generator.integers(0, len(candidate_decoding_bandset_combinations))
         ]
-        # decoded_bandset_idxs = [('latlon', 0)]
-        # encoded_bandset_idxs = [encoded_bandset for encoded_bandset in encoded_bandset_list if encoded_bandset != ('latlon', 0)]
+
         logger.info(f"decoded_bandset_idxs: {decoded_bandset_idxs}")
         logger.info(f"encoded_bandset_list: {encoded_bandset_list}")
-
         # Loop to handle the encoding bandset clamping
         space_masked_sample_dict = space_masked_sample.as_dict(return_none=False)
         for modality in batch.modalities:
@@ -809,6 +807,8 @@ class ModalityCrossSpaceMaskingStrategy(MaskingStrategy):
                 modality_mask = torch.clamp(
                     modality_mask, min=MaskValue.TARGET_ENCODER_ONLY.value
                 )
+
+
             for bandset_idx in range(modality_num_bandsets):
                 is_encoded = (modality, bandset_idx) in encoded_bandset_list
                 # what about time based data and static data?
@@ -890,8 +890,7 @@ class ModalityCrossSpaceMaskingStrategy(MaskingStrategy):
                 logger.info(
                     f"Number of target encoder tokens for {modality} bandset {bandset_idx}: {(modality_mask[..., bandset_idx] == MaskValue.TARGET_ENCODER_ONLY.value).sum()}"
                 )
-        # TODO: combine and simplify all this code
-
+        space_masked_sample = MaskedHeliosSample(**space_masked_sample_dict)
         return space_masked_sample
 
 
