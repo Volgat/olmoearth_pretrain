@@ -142,7 +142,7 @@ def build_train_module_config(
             "type": "mae",
             "loss_function": "SmoothL1Loss",
             "beta": 0.1,
-            "weight": 0.1,
+            "weight": 1,
         }
     )
     token_exit_cfg_a = {
