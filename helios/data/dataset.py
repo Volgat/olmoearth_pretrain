@@ -737,6 +737,11 @@ class HeliosDataset(Dataset):
                     if k in self.training_modalities
                     or k in [Modality.LATLON.name, "timestamps"]
                 }
+
+                # Log the dtype for each modality
+                for k, v in sample_dict.items():
+                    logger.info(f"Modality {k} has dtype {v.dtype}")
+
                 if (
                     missing_mask_group_name
                     := ConvertToH5py.missing_timesteps_mask_group_name
@@ -793,12 +798,8 @@ class HeliosDataset(Dataset):
                 # Sentinel Values must be reset after normalization so they can be recognized by missing mask
                 sample_dict[modality_name] = np.where(
                     missing_mask, modality_data, normalized_data
-                )
-        # log the shape of every modality at the end of get item
-        for modality_name in sample_dict.keys():
-            modality_data = sample_dict[modality_name]
-            if modality_data is not None:
-                logger.info(f"{modality_name} shape: {modality_data.shape}")
+                ).astype(self.dtype)
+
         return args.patch_size, HeliosSample(**sample_dict)
 
 
