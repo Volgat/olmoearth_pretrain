@@ -371,7 +371,7 @@ def build_common_components_debug_eval() -> CommonComponents:
 
 if __name__ == "__main__":
     main(
-        common_components_builder=build_common_components,
+        common_components_builder=build_common_components_debug_eval,
         model_config_builder=build_model_config,
         train_module_config_builder=build_train_module_config,
         dataset_config_builder=build_dataset_config,
