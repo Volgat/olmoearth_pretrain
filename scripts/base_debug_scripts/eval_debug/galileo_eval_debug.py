@@ -362,7 +362,7 @@ def build_common_components_debug_eval(*args) -> CommonComponents:
         save_folder=common_components.save_folder,
         training_modalities=[
             Modality.SENTINEL1.name,
-            Modality.SENTINEL2.name,
+            Modality.SENTINEL2_L2A.name,
             Modality.WORLDCOVER.name,
         ],
         launch=common_components.launch,
