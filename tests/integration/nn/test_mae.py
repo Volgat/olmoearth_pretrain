@@ -53,8 +53,9 @@ def test_mae_with_loss(
     # Create dummy sentinel2_l2a data: shape (B, H, W, T, C)
     sentinel2_l2a = torch.randn(B, H, W, T, C)
     # Here we assume 0 (ONLINE_ENCODER) means the token is visible.
-    sentinel2_l2a_mask = torch.zeros(
-        B, H, W, T, sentinel2_l2a_num_band_sets, dtype=torch.long
+    sentinel2_l2a_mask = (
+        torch.ones(B, H, W, T, sentinel2_l2a_num_band_sets, dtype=torch.long)
+        * MaskValue.ONLINE_ENCODER.value
     )
 
     worldcover = torch.randn(B, H, W, 1, 1)
@@ -148,9 +149,13 @@ def test_mae_with_loss(
     assert x.worldcover_mask is not None
     assert reconstructed.worldcover.shape == x.worldcover.shape
     assert reconstructed.worldcover_mask.shape == x.worldcover_mask.shape
+    assert (reconstructed.worldcover_mask == MaskValue.DECODER.value).all()
+    assert (reconstructed.sentinel2_l2a_mask == MaskValue.ONLINE_ENCODER.value).all()
 
-    assert (reconstructed.worldcover_mask == x.worldcover_mask).all()
-    assert (reconstructed.sentinel2_l2a_mask == x.sentinel2_l2a_mask).all()
+    assert decoded.worldcover_mask is not None
+    assert decoded.sentinel2_l2a_mask is not None
+    assert (decoded.worldcover_mask == MaskValue.DECODER.value).all()
+    assert (decoded.sentinel2_l2a_mask == MaskValue.ONLINE_ENCODER.value).all()
 
     # this reflects the forward_model function in mae
     loss_mae = MAELoss()
@@ -167,7 +172,7 @@ def test_mae_with_loss(
             },
         )
 
-    loss += loss_mim.compute(target_output, decoded)
+    loss += loss_mim.compute(decoded, target_output)
 
     loss.backward()
 
