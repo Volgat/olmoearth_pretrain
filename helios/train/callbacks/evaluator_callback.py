@@ -167,7 +167,7 @@ class DownstreamEvaluatorCallback(Callback):
                 evaluator.eval_interval
             )
             if self.step <= 1 or self.step % eval_interval_steps != 0:
-                return
+                continue
             logger.info(f"Running {evaluator.evaluation_name} evaluations...")
             start_time = time.monotonic()
             val_result = evaluator.val()
