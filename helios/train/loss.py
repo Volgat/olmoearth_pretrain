@@ -161,7 +161,6 @@ class PatchDiscriminationLossNew(Loss):
         target = F.normalize(target, p=2, dim=-1)
 
         count = (all_masks == MaskValue.DECODER.value).sum(dim=-1)
-
         losses = []
         start = 0
         for c in count:
