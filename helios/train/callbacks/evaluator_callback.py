@@ -4,7 +4,6 @@ import gc
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 import torch
 from olmo_core.train.callbacks.callback import Callback, CallbackConfig
@@ -19,6 +18,7 @@ from helios.evals.embeddings import get_embeddings
 from helios.evals.knn import run_knn
 from helios.evals.linear_probe import train_and_eval_probe
 from helios.nn.flexihelios import PoolingType
+from helios.train.callbacks.wandb import HeliosWandBCallback
 
 logger = logging.getLogger(__name__)
 
@@ -163,12 +163,27 @@ class DownstreamEvaluatorCallback(Callback):
     eval_on_startup: bool = False
     cancel_after_first_eval: bool = False
 
-    def pre_step(self, batch: dict[str, Any]) -> None:
+    def pre_train(self) -> None:
         """Run the evaluators on startup."""
         if self.eval_on_startup:
             logger.info(f"Running {len(self.evaluators)} evaluators on startup.")
+
+            # self.trainer.record_metric() is not logging to wandb at this point
+            # therefore we log to wandb manually
+            wandb_callback = next(
+                callback
+                for callback in self.trainer._iter_callbacks()
+                if isinstance(callback, HeliosWandBCallback)
+            )
             for evaluator in self.evaluators:
-                self._perform_eval(evaluator)
+                val_result, eval_time = self._perform_eval(evaluator)
+                wandb_callback.wandb.log(
+                    {"eval/" + evaluator.evaluation_name: val_result}
+                )
+                wandb_callback.wandb.log(
+                    {"eval_time/" + evaluator.evaluation_name: eval_time}
+                )
+
         if self.cancel_after_first_eval:
             self.trainer.cancel_run(
                 "Cancelled from evaluator callback since 'cancel_after_first_eval' is set",
@@ -185,7 +200,7 @@ class DownstreamEvaluatorCallback(Callback):
                 continue
             self._perform_eval(evaluator)
 
-    def _perform_eval(self, evaluator: DownstreamEvaluator) -> None:
+    def _perform_eval(self, evaluator: DownstreamEvaluator) -> tuple[float, float]:
         """Run the evaluator."""
         logger.info(f"Running {evaluator.evaluation_name} evaluations...")
         start_time = time.monotonic()
@@ -196,6 +211,7 @@ class DownstreamEvaluatorCallback(Callback):
         logger.info(
             f"Finished {evaluator.evaluation_name} evaluations in {eval_time:.1f} seconds."
         )
+        return val_result, eval_time
 
 
 @dataclass

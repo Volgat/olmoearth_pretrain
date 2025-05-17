@@ -13,9 +13,9 @@ MODEL_SIZES = {
 
 # Checkpoint paths
 CHECKPOINT_PATHS = {
-    "base": "/weka/dfive-default/helios/checkpoints/yawenzzzz/20250515_galileo_all_evals_test_9_base_linear_probe_lr_0.01/step0",
-    "large": "/weka/dfive-default/helios/checkpoints/yawenzzzz/20250515_galileo_all_evals_test_9_large_linear_probe_lr_0.01/step0",
-    "giga": "/weka/dfive-default/helios/checkpoints/yawenzzzz/20250515_galileo_all_evals_test_9_giga_linear_probe_lr_0.01/step0",
+    "base": "/weka/dfive-default/helios/checkpoints/yawenzzzz/20250515_galileo_all_evals_test_9_base_linear_probe_lr_0.0001/step0",
+    "large": "/weka/dfive-default/helios/checkpoints/yawenzzzz/20250515_galileo_all_evals_test_9_large_linear_probe_lr_0.0001/step0",
+    "giga": "/weka/dfive-default/helios/checkpoints/yawenzzzz/20250515_galileo_all_evals_test_9_giga_linear_probe_lr_0.0001/step0",
 }
 
 # Base command template

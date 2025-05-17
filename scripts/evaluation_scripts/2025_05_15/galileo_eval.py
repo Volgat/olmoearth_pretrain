@@ -51,7 +51,7 @@ NUM_DATA_LOADER_WORKERS = 4
 
 def build_model_config(common: CommonComponents) -> GalileoConfig:
     """Build the model config for an experiment."""
-    base_model_args = MODEL_SIZE_ARGS["giga_super_shallow_decoder"]
+    base_model_args = MODEL_SIZE_ARGS["base_super_shallow_decoder"]
     ENCODER_EMBEDDING_SIZE = int(base_model_args["encoder_embedding_size"])
     DECODER_EMBEDDING_SIZE = int(base_model_args["decoder_embedding_size"])
     ENCODER_DEPTH = int(base_model_args["encoder_depth"])
@@ -123,7 +123,7 @@ def build_train_module_config(
         }
     )
     # Maybe we want to increase token exit for base model?
-    base_model_args = MODEL_SIZE_ARGS["giga_super_shallow_decoder"]
+    base_model_args = MODEL_SIZE_ARGS["base_super_shallow_decoder"]
     token_exit_cfg_a = {
         Modality.SENTINEL2_L2A.name: int(base_model_args["encoder_depth"]),
         Modality.LATLON.name: int(base_model_args["encoder_depth"]),
@@ -256,22 +256,22 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         #     norm_stats_from_pretrained=True,
         #     eval_interval=Duration.epochs(20),
         # ),
-        # "m-brick-kiln": DownstreamTaskConfig(
-        #     dataset="m-brick-kiln",
-        #     batch_size=128,
-        #     num_workers=8,
-        #     pooling_type=PoolingType.MEAN,
-        #     norm_stats_from_pretrained=True,
-        #     eval_interval=Duration.epochs(20),
-        # ),
-        # "m-so2sat": DownstreamTaskConfig(
-        #     dataset="m-so2sat",
-        #     batch_size=128,
-        #     num_workers=8,
-        #     pooling_type=PoolingType.MEAN,
-        #     norm_stats_from_pretrained=True,
-        #     eval_interval=Duration.epochs(20),
-        # ),
+        "m-brick-kiln": DownstreamTaskConfig(
+            dataset="m-brick-kiln",
+            batch_size=128,
+            num_workers=8,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=True,
+            eval_interval=Duration.epochs(20),
+        ),
+        "m-so2sat": DownstreamTaskConfig(
+            dataset="m-so2sat",
+            batch_size=128,
+            num_workers=8,
+            pooling_type=PoolingType.MEAN,
+            norm_stats_from_pretrained=True,
+            eval_interval=Duration.epochs(20),
+        ),
         # "breizhcrops": DownstreamTaskConfig(
         #     dataset="breizhcrops",
         #     batch_size=128,
@@ -346,7 +346,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             work_dir=common.save_folder,
             load_strategy=LOAD_STRATEGY,
             save_folder=common.save_folder,
-            load_path="/weka/dfive-default/helios/checkpoints/yawenzzzz/20250514_galileo_all_evals_test_3_giga_linear_probe_lr_0.01/step0",
+            load_path="/weka/dfive-default/helios/checkpoints/yawenzzzz/20250515_galileo_all_evals_test_9_base_linear_probe_lr_0.0001/step0",
             cancel_check_interval=CANCEL_CHECK_INTERVAL,
             metrics_collect_interval=METRICS_COLLECT_INTERVAL,
             max_duration=MAX_DURATION,
