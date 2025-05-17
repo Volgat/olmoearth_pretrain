@@ -36,17 +36,17 @@ BASE_COMMAND = (
     "--train_module.token_exit_cfg_a.srtm={encoder_depth} "
     "--train_module.token_exit_cfg_a.landsat={encoder_depth} "
     "--trainer.load_path={checkpoint_path} "
-    # "--trainer.callbacks.downstream_evaluator.tasks.mados.probe_lr={lr} "
-    # "--trainer.callbacks.downstream_evaluator.tasks.sen1floods11.probe_lr={lr} "
-    # "--trainer.callbacks.downstream_evaluator.tasks.pastis.probe_lr={lr} "
-    # "--trainer.callbacks.downstream_evaluator.tasks.pastis_r.probe_lr={lr} "
-    # "--trainer.callbacks.downstream_evaluator.tasks.sickle.probe_lr={lr} "
-    # "--trainer.callbacks.downstream_evaluator.tasks.sickle_r.probe_lr={lr} "
+    "--trainer.callbacks.downstream_evaluator.tasks.mados.probe_lr={lr} "
+    "--trainer.callbacks.downstream_evaluator.tasks.sen1floods11.probe_lr={lr} "
+    "--trainer.callbacks.downstream_evaluator.tasks.pastis.probe_lr={lr} "
+    "--trainer.callbacks.downstream_evaluator.tasks.pastis_r.probe_lr={lr} "
+    "--trainer.callbacks.downstream_evaluator.tasks.sickle.probe_lr={lr} "
+    "--trainer.callbacks.downstream_evaluator.tasks.sickle_r.probe_lr={lr} "
     "--launch.priority=urgent "
 )
 
 # Learning rates to sweep for linear probe
-LP_LRs = [1e-4]  # , 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1]
+LP_LRs = [1e-4, 5e-4, 1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1]
 
 for lr in LP_LRs:
     for model_size in MODEL_SIZES:
