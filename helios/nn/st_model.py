@@ -681,7 +681,7 @@ class STBase(nn.Module):
         Returns:
             tokens_only_dict: mapping modalities to their tokens
         """
-        if block_idx == 0:
+        if block_idx % 2 == 0:
             offset_padding = window_size // 2
         else:
             offset_padding = 0
