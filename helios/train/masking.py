@@ -4,7 +4,6 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import Enum
-from itertools import chain, combinations
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -12,7 +11,6 @@ import torch
 from class_registry import ClassRegistry
 from einops import rearrange, repeat
 from olmo_core.config import Config
-import time
 
 from helios.data.constants import MISSING_VALUE, Modality, ModalitySpec
 from helios.data.dataset import HeliosSample
@@ -25,7 +23,6 @@ ALL_BANDSET_IDXS: list[tuple[str, int]] = []
 for modality in Modality.values():
     for bandset_idx in range(modality.num_band_sets):
         ALL_BANDSET_IDXS.append((modality.name, bandset_idx))
-
 
 
 class MaskValue(Enum):
@@ -771,7 +768,7 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
 
     def select_decoded_bandsets(
         self, batch: HeliosSample, encoded_bandset_list: list[tuple[str, int]]
-    ) -> tuple[tuple[str, int], ...]:
+    ) -> list[tuple[str, int]]:
         """Select the decoded bandsets."""
         decoding_bandset_combinations = []
         for bandset_combination in ALL_BANDSET_IDXS:
@@ -783,7 +780,9 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
             decoding_bandset_combinations.append(bandset_combination)
 
         if decoding_bandset_combinations == (((Modality.LATLON.name, 0),)):
-            raise ValueError("Latlon is not a valid decoding bandset by itself, number of modalities is too low or encoding bandsets are too large")
+            raise ValueError(
+                "Latlon is not a valid decoding bandset by itself, number of modalities is too low or encoding bandsets are too large"
+            )
 
         if len(decoding_bandset_combinations) == 0:
             raise ValueError("No valid decoding bandset combinations found")
@@ -798,7 +797,7 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
         self,
         masked_batch: MaskedHeliosSample,
         encoded_bandset_list: list[tuple[str, int]],
-        decoded_bandset_idxs: tuple[tuple[str, int], ...],
+        decoded_bandset_idxs: list[tuple[str, int]],
     ) -> MaskedHeliosSample:
         """Allow encoding of encoded bandsets and decoding of decoded bandsets."""
         masked_batch_dict = masked_batch.as_dict(return_none=False)
@@ -875,6 +874,7 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
             masked_sample, encoded_bandset_list, decoded_bandset_idxs
         )
         return masked_sample
+
 
 @MASKING_STRATEGY_REGISTRY.register("modality_cross_space")
 class ModalityCrossSpaceMaskingStrategy(ModalityCrossMaskingStrategy):
