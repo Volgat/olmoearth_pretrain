@@ -26,7 +26,6 @@ from helios.internal.experiment import (
     CommonComponents,
     HeliosVisualizeConfig,
     SubCmd,
-    main,
 )
 from helios.nn.flexihelios import PoolingType
 from helios.nn.latent_mim import LatentMIMConfig
@@ -61,6 +60,7 @@ def my_build_common_components(
         Modality.WORLDCOVER.name,
     ]
     components.launch.num_gpus = 8
+    print(components)
     return components
 
 
@@ -278,16 +278,4 @@ def build_visualize_config(common: CommonComponents) -> HeliosVisualizeConfig:
         num_samples=None,
         output_dir=str(UPath(common.save_folder) / "visualizations"),
         std_multiplier=2.0,
-    )
-
-
-if __name__ == "__main__":
-    main(
-        common_components_builder=my_build_common_components,
-        model_config_builder=build_model_config,
-        train_module_config_builder=build_train_module_config,
-        dataset_config_builder=build_dataset_config,
-        dataloader_config_builder=build_dataloader_config,
-        trainer_config_builder=build_trainer_config,
-        visualize_config_builder=build_visualize_config,
     )

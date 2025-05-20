@@ -7,14 +7,14 @@ from shared import (
     build_train_module_config,
     build_trainer_config,
     build_visualize_config,
+    my_build_common_components,
 )
 
-from helios.internal.common import build_common_components
 from helios.internal.experiment import main
 
 if __name__ == "__main__":
     main(
-        common_components_builder=build_common_components,
+        common_components_builder=my_build_common_components,
         model_config_builder=build_model_config,
         train_module_config_builder=build_train_module_config,
         dataset_config_builder=build_dataset_config,
