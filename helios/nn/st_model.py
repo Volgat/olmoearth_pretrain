@@ -1083,6 +1083,7 @@ class STPredictor(STBase):
         learnable_channel_embeddings: bool = True,
         random_channel_embeddings: bool = False,
         output_embedding_size: int | None = None,
+        windowed_attention_size: int | None = None,
     ):
         """Initialize the predictor.
 
@@ -1098,6 +1099,8 @@ class STPredictor(STBase):
             learnable_channel_embeddings: Whether to use learnable channel embeddings
             random_channel_embeddings: Whether to randomly initialize channel embeddings
             output_embedding_size: Size of output embeddings
+            windowed_attention_size: the size for windowed attention. If set, we do
+                windowed attention instead of spatial/temporal attention.
         """
         super().__init__(
             embedding_size=decoder_embedding_size,
@@ -1109,6 +1112,7 @@ class STPredictor(STBase):
             use_channel_embs=learnable_channel_embeddings,
             random_channel_embs=random_channel_embeddings,
             supported_modalities=supported_modalities,
+            windowed_attention_size=windowed_attention_size,
         )
         # TODO: Rename this weird misname
         self.learnable_channel_embeddings = learnable_channel_embeddings
