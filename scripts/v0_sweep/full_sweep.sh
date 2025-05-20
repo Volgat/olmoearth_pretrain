@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Basic Latent MIM
-python scripts/v0_sweep/latent_mim.py dry_run v0_base_latent_mim_random ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=random  --model.reconstructor_config=null --train_module.mae_loss_config=null
+# python scripts/v0_sweep/latent_mim.py dry_run v0_base_latent_mim_random ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=random  --model.reconstructor_config=null --train_module.mae_loss_config=null
 # python scripts/v0_sweep/latent_mim.py dry_run v0_base_latent_mim_space_time ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=space_time --model.reconstructor_config=null --train_module.mae_loss_config=null
 # python scripts/v0_sweep/latent_mim.py dry_run v0_base_latent_mim_cross_space ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=modality_cross_space --model.reconstructor_config=null --train_module.mae_loss_config=null
 # python scripts/v0_sweep/latent_mim.py dry_run v0_base_latent_mim_cross_space_time ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=modality_cross_space_time --model.reconstructor_config=null --train_module.mae_loss_config=null
 
 # # Latent MIM + Contrastive
-# python scripts/v0_sweep/contrastive_latent_mim.py dry_run v0_base_latent_mim_contrastive_random ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=random  --model.reconstructor_config=null
+python scripts/v0_sweep/contrastive_latent_mim.py dry_run v0_base_latent_mim_contrastive_random ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=random  --model.reconstructor_config=null
 # # python scripts/v0_sweep/contrastive_latent_mim.py dry_run v0_base_latent_mim_contrastive_space_time ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=space_time --model.reconstructor_config=null
 # # python scripts/v0_sweep/contrastive_latent_mim.py dry_run v0_base_latent_mim_contrastive_cross_space ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=modality_cross_space --model.reconstructor_config=null
 # # python scripts/v0_sweep/contrastive_latent_mim.py dry_run v0_base_latent_mim_contrastive_cross_space_time ai2/jupiter-cirrascale-2 --model.decoder_config.depth=4 --common.launch.num_gpus=8 --train_module.masking_config.strategy_config.type=modality_cross_space_time --model.reconstructor_config=null
