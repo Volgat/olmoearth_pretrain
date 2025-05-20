@@ -716,8 +716,8 @@ class STBase(nn.Module):
 
             elif len(dims) == 6:
                 batch, h, w, t, b_s, _ = dims
-                hn = (h + window_size - 1) // window_size
-                wn = (w + window_size - 1) // window_size
+                hn = (h + offset_padding + window_size - 1) // window_size
+                wn = (w + offset_padding + window_size - 1) // window_size
                 # Extract tokens for this modality (b*hn*wn t*bs*hs*ws d).
                 # Modalities are stacked on the token axis.
                 num_tokens_for_modality = t * b_s * window_size * window_size
