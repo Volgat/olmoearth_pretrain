@@ -13,7 +13,7 @@ BASE_RESOLUTION = 0.625
 # The default image tile size.
 # Some images may be smaller if they are stored at a coarser resolution compared to the
 # resolution that the grid is based on.
-IMAGE_TILE_SIZE = 256
+IMAGE_TILE_SIZE = 128 # 256
 
 PROJECTION_CRS = "EPSG:4326"
 
