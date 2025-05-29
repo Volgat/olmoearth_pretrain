@@ -235,7 +235,7 @@ class HeliosSample(NamedTuple):
             unique_timesteps = torch.unique(self.timestamps[i])
             min_valid_time = min(min_valid_time, unique_timesteps.shape[0])
         if min_valid_time < self.time:
-            logger.debug(
+            logger.warning(
                 f"valid_time is smaller than time: {min_valid_time} < {self.time}"
             )
         return min_valid_time
