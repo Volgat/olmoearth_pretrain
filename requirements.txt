@@ -12,6 +12,7 @@ hdf5plugin
 interrogate
 matplotlib
 numpy
+nvidia-nccl-cu12==2.26.5
 pandas
 pandera
 pre-commit
