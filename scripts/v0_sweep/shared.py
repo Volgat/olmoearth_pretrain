@@ -240,6 +240,7 @@ def build_train_module_config(model: str = "galileo") -> HeliosTrainModuleConfig
             autocast_precision=DType.bfloat16,
             max_grad_norm=1.0,
             dp_config=dp_config,
+            ema_decay=[1.0, 1.0],
             scheduler=scheduler,
         )
     elif model == "latentmim":
