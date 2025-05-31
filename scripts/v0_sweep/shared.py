@@ -162,9 +162,9 @@ def build_train_module_config(model: str = "galileo") -> HeliosTrainModuleConfig
     LR = 0.0001
     RANK_MICROBATCH_SIZE = 32
     ENCODE_RATIO = 0.1
-    DECODE_RATIO = 0.9
+    DECODE_RATIO = 0.75
     WD = 0.02
-    WARMUP_EPOCHS = 5
+    WARMUP_EPOCHS = 10
 
     optim_config = AdamWConfig(lr=LR, weight_decay=WD)
     masking_config = MaskingConfig(
