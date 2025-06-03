@@ -604,46 +604,21 @@ class SICKLEDataset(Dataset):
             )
         timestamps = torch.stack(timestamps)
 
-        # Support the combinations in Table 3 from the SICKLE paper
-        if self.input_modalities == ["landsat8", "sentinel1", "sentinel2"]:
-            masked_sample = MaskedHeliosSample.from_heliossample(
-                HeliosSample(
-                    sentinel2_l2a=torch.tensor(s2_image).float(),
-                    sentinel1=torch.tensor(s1_image).float(),
-                    landsat=torch.tensor(l8_image).float(),
-                    timestamps=timestamps,
-                )
-            )
-        elif self.input_modalities == ["sentinel1", "sentinel2"]:
-            masked_sample = MaskedHeliosSample.from_heliossample(
-                HeliosSample(
-                    sentinel2_l2a=torch.tensor(s2_image).float(),
-                    sentinel1=torch.tensor(s1_image).float(),
-                    timestamps=timestamps,
-                )
-            )
-        elif self.input_modalities == ["sentinel2"]:
-            masked_sample = MaskedHeliosSample.from_heliossample(
-                HeliosSample(
-                    sentinel2_l2a=torch.tensor(s2_image).float(),
-                    timestamps=timestamps,
-                )
-            )
-        elif self.input_modalities == ["sentinel1"]:
-            masked_sample = MaskedHeliosSample.from_heliossample(
-                HeliosSample(
-                    sentinel1=torch.tensor(s1_image).float(),
-                    timestamps=timestamps,
-                )
-            )
-        elif self.input_modalities == ["landsat8"]:
-            masked_sample = MaskedHeliosSample.from_heliossample(
-                HeliosSample(
-                    landsat=torch.tensor(l8_image).float(),
-                    timestamps=timestamps,
-                )
-            )
-        else:
-            raise ValueError(f"Invalid input modalities: {self.input_modalities}")
+        # Build sample dict based on requested modalities
+        sample_dict = {"timestamps": timestamps}
+
+        if "landsat8" in self.input_modalities:
+            sample_dict["landsat"] = torch.tensor(l8_image).float()
+        if "sentinel1" in self.input_modalities:
+            sample_dict["sentinel1"] = torch.tensor(s1_image).float()
+        if "sentinel2" in self.input_modalities:
+            sample_dict["sentinel2_l2a"] = torch.tensor(s2_image).float()
+
+        if not sample_dict:
+            raise ValueError(f"No valid modalities found in: {self.input_modalities}")
+
+        masked_sample = MaskedHeliosSample.from_heliossample(
+            HeliosSample(**sample_dict)
+        )
 
         return masked_sample, labels.long()
