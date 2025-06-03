@@ -28,14 +28,15 @@ BASE_COMMAND = (
     "--trainer.callbacks.downstream_evaluator.tasks.sickle_sentinel1.probe_batch_size={batch_size} "
     "--trainer.callbacks.wandb.project=v0_sweep_eval_debug "
     "--launch.priority=low "
+    "--launch.task_name=eval "
 )
 
 # Learning rates to sweep for linear probe
-PROBE_BATCH_SIZES = [128]
+PROBE_BATCH_SIZES = [4, 8, 16, 32, 64, 128]
 LP_LRs = [
-    # 1e-4,
-    # 2e-4,
-    # 5e-4,
+    1e-4,
+    2e-4,
+    5e-4,
     7e-4,
     1e-3,
     2e-3,
@@ -57,7 +58,7 @@ for lr in LP_LRs:
             # get the second to last directory name
             print(checkpoint_path.split("/"))
             training_run_name = checkpoint_path.split("/")[-2]
-            run_name = f"{training_run_name}_lr_{lr}_bs_{probe_batch_size}"
+            run_name = f"1_{training_run_name}_lr_{lr}_bs_{probe_batch_size}"
         command = (
             BASE_COMMAND.format(
                 run_name=run_name,
