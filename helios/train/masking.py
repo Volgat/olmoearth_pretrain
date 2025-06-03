@@ -868,13 +868,11 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
                         modality_mask[..., bandset_idx]
                         == MaskValue.ONLINE_ENCODER.value
                     )
-                    # add a probability of 50% to not encode the bandset
-                    if self.generator.random() < 0.5:
-                        modality_mask[..., bandset_idx] = torch.where(
-                            online_encoder_mask,
-                            MaskValue.TARGET_ENCODER_ONLY.value,
-                            modality_mask[..., bandset_idx],
-                        )
+                    modality_mask[..., bandset_idx] = torch.where(
+                        online_encoder_mask,
+                        MaskValue.TARGET_ENCODER_ONLY.value,
+                        modality_mask[..., bandset_idx],
+                    )
 
                 if not is_decoded:
                     decoder_mask = (
