@@ -58,7 +58,7 @@ for lr in LP_LRs:
             # get the second to last directory name
             print(checkpoint_path.split("/"))
             training_run_name = checkpoint_path.split("/")[-2]
-            run_name = f"1_{training_run_name}_lr_{lr}_bs_{probe_batch_size}"
+            run_name = f"eval_{training_run_name}_lr_{lr}_bs_{probe_batch_size}"
         command = (
             BASE_COMMAND.format(
                 run_name=run_name,
