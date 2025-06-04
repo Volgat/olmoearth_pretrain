@@ -21,6 +21,7 @@ from helios.nn.encodings import (
     get_month_encoding_table,
 )
 from helios.nn.flexi_patch_embed import FlexiPatchEmbed, FlexiPatchReconstruction
+from helios.nn.utils import get_cumulative_sequence_lengths
 from helios.train.masking import MaskedHeliosSample, MaskValue
 
 logger = logging.getLogger(__name__)
@@ -1044,7 +1045,9 @@ class Encoder(FlexiHeliosBase):
         return exit_ids_per_modality_dict
 
     @staticmethod
-    def remove_masked_tokens(x: Tensor, mask: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def remove_masked_tokens(
+        x: Tensor, mask: Tensor
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         """Remove masked tokens from the tokens and masks.
 
         Implementation from https://stackoverflow.com/a/68621610/2332296
@@ -1072,12 +1075,13 @@ class Encoder(FlexiHeliosBase):
         x = x * sorted_mask.unsqueeze(-1)
 
         # cut off to the length of the longest sequence
-        max_length = sorted_mask.sum(-1).max()
+        seq_lengths = sorted_mask.sum(-1)
+        max_length = seq_lengths.max()
         x = x[:, :max_length]
         # New mask chopped to the longest sequence
         updated_mask = sorted_mask[:, :max_length]
 
-        return x, indices, updated_mask
+        return x, indices, updated_mask, seq_lengths, max_length
 
     @staticmethod
     def add_removed_tokens(
@@ -1172,11 +1176,14 @@ class Encoder(FlexiHeliosBase):
 
         bool_mask = mask == MaskValue.ONLINE_ENCODER.value
 
-        tokens, indices, new_mask = self.remove_masked_tokens(x, bool_mask)
+        tokens, indices, new_mask, seq_lengths, max_seqlens = self.remove_masked_tokens(
+            x, bool_mask
+        )
         if exit_ids_seq is not None:
             exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, bool_mask)
             # still linear projections
             exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, bool_mask)
+        cu_seqlens = get_cumulative_sequence_lengths(seq_lengths)
 
         # Apply attn with varying encoder depths
         for i_blk, blk in enumerate(self.blocks):
@@ -1195,7 +1202,13 @@ class Encoder(FlexiHeliosBase):
             # of True indicates the value *should* take part in
             # attention
             # WARNING: THIS MAY CHANGE DEPENDING ON THE ATTENTION IMPLEMENTATION
-            tokens = blk(x=tokens, y=None, attn_mask=new_mask)
+            tokens = blk(
+                x=tokens,
+                cu_seqlens=cu_seqlens,
+                max_seqlens=max_seqlens,
+                # we will have to specify k and q lens for cross attention
+                attn_mask=new_mask,
+            )
 
         if exit_ids_seq is not None:
             # this should only ever be called by the target encoder,
