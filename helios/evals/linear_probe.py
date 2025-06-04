@@ -1,6 +1,7 @@
 """Train and evaluate a linear probe."""
 
 import math
+from logging import getLogger
 
 import torch
 import torch.nn as nn
@@ -11,6 +12,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from helios.evals.datasets.configs import EvalDatasetConfig, TaskType
 from helios.evals.metrics import mean_iou
 from helios.evals.utils import adjust_learning_rate
+
+logger = getLogger(__name__)
 
 PROBING_LRs = {
     "LP": [
@@ -68,13 +71,15 @@ def train_and_eval_probe(
 
         probe, data_loader = train_probe(
             probe=probe,
-            data_loader=DataLoader(
-                TensorDataset(train_embeddings, train_labels),
-                batch_size=batch_size,
-                shuffle=True,
-            )
-            if data_loader is None
-            else data_loader,
+            data_loader=(
+                DataLoader(
+                    TensorDataset(train_embeddings, train_labels),
+                    batch_size=batch_size,
+                    shuffle=True,
+                )
+                if data_loader is None
+                else data_loader
+            ),
             lr=lr,
             epochs=end_epoch,
             total_epochs=epochs,
@@ -95,14 +100,18 @@ def train_and_eval_probe(
             patch_size=output_patch_size,
             device=device,
         )
-        print(f"Epoch {end_epoch}, MIoU: {eval_miou}")
         eval_mious.append(eval_miou)
     for i in range(len(eval_mious)):
-        print(f"Epoch {(i + 1) * eval_interval}, MIoU: {eval_mious[i]}")
+        logger.debug(f"Epoch {(i + 1) * eval_interval}, MIoU: {eval_mious[i]}")
     max_miou = max(eval_mious)
     max_epoch = (eval_mious.index(max_miou) + 1) * eval_interval
-    print(f"Max MIoU: {max_miou} at epoch {max_epoch}")
-    return max(eval_mious)
+    logger.debug(f"Max MIoU: {max_miou} at epoch {max_epoch}")
+    final_miou = eval_mious[-1]
+    if final_miou < max_miou:
+        logger.warning(
+            f"Final MIoU: {final_miou} at epoch {epochs} is less than max MIoU: {max_miou} at epoch {max_epoch}"
+        )
+    return final_miou
 
 
 def train_probe(
