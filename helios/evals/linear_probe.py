@@ -62,10 +62,11 @@ def train_and_eval_probe(
     output_patch_size = math.ceil(config.height_width / grid_size)
     logits_per_patch = int(config.num_classes * output_patch_size * output_patch_size)
     probe = nn.Sequential(nn.Linear(in_features, logits_per_patch)).to(device)
-    num_eval_groups = math.ceil(epochs / eval_interval)
+
+    num_times_to_run_eval = math.ceil(epochs / eval_interval)
     data_loader = None
     eval_mious = []
-    for i in range(num_eval_groups):
+    for i in range(num_times_to_run_eval):
         start_epoch = i * eval_interval
         end_epoch = min(start_epoch + eval_interval, epochs)
 
