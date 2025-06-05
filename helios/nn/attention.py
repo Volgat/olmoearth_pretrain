@@ -48,9 +48,9 @@ def dispatch_flash_attn(
 
     if varlen:
         assert q.ndim == 3, "q must be pre-packed"
-        logger.info(f"q shape: {q.shape} k shape: {k.shape} v shape: {v.shape}")
-        # lgo using varlen
-        logger.info(f"using varlen")
+        # logger.info(f"q shape: {q.shape} k shape: {k.shape} v shape: {v.shape}")
+        # # lgo using varlen
+        # logger.info(f"using varlen")
         return flash_attn.flash_attn_varlen_func(
             q,
             k,
@@ -173,13 +173,6 @@ class Attention(nn.Module):
             if torch.isnan(v).any():
                 print("v is nan")
                 raise ValueError("v is nan")
-            # also log the dtype of q, k, v
-            logger.info(f"q dtype: {q.dtype} k dtype: {k.dtype} v dtype: {v.dtype}")
-            # q_disp = q.transpose(1, 2)
-            # k_disp = k.transpose(1, 2)
-            # v_disp = v.transpose(1, 2)
-            # log the max values of q, k, v
-            logger.info(f"q max: {q.shape} k max: {k.shape} v max: {v.shape}")
 
             # I want my own dispatch flash attn function for now
             x = dispatch_flash_attn(
@@ -267,7 +260,7 @@ class Attention(nn.Module):
             q = rearrange(q, "bn (h d) -> bn h d", h=self.num_heads)
             k = rearrange(k, "bn (h d) -> bn h d", h=self.num_heads)
             v = rearrange(v, "bn (h d) -> bn h d", h=self.num_heads)
-        logger.info(f"q shape: {q.shape} k shape: {k.shape} v shape: {v.shape}")
+        # logger.info(f"q shape: {q.shape} k shape: {k.shape} v shape: {v.shape}")
 
         q, k = self.q_norm(q), self.k_norm(k)
 
@@ -286,7 +279,6 @@ class Attention(nn.Module):
             attn_mask=attn_mask,
             flash_attn=flash_attn,
         )
-        logger.info(f"x shape: {x.shape}")
         x = x.transpose(1, 2).reshape(original_shape)
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -515,6 +507,7 @@ class Block(nn.Module):
         max_seqlen_q: int | None = None,
         max_seqlen_k: int | None = None,
         attn_mask: torch.Tensor | None = None,
+        y_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Forward pass.
 
@@ -526,21 +519,23 @@ class Block(nn.Module):
         Returns:
             Output tensor of shape (B, N, C)
         """
+        # I need a good checking the cumulative lengths setting
         og_shape = x.shape
-        if y is not None:
-            # log that flash attn is False
-            logger.info(f"flash attn is False")
-            flash_attn = False
-        else:
-            flash_attn = True
-        if flash_attn and cu_seqlens is not None:
-            logger.info(f"x shape before flattening: {x.shape}")
+        flash_attn = True
+        if flash_attn and (cu_seqlens is not None or cu_seqlens_q is not None ):
+            logger.info(f"Original x shape: {x.shape}")
             x_flat = torch.flatten(x, end_dim=1)
-            logger.info(f"x_flat shape: {x_flat.shape}")
+            logger.info(f"Flattened x shape: {x_flat.shape}")
             flat_attn_mask = torch.flatten(attn_mask)
-            logger.info(f"flat_attn_mask shape: {flat_attn_mask.shape}")
+            logger.info(f"Flattened attention mask shape: {flat_attn_mask.shape}")
             x = x_flat[flat_attn_mask]
-            logger.info(f"x shape: {x.shape}")
+            logger.info(f"Final masked x shape: {x.shape}")
+
+        if y is not None:
+            y_flat = torch.flatten(y, end_dim=1)
+            flat_y_mask = torch.flatten(y_mask)
+            y = y_flat[flat_y_mask]
+            logger.info(f"y shape: {y.shape}")
 
         x = x + self.drop_path(
             self.ls1(
@@ -558,15 +553,14 @@ class Block(nn.Module):
                 )
             )
         )
+
         x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
-        # FOr now I am going to unpack here though ideally this can be done after attention is called entirely?
-        if flash_attn and cu_seqlens is not None:
-            logger.info(f"x shape before unpacking: {x.shape}")
+
+
+        if flash_attn:
             out = x.new_zeros(og_shape[0] * og_shape[1], og_shape[2])
             out[flat_attn_mask] = x
-            # can probs be a view for the real thing
             out = out.reshape(og_shape[0], og_shape[1], -1)
-            logger.info(f"x shape after unpacking: {out.shape}")
             return out
         return x
 

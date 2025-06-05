@@ -1183,7 +1183,6 @@ class Encoder(FlexiHeliosBase):
             exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, bool_mask)
             # still linear projections
             exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, bool_mask)
-        logger.info(f"seq_lengths: {seq_lengths}")
         cu_seqlens = get_cumulative_sequence_lengths(seq_lengths)
 
         # Time attn with cuda bench
@@ -1204,15 +1203,6 @@ class Encoder(FlexiHeliosBase):
             # of True indicates the value *should* take part in
             # attention
             # WARNING: THIS MAY CHANGE DEPENDING ON THE ATTENTION IMPLEMENTATION
-            logger.info(f"for block {i_blk}, tokens type: {type(tokens)}")
-            logger.info(f"for block {i_blk}, cu_seqlens: {cu_seqlens} max_seqlen: {max_seqlen} of type {type(max_seqlen)}")
-            # get the shapes fo tokens cu_seqlens and max_seqlen
-            # logger.info(f"for block {i_blk}, tokens shape: {tokens.shape} {cu_seqlens.shape} {max_seqlen.shape}")
-            # log the tokens dtype
-            logger.info(f"before block {i_blk}, tokens shape: {tokens.shape}")
-            # if new_mask.all():
-            #     cu_seqlens = None
-            #     max_seqlen = None
             tokens = blk(
                 x=tokens,
                 cu_seqlens=cu_seqlens,
@@ -1220,15 +1210,6 @@ class Encoder(FlexiHeliosBase):
                 # we will have to specify k and q lens for cross attention
                 attn_mask=new_mask,
             )
-            logger.info(f"after block {i_blk}, tokens shape: {tokens.shape}")
-            # check for nan
-            if torch.isnan(tokens).any():
-                logger.warning(f"for block {i_blk}, tokens is nan  {tokens.shape}")
-                # count how many are nan and lgo there index and the ttal number of nan
-                nan_count = torch.isnan(tokens).sum()
-                logger.warning(f"for block {i_blk}, nan count: {nan_count}")
-                logger.warning(f"for block {i_blk}, nan indices: {torch.where(torch.isnan(tokens))}")
-                raise ValueError("tokens is nan")
 
         if exit_ids_seq is not None:
             # this should only ever be called by the target encoder,
@@ -1439,8 +1420,10 @@ class Predictor(FlexiHeliosBase):
         binarized_decoder_mask = sorted_mask == MaskValue.DECODER.value
         binarized_online_encoder_mask = sorted_mask == MaskValue.ONLINE_ENCODER.value
 
-        max_length_of_unmasked_tokens = binarized_online_encoder_mask.sum(dim=-1).max()
-        max_length_of_decoded_tokens = binarized_decoder_mask.sum(dim=-1).max()
+        seqlens_unmasked_tokens = binarized_online_encoder_mask.sum(dim=-1)
+        max_length_of_unmasked_tokens = seqlens_unmasked_tokens.max()
+        seqlens_tokens_to_decode = binarized_decoder_mask.sum(dim=-1)
+        max_length_of_decoded_tokens = seqlens_tokens_to_decode.max()
 
         # the y mask is going to be used to determine which of the y values take. True values
         # take part in the attention (we don't take the inverse here, unlike in the decoder)
@@ -1464,6 +1447,10 @@ class Predictor(FlexiHeliosBase):
             tokens_to_decode_mask,
             unmasked_tokens_mask,
             indices,
+            seqlens_tokens_to_decode,
+            seqlens_unmasked_tokens,
+            max_length_of_decoded_tokens,
+            max_length_of_unmasked_tokens,
         )
 
     @staticmethod
@@ -1522,7 +1509,9 @@ class Predictor(FlexiHeliosBase):
         tokens_dict.update(original_masks_dict)
         x, mask = self.collapse_and_combine_hwtc(tokens_dict)
         # X contains the tokens to decode, Y contains the tokens to attend to for context
-        x, y, x_mask, y_mask, indices = self.split_x_y(x, mask)
+        x, y, x_mask, y_mask, indices, seqlens_x, seqlens_y, max_length_of_x, max_length_of_y = self.split_x_y(x, mask)
+        cu_seqlens_x = get_cumulative_sequence_lengths(seqlens_x)
+        cu_seqlens_y = get_cumulative_sequence_lengths(seqlens_y)
         for blk in self.blocks:
             # note that we are not taking the inverse of the mask, since split_x_y gives us
             # true values for values we want to take part in attention
@@ -1530,7 +1519,13 @@ class Predictor(FlexiHeliosBase):
             logger.info(f"y shape before block: {y.shape}")
             logger.info(f"x_mask shape before block: {x_mask.shape}")
             logger.info(f"y_mask shape before block: {y_mask.shape}")
-            x = blk(x=x, y=y, attn_mask=y_mask.bool())
+            x = blk(x=x, y=y,
+                attn_mask=x_mask.bool(), # only for flash attn though this should not be left in
+                y_mask=y_mask.bool(),
+                cu_seqlens_q=cu_seqlens_x,
+                cu_seqlens_k=cu_seqlens_y,
+                max_seqlen_q=max_length_of_x,
+                max_seqlen_k=max_length_of_y)
             logger.info(f"x shape after block: {x.shape}")
             logger.info(f"y shape after block: {y.shape}")
             logger.info(f"x_mask shape after block: {x_mask.shape}")
