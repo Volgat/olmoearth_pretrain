@@ -50,7 +50,7 @@ def dispatch_flash_attn(
         assert q.ndim == 3, "q must be pre-packed"
         # logger.info(f"q shape: {q.shape} k shape: {k.shape} v shape: {v.shape}")
         # # lgo using varlen
-        # logger.info(f"using varlen")
+        logger.info(f"using varlen")
         return flash_attn.flash_attn_varlen_func(
             q,
             k,
@@ -175,6 +175,19 @@ class Attention(nn.Module):
                 raise ValueError("v is nan")
 
             # I want my own dispatch flash attn function for now
+
+            # log the max seqlens and the last cu seqlen if not none alsof of ka nd v too
+            if cu_seqlens is not None:
+                logger.info(f"max seqlen: {max_seqlen} last cu seqlen: {cu_seqlens[-1]}")
+            if cu_seqlens_q is not None:
+                logger.info(f"max seqlen q: {max_seqlen_q} last cu seqlen q: {cu_seqlens_q[-1]}")
+            if cu_seqlens_k is not None:
+                logger.info(f"max seqlen k: {max_seqlen_k} last cu seqlen k: {cu_seqlens_k[-1]}")
+
+            # what are the max q k and v values also what it is the seq len
+            logger.info(f"q.max(): {q.max()}")
+            logger.info(f"k.max(): {k.max()}")
+            logger.info(f"v.max(): {v.max()}")
             x = dispatch_flash_attn(
                 q,
                 k,
@@ -189,11 +202,12 @@ class Attention(nn.Module):
                 softmax_scale=self.scale,
                 causal=False,
             )
-            # check for nan here
             if torch.isnan(x).any():
                 raise ValueError("x is nan")
             # Output is (B, Nq, H, D), transpose back to (B, H, Nq, D)
+            logger.info(f"x shape: {x.shape}")
             x = x.transpose(1, 2)
+            logger.info(f"x shape after transpose: {x.shape}")
         elif self.fast_attn:
             if attn_mask is not None:
                 attn_mask = attn_mask[:, None, None].repeat((1, self.num_heads, n, 1))
@@ -258,6 +272,7 @@ class Attention(nn.Module):
             v = rearrange(v, "b n (h d) -> b h n d", h=self.num_heads)
         else:
             q = rearrange(q, "bn (h d) -> bn h d", h=self.num_heads)
+            # Flash attention only supports k v heads that divide the number of query heads
             k = rearrange(k, "bn (h d) -> bn h d", h=self.num_heads)
             v = rearrange(v, "bn (h d) -> bn h d", h=self.num_heads)
         # logger.info(f"q shape: {q.shape} k shape: {k.shape} v shape: {v.shape}")
@@ -520,23 +535,7 @@ class Block(nn.Module):
             Output tensor of shape (B, N, C)
         """
         # I need a good checking the cumulative lengths setting
-        og_shape = x.shape
         flash_attn = True
-        if flash_attn and (cu_seqlens is not None or cu_seqlens_q is not None ):
-            logger.info(f"Original x shape: {x.shape}")
-            x_flat = torch.flatten(x, end_dim=1)
-            logger.info(f"Flattened x shape: {x_flat.shape}")
-            flat_attn_mask = torch.flatten(attn_mask)
-            logger.info(f"Flattened attention mask shape: {flat_attn_mask.shape}")
-            x = x_flat[flat_attn_mask]
-            logger.info(f"Final masked x shape: {x.shape}")
-
-        if y is not None:
-            y_flat = torch.flatten(y, end_dim=1)
-            flat_y_mask = torch.flatten(y_mask)
-            y = y_flat[flat_y_mask]
-            logger.info(f"y shape: {y.shape}")
-
         x = x + self.drop_path(
             self.ls1(
                 self.attn(
@@ -555,13 +554,6 @@ class Block(nn.Module):
         )
 
         x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
-
-
-        if flash_attn:
-            out = x.new_zeros(og_shape[0] * og_shape[1], og_shape[2])
-            out[flat_attn_mask] = x
-            out = out.reshape(og_shape[0], og_shape[1], -1)
-            return out
         return x
 
 

@@ -948,6 +948,25 @@ class FlexiHeliosBase(nn.Module):
 
         return tokens_only_dict
 
+    @staticmethod
+    def pack_tokens(tokens: Tensor, mask: Tensor) -> Tensor:
+        logger.info(f"Original x shape: {tokens.shape}")
+        tokens_packed = torch.flatten(tokens, end_dim=1)
+        logger.info(f"Flattened x shape: {tokens_packed.shape}")
+        mask = torch.flatten(mask)
+        logger.info(f"Flattened attention mask shape: {mask.shape}")
+        tokens = tokens_packed[mask]
+        logger.info(f"Final masked x shape: {tokens.shape}")
+        return tokens
+
+    @staticmethod
+    def unpack_tokens(tokens: Tensor, mask: Tensor, og_shape: tuple) -> Tensor:
+        tokens_new = tokens.new_zeros(og_shape[0] * og_shape[1], og_shape[2])
+        mask = torch.flatten(mask)
+        tokens_new[mask] = tokens
+        tokens = tokens_new.reshape(og_shape[0], og_shape[1], -1)
+        return tokens
+
     def apply_fsdp(self, **fsdp_kwargs: Any) -> None:
         """Apply FSDP to the model."""
         for block in self.blocks:
@@ -1184,8 +1203,12 @@ class Encoder(FlexiHeliosBase):
             # still linear projections
             exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, bool_mask)
         cu_seqlens = get_cumulative_sequence_lengths(seq_lengths)
+        flash_attn = True
+        # Pack x tokens
+        if flash_attn:
+            og_shape = tokens.shape
+            tokens = self.pack_tokens(tokens, new_mask)
 
-        # Time attn with cuda bench
         # Apply attn with varying encoder depths
         for i_blk, blk in enumerate(self.blocks):
             # Skip the zeroth block because we want to use the exited tokens that don't have encodings as this allows trivial solution of predicting the shared encodings
@@ -1210,6 +1233,10 @@ class Encoder(FlexiHeliosBase):
                 # we will have to specify k and q lens for cross attention
                 attn_mask=new_mask,
             )
+
+        if flash_attn:
+            tokens = self.unpack_tokens(tokens, new_mask, og_shape)
+
 
         if exit_ids_seq is not None:
             # this should only ever be called by the target encoder,
@@ -1512,6 +1539,14 @@ class Predictor(FlexiHeliosBase):
         x, y, x_mask, y_mask, indices, seqlens_x, seqlens_y, max_length_of_x, max_length_of_y = self.split_x_y(x, mask)
         cu_seqlens_x = get_cumulative_sequence_lengths(seqlens_x)
         cu_seqlens_y = get_cumulative_sequence_lengths(seqlens_y)
+        # Pack x tokens
+        flash_attn = True
+        if flash_attn:
+            og_shape_x = x.shape
+            x = self.pack_tokens(x, x_mask).contiguous()
+            og_shape_y = y.shape
+            y = self.pack_tokens(y, y_mask).contiguous()
+
         for blk in self.blocks:
             # note that we are not taking the inverse of the mask, since split_x_y gives us
             # true values for values we want to take part in attention
@@ -1530,6 +1565,13 @@ class Predictor(FlexiHeliosBase):
             logger.info(f"y shape after block: {y.shape}")
             logger.info(f"x_mask shape after block: {x_mask.shape}")
             logger.info(f"y_mask shape after block: {y_mask.shape}")
+
+
+        if flash_attn:
+            x = self.unpack_tokens(x, x_mask, og_shape_x)
+            y = self.unpack_tokens(y, y_mask, og_shape_y)
+
+
         x = self.combine_x_y(
             tokens_to_decode=x,
             unmasked_tokens=y,
