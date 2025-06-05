@@ -65,7 +65,7 @@ class ConvertToH5pyConfig(Config):
 class ConvertToH5py:
     """Class for converting a dataset of GeoTiffs into a training dataset set up of h5py files."""
 
-    h5py_folder: str = "h5py_data_w_missing_timesteps_128"
+    h5py_folder: str = "h5py_data_w_missing_timesteps_128_x_4"
     latlon_distribution_fname: str = "latlon_distribution.npy"
     sample_metadata_fname: str = "sample_metadata.csv"
     sample_file_pattern: str = "sample_{index}.h5"
@@ -136,7 +136,7 @@ class ConvertToH5py:
     ) -> None:
         """Process a sample into an h5 file."""
         i, sublock_index, sample = index_sample_tuple
-        h5_file_path = self._get_h5_file_path(i, sublock_index)
+        h5_file_path = self._get_h5_file_path(i)
         if h5_file_path.exists():
             return
         self._create_h5_file(sample, h5_file_path, sublock_index)
@@ -144,18 +144,6 @@ class ConvertToH5py:
     def create_h5_dataset(self, samples: list[SampleInformation]) -> None:
         """Create a dataset of the samples in h5 format in a shared weka directory under the given fingerprint."""
 
-        # Create 4 times as many samples each with 128x128 tiles
-        # I want to make a list of tuples of the form (index, sample)
-        # where index is the sublock of the 256x256 tile
-        # and sample is the sample that corresponds to the sublock
-        # I want to do this in parallel
-
-        # First, create the list of tuples
-        tuples = []
-        for sample in samples:
-            for j in range(4):
-                tuples.append((j, sample))
-        samples = tuples
         total_sample_indices = len(samples)
 
         if self.multiprocessed_h5_creation:
@@ -192,7 +180,7 @@ class ConvertToH5py:
             metadata_dict[modality.name] = []
 
         # Populate the DataFrame with metadata from each sample
-        for i, sample in enumerate(samples):
+        for i, (_, sample) in enumerate(samples):
             metadata_dict["sample_index"].append(i)
 
             # Set modality presence (1 if present, 0 if not)
@@ -221,7 +209,7 @@ class ConvertToH5py:
     def save_latlon_distribution(self, samples: list[SampleInformation]) -> None:
         """Save the latlon distribution to a file."""
         logger.info(f"Saving latlon distribution to {self.latlon_distribution_path}")
-        latlons = np.array([sample.get_latlon() for sample in samples])
+        latlons = np.array([sample.get_latlon() for _,sample in samples])
         with self.latlon_distribution_path.open("wb") as f:
             np.save(f, latlons)
 
@@ -287,7 +275,10 @@ class ConvertToH5py:
                 # Calculate row and column indices for 2x2 grid
                 row = (sublock_index // 2) * 128
                 col = (sublock_index % 2) * 128
+                logger.info(f"Sublock index: {sublock_index}, row: {row}, col: {col}")
+                logger.info(f"Image shape: {image.shape}")
                 image = image[row:row+128, col:col+128, ...]
+                logger.info(f"Image shape after slicing: {image.shape}")
             sample_dict[modality.name] = image
 
         # w+b as sometimes metadata needs to be read as well for different chunking/compression settings
@@ -328,7 +319,7 @@ class ConvertToH5py:
                             create_kwargs["chunks"] = True # need to configure
                         elif isinstance(
                             self.chunk_options, tuple
-                        ):  # Specific chunk shape
+                        ) and self.chunk_options is not None:  # Specific chunk shape
                             num_data_dims = len(data_item.shape)
                             final_chunks_list = []
                             for i in range(num_data_dims):
@@ -340,6 +331,7 @@ class ConvertToH5py:
                             logger.info(f"Final chunks list: {final_chunks_list}")
                             create_kwargs["chunks"] = tuple(final_chunks_list)
                         else:
+                            logger.info(f"Chunk options: using chunk size {data_item.shape}")
                             create_kwargs["chunks"] = (
                                 data_item.shape
                             )  # use the dataset item shape as the chunk so it effectively does no chunking
@@ -512,4 +504,17 @@ class ConvertToH5py:
     def run(self) -> None:
         """Run the conversion."""
         samples = self.get_and_filter_samples()
+
+        # Create 4 times as many samples each with 128x128 tiles
+        # I want to make a list of tuples of the form (index, sample)
+        # where index is the sublock of the 256x256 tile
+        # and sample is the sample that corresponds to the sublock
+        # I want to do this in parallel
+
+        # First, create the list of tuples
+        tuples = []
+        for sample in samples:
+            for j in range(4):
+                tuples.append((j, sample))
+        samples = tuples
         self.prepare_h5_dataset(samples)
