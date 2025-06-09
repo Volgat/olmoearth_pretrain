@@ -23,6 +23,7 @@ from torch.utils.data import Dataset
 from upath import UPath
 
 from helios.data.constants import (
+    MAX_SEQUENCE_LENGTH,
     MISSING_VALUE,
     TIMESTAMPS,
     Modality,
@@ -219,7 +220,7 @@ class HeliosSample(NamedTuple):
 
         Note that the timestamps are edge padded by repeating the last timestamp.
         """
-        min_valid_time = 12
+        min_valid_time = MAX_SEQUENCE_LENGTH
         if self.timestamps is None:
             raise ValueError("Timestamps are not present in the sample")
         if len(self.timestamps.shape) != 3:
@@ -393,7 +394,7 @@ class HeliosDataset(Dataset):
         h5py_dir: UPath,
         training_modalities: list[str],
         dtype: np.dtype,
-        max_sequence_length: int = 12,
+        max_sequence_length: int = MAX_SEQUENCE_LENGTH,
         normalize: bool = True,
         cache_dir: UPath | None = None,
         samples_per_sec: float | None = None,
