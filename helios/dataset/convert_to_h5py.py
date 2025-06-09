@@ -133,6 +133,11 @@ class ConvertToH5py:
             compression_str += "_shuffle"
         return compression_str
 
+    @property
+    def image_tile_size_suffix(self) -> str:
+        """String representation of the image tile size."""
+        return f"_{self.tile_size}_x_{self.num_subtiles}"
+
     def _get_samples(self) -> list[SampleInformation]:
         """Get the samples from the raw dataset (image tile directory)."""
         tiles = parse_helios_dataset(self.tile_path, self.supported_modalities)
@@ -422,7 +427,7 @@ class ConvertToH5py:
 
         h5py_dir = (
             self.tile_path
-            / f"{self.h5py_folder}{self.compression_settings_suffix}"
+            / f"{self.h5py_folder}{self.compression_settings_suffix}{self.image_tile_size_suffix}"
             / "_".join(
                 sorted([modality.name for modality in self.supported_modalities])
             )
