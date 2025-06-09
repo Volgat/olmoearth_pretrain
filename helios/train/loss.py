@@ -573,15 +573,6 @@ class InfoNCELoss(Loss):
         #     PoolingType.MEAN, spatial_pooling=False
         # )
 
-        valid_mask = (
-            torch.all(torch.isfinite(predictions), dim=-1)
-            & torch.all(torch.isfinite(targets), dim=-1)
-            & ~torch.any(torch.isnan(predictions), dim=-1)
-            & ~torch.any(torch.isnan(targets), dim=-1)
-        )
-        predictions = predictions[valid_mask]
-        targets = targets[valid_mask]
-
         predictions = F.normalize(predictions, p=2, dim=-1)
         targets = F.normalize(targets, p=2, dim=-1)
         logits = predictions @ targets.transpose(-2, -1)
