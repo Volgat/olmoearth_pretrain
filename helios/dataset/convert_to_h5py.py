@@ -46,7 +46,7 @@ class ConvertToH5pyConfig(Config):
     chunk_options: tuple | None = (
         None  # Chunking configuration. None: disabled. True: auto (data_item.shape). tuple: specific shape.
     )
-    tile_size: int = 256
+    tile_size: int = IMAGE_TILE_SIZE
 
     def build(self) -> "ConvertToH5py":
         """Build the ConvertToH5py object."""
