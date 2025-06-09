@@ -116,7 +116,8 @@ class ConvertToH5py:
             )
         self.tile_size = tile_size
         # Tile_size_split_factor is the factor by which the tile size is split into subtiles
-        self.num_subtiles = (IMAGE_TILE_SIZE // tile_size) ** 2
+        self.num_subtiles_per_dim = (IMAGE_TILE_SIZE // tile_size)
+        self.num_subtiles = self.num_subtiles_per_dim**2
 
     @property
     def compression_settings_suffix(self) -> str:
@@ -292,8 +293,8 @@ class ConvertToH5py:
 
             if modality.is_spatial:
                 # Calculate row and column indices for 2x2 grid
-                row = (sublock_index // self.num_subtiles) * self.tile_size
-                col = (sublock_index % self.num_subtiles) * self.tile_size
+                row = (sublock_index // self.num_subtiles_per_dim) * self.tile_size
+                col = (sublock_index % self.num_subtiles_per_dim) * self.tile_size
                 logger.info(f"Sublock index: {sublock_index}, row: {row}, col: {col}")
                 logger.info(f"Image shape: {image.shape}")
                 image = image[
