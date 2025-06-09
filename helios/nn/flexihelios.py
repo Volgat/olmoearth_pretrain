@@ -952,6 +952,15 @@ class FlexiHeliosBase(nn.Module):
 
     @staticmethod
     def pack_tokens(tokens: Tensor, mask: Tensor) -> Tensor:
+        """Pack the Batch and sequence length dimensions of tokens and mask into a single tensor.
+
+        Args:
+            tokens: Tokens to pack
+            mask: Mask to pack
+
+        Returns:
+            Packed tokens enabling varlen flash attention
+        """
         tokens_packed = torch.flatten(tokens, end_dim=1)
         mask = torch.flatten(mask)
         tokens = tokens_packed[mask]
@@ -959,6 +968,13 @@ class FlexiHeliosBase(nn.Module):
 
     @staticmethod
     def unpack_tokens(tokens: Tensor, mask: Tensor, og_shape: tuple) -> Tensor:
+        """Unpack the Batch and sequence length dimensions of tokens and mask into a single tensor.
+
+        Args:
+            tokens: Tokens to unpack
+            mask: Mask to unpack
+            og_shape: Original shape of the tokens
+        """
         tokens_new = tokens.new_zeros(og_shape[0] * og_shape[1], og_shape[2])
         mask = torch.flatten(mask)
         tokens_new[mask] = tokens
@@ -996,7 +1012,6 @@ class Encoder(FlexiHeliosBase):
         random_channel_embs: bool = False,
         num_projection_layers: int = 1,
         aggregate_then_project: bool = True,
-
         use_flash_attn: bool = False,
         frozen_patch_embeddings: bool = False,
     ):
@@ -1018,6 +1033,7 @@ class Encoder(FlexiHeliosBase):
                 a ReLU activation will be applied between layers
             aggregate_then_project: If True, then we will average the tokens before applying
                 the projection. If False, we will apply the projection first.
+            use_flash_attn: Whether to use flash attention
             frozen_patch_embeddings: If True, we freeze the embedding layer, as recommended in
                 https://arxiv.org/pdf/2104.02057, Section 4.2
         """
@@ -1074,7 +1090,7 @@ class Encoder(FlexiHeliosBase):
     @staticmethod
     def remove_masked_tokens(
         x: Tensor, mask: Tensor
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         """Remove masked tokens from the tokens and masks.
 
         Implementation from https://stackoverflow.com/a/68621610/2332296
@@ -1199,17 +1215,21 @@ class Encoder(FlexiHeliosBase):
             input_res,
         )
         tokens_dict.update(original_masks_dict)
-        x, mask = self.collapse_and_combine_hwtc(tokens_dict)
+        tokens, mask = self.collapse_and_combine_hwtc(tokens_dict)
 
         bool_mask = mask == MaskValue.ONLINE_ENCODER.value
 
         tokens, indices, new_mask, seq_lengths, max_seqlen = self.remove_masked_tokens(
-            x, bool_mask
+            tokens, bool_mask
         )
         if exit_ids_seq is not None:
-            exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, bool_mask)
+            exit_ids_seq, _, _, _, _ = self.remove_masked_tokens(
+                exit_ids_seq, bool_mask
+            )
             # still linear projections
-            exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, bool_mask)
+            exited_tokens, _, _, _, _ = self.remove_masked_tokens(
+                exited_tokens, bool_mask
+            )
         cu_seqlens = get_cumulative_sequence_lengths(seq_lengths)
         # Pack x tokens
         if self.use_flash_attn:
@@ -1347,6 +1367,7 @@ class Predictor(FlexiHeliosBase):
             learnable_channel_embeddings: Whether to use learnable channel embeddings
             random_channel_embeddings: Whether to randomly initialize channel embeddings
             output_embedding_size: Size of output embeddings
+            use_flash_attn: Whether to use flash attention
         """
         super().__init__(
             embedding_size=decoder_embedding_size,
@@ -1417,9 +1438,7 @@ class Predictor(FlexiHeliosBase):
 
     # TODO: GIVE more explicit function names
     @staticmethod
-    def split_x_y(
-        tokens: Tensor, mask: Tensor
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    def split_x_y(tokens: Tensor, mask: Tensor) -> tuple[Tensor, ...]:
         """Splits tokens into three groups based on mask values.
 
         This function:
@@ -1542,39 +1561,66 @@ class Predictor(FlexiHeliosBase):
             tokens_only_dict, timestamps, patch_size, input_res
         )
         tokens_dict.update(original_masks_dict)
-        x, mask = self.collapse_and_combine_hwtc(tokens_dict)
+        all_tokens, mask = self.collapse_and_combine_hwtc(tokens_dict)
         # X contains the tokens to decode, Y contains the tokens to attend to for context
-        x, y, x_mask, y_mask, indices, seqlens_x, seqlens_y, max_length_of_x, max_length_of_y = self.split_x_y(x, mask)
-        cu_seqlens_x = get_cumulative_sequence_lengths(seqlens_x)
-        cu_seqlens_y = get_cumulative_sequence_lengths(seqlens_y)
+        (
+            tokens_to_decode,
+            unmasked_tokens,
+            tokens_to_decode_mask,
+            unmasked_tokens_mask,
+            indices,
+            seqlens_tokens_to_decode,
+            seqlens_unmasked_tokens,
+            max_length_of_tokens_to_decode,
+            max_length_of_unmasked_tokens,
+        ) = self.split_x_y(all_tokens, mask)
+        cu_seqlens_tokens_to_decode = get_cumulative_sequence_lengths(
+            seqlens_tokens_to_decode
+        )
+        cu_seqlens_unmasked_tokens = get_cumulative_sequence_lengths(
+            seqlens_unmasked_tokens
+        )
         # Pack x tokens
         if self.use_flash_attn:
-            og_shape_x = x.shape
-            x = self.pack_tokens(x, x_mask.bool())
-            og_shape_y = y.shape
-            y = self.pack_tokens(y, y_mask.bool())
+            og_shape_tokens_to_decode = tokens_to_decode.shape
+            tokens_to_decode = self.pack_tokens(
+                tokens_to_decode, tokens_to_decode_mask.bool()
+            )
+            og_shape_unmasked_tokens = unmasked_tokens.shape
+            unmasked_tokens = self.pack_tokens(
+                unmasked_tokens, unmasked_tokens_mask.bool()
+            )
 
         for blk in self.blocks:
             # note that we are not taking the inverse of the mask, since split_x_y gives us
             # true values for values we want to take part in attention
-            x = blk(x=x, y=y,
-                attn_mask=y_mask.bool() if not self.use_flash_attn else None, # only for flash attn though this should not be left in
-                cu_seqlens_q=cu_seqlens_x,
-                cu_seqlens_k=cu_seqlens_y,
-                max_seqlen_q=max_length_of_x,
-                max_seqlen_k=max_length_of_y)
-
+            x = blk(
+                x=tokens_to_decode,
+                y=unmasked_tokens,
+                attn_mask=(
+                    tokens_to_decode_mask.bool() if not self.use_flash_attn else None
+                ),  # only for flash attn though this should not be left in
+                cu_seqlens_q=cu_seqlens_tokens_to_decode,
+                cu_seqlens_k=cu_seqlens_unmasked_tokens,
+                max_seqlen_q=max_length_of_tokens_to_decode,
+                max_seqlen_k=max_length_of_unmasked_tokens,
+            )
 
         if self.use_flash_attn:
-            x = self.unpack_tokens(x, x_mask.bool(), og_shape_x)
-            y = self.unpack_tokens(y, y_mask.bool(), og_shape_y)
-
+            tokens_to_decode = self.unpack_tokens(
+                tokens_to_decode,
+                tokens_to_decode_mask.bool(),
+                og_shape_tokens_to_decode,
+            )
+            unmasked_tokens = self.unpack_tokens(
+                unmasked_tokens, unmasked_tokens_mask.bool(), og_shape_unmasked_tokens
+            )
 
         x = self.combine_x_y(
-            tokens_to_decode=x,
-            unmasked_tokens=y,
-            tokens_to_decode_mask=x_mask,
-            unmasked_tokens_mask=y_mask,
+            tokens_to_decode=tokens_to_decode,
+            unmasked_tokens=unmasked_tokens,
+            tokens_to_decode_mask=tokens_to_decode_mask,
+            unmasked_tokens_mask=unmasked_tokens_mask,
             indices=indices,
         )
         tokens_per_modality_dict = self.split_and_expand_per_modality(
@@ -1717,6 +1763,7 @@ class PredictorConfig(Config):
     random_channel_embeddings: bool = False
     output_embedding_size: int | None = None
     use_flash_attn: bool = False
+
     def validate(self) -> None:
         """Validate the configuration."""
         if len(self.supported_modalities) == 0:

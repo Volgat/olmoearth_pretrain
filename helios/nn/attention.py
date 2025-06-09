@@ -1,6 +1,7 @@
 """Attention Components for Helios."""
 
-from typing import Any, Optional
+from logging import getLogger
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -8,7 +9,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch.distributed.fsdp import fully_shard
 from torch.jit import Final
-from logging import getLogger
+
 try:
     import flash_attn
 except ImportError:
@@ -16,20 +17,21 @@ except ImportError:
 
 logger = getLogger(__name__)
 
+
 @torch._dynamo.disable()
 def dispatch_flash_attn(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
     *,
-    cu_seqlens: Optional[torch.Tensor] = None,
-    cu_seqlens_q: Optional[torch.Tensor] = None,
-    cu_seqlens_k: Optional[torch.Tensor] = None,
-    max_seqlen: Optional[int] = None,
-    max_seqlen_q: Optional[int] = None,
-    max_seqlen_k: Optional[int] = None,
+    cu_seqlens: torch.Tensor | None = None,
+    cu_seqlens_q: torch.Tensor | None = None,
+    cu_seqlens_k: torch.Tensor | None = None,
+    max_seqlen: int | None = None,
+    max_seqlen_q: int | None = None,
+    max_seqlen_k: int | None = None,
     dropout_p: float = 0.0,
-    softmax_scale: Optional[float] = None,
+    softmax_scale: float | None = None,
     causal: bool = False,
 ) -> torch.Tensor:
     """Dispatch flash attention.
@@ -50,11 +52,13 @@ def dispatch_flash_attn(
         if max_seqlen_k is None:
             max_seqlen_k = max_seqlen
 
-    varlen = all(x is not None for x in (cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k))
+    varlen = all(
+        x is not None for x in (cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k)
+    )
 
     if varlen:
         assert q.ndim == 3, "q must be pre-packed"
-        logger.debug(f"using varlen")
+        logger.debug("using varlen")
 
         return flash_attn.flash_attn_varlen_func(
             q,
@@ -161,6 +165,12 @@ class Attention(nn.Module):
             v: Value tensor of shape (B, H, N, D)
             n: Number of tokens
             attn_mask: Attention mask. Defaults to None.
+            cu_seqlens: Optional cumulative sequence lengths for the input tensor needed for varlen flash attention
+            cu_seqlens_q: Optional cumulative sequence lengths for the query tensor, needed for cross varlen flash attention
+            cu_seqlens_k: Optional cumulative sequence lengths for the key tensor, needed for cross varlen flash attention
+            max_seqlen: Optional maximum sequence length for the input tensor, needed for varlen flash attention
+            max_seqlen_q: Optional maximum sequence length for the query tensor, needed for cross varlen flash attention
+            max_seqlen_k: Optional maximum sequence length for the key tensor, needed for cross varlen flash attention
 
         Returns:
             Output tensor of shape (B, H, N, D)
@@ -224,6 +234,12 @@ class Attention(nn.Module):
             x: Input tensor of shape (B, N, C)
             y: Second input for cross-attention. Defaults to None.
             attn_mask: Attention mask. Defaults to None.
+            cu_seqlens: Optional cumulative sequence lengths for the input tensor needed for varlen flash attention
+            cu_seqlens_q: Optional cumulative sequence lengths for the query tensor, needed for cross varlen flash attention
+            cu_seqlens_k: Optional cumulative sequence lengths for the key tensor, needed for cross varlen flash attention
+            max_seqlen: Optional maximum sequence length for the input tensor, needed for varlen flash attention
+            max_seqlen_q: Optional maximum sequence length for the query tensor, needed for cross varlen flash attention
+            max_seqlen_k: Optional maximum sequence length for the key tensor, needed for cross varlen flash attention
 
         Returns:
             Output tensor of shape (B, N, C)
@@ -258,7 +274,9 @@ class Attention(nn.Module):
             q,
             k,
             v,
-            n=original_shape[-2], # supposed to be the number of tokens in each sample with padding
+            n=original_shape[
+                -2
+            ],  # supposed to be the number of tokens in each sample with padding
             cu_seqlens=cu_seqlens,
             cu_seqlens_q=cu_seqlens_q,
             cu_seqlens_k=cu_seqlens_k,
@@ -456,6 +474,7 @@ class Block(nn.Module):
             act_layer: Activation layer
             norm_layer: Normalization layer
             cross_attn: Whether to use cross attention
+            use_flash_attn: Whether to use flash attention
         """
         super().__init__()
         self.norm1 = norm_layer(dim)
@@ -504,6 +523,12 @@ class Block(nn.Module):
             x: Input tensor of shape (B, N, C)
             y: Optional context tensor for cross attention of shape (B, M, C)
             attn_mask: Optional attention mask tensor
+            cu_seqlens: Optional cumulative sequence lengths for the input tensor needed for varlen flash attention
+            cu_seqlens_q: Optional cumulative sequence lengths for the query tensor, needed for cross varlen flash attention
+            cu_seqlens_k: Optional cumulative sequence lengths for the key tensor, needed for cross varlen flash attention
+            max_seqlen: Optional maximum sequence length for the input tensor, needed for varlen flash attention
+            max_seqlen_q: Optional maximum sequence length for the query tensor, needed for cross varlen flash attention
+            max_seqlen_k: Optional maximum sequence length for the key tensor, needed for cross varlen flash attention
 
         Returns:
             Output tensor of shape (B, N, C)
@@ -526,7 +551,6 @@ class Block(nn.Module):
 
         x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
         return x
-
 
     def apply_fsdp(self, **fsdp_kwargs: Any) -> None:
         """Apply FSDP to the model."""
