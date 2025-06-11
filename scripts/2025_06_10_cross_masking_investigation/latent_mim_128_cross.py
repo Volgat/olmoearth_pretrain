@@ -94,12 +94,6 @@ def build_train_module_config(
                 "encode_ratio": 0.1,
                 "decode_ratio": 0.75,
                 "allow_encoding_decoding_same_bandset": True,
-<<<<<<< Updated upstream:scripts/2025_06_10_cross_masking_investigation/latent_mim_128_cross.py
-=======
-                "min_encoded_bandsets": 2,
-                "min_decoded_bandsets": 6,
-                "only_decode_modalities": [Modality.WORLDCOVER.name, Modality.OPENSTREETMAP.name],
->>>>>>> Stashed changes:scripts/2025_06_10_cross_masking_investigation/latent_mim._128_cross.py
             }
         ),
         loss_config=LossConfig(

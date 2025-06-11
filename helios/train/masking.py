@@ -10,7 +10,6 @@ import numpy as np
 import torch
 from class_registry import ClassRegistry
 from einops import rearrange, repeat
-import time
 from olmo_core.config import Config
 
 from helios.data.constants import MISSING_VALUE, Modality, ModalitySpec
@@ -770,6 +769,7 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
         self.min_decoded_bandsets = min_decoded_bandsets
         self.max_decoded_bandsets = max_decoded_bandsets
         self.only_decode_modalities = only_decode_modalities
+
     def get_sample_present_modalities_bandsets(
         self, batch: MaskedHeliosSample
     ) -> list[list[tuple[str, int]]]:
@@ -826,12 +826,17 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
             # If there are more than two modalities, we randomly select some to encode and the rest to decode
             else:
                 # I need to filter here to make sure decode only modalities are only decoded
-                encodable_modalities = ([modality_bandset for modality_bandset in present_modalities_bandsets_for_sample
-                if modality_bandset[0] not in self.only_decode_modalities])
+                encodable_modalities = [
+                    modality_bandset
+                    for modality_bandset in present_modalities_bandsets_for_sample
+                    if modality_bandset[0] not in self.only_decode_modalities
+                ]
                 num_present_modalities = len(encodable_modalities)
-                max_encoded_bandsets = min(
-                    self.max_encoded_bandsets, num_present_modalities
-                ) if self.max_encoded_bandsets is not None else num_present_modalities
+                max_encoded_bandsets = (
+                    min(self.max_encoded_bandsets, num_present_modalities)
+                    if self.max_encoded_bandsets is not None
+                    else num_present_modalities
+                )
                 num_encoded_bandsets = np.random.randint(
                     self.min_encoded_bandsets, max_encoded_bandsets + 1
                 )
@@ -846,7 +851,10 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
                 # If not allow overlapping bandsets, we make encoded and decoded bandsets disjoint
                 # Otherwise we allow them to overlap
                 if self.allow_encoding_decoding_same_bandset:
-                    if self.min_decoded_bandsets is not None or self.max_decoded_bandsets is not None:
+                    if (
+                        self.min_decoded_bandsets is not None
+                        or self.max_decoded_bandsets is not None
+                    ):
                         if self.min_decoded_bandsets is None:
                             min_decoded_bandsets = 1
                         else:
@@ -865,7 +873,9 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
                             )
                     else:
                         # pick all bandsets to decode if there is no min or max
-                        num_decoded_bandsets = len(present_modalities_bandsets_for_sample)
+                        num_decoded_bandsets = len(
+                            present_modalities_bandsets_for_sample
+                        )
                     decoded_idxs = np.random.choice(
                         len(present_modalities_bandsets_for_sample),
                         size=num_decoded_bandsets,
@@ -917,7 +927,10 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
                 encoded_bandset_idxs, decoded_bandset_idxs = encoded_decoded_bandsets[
                     sample_idx
                 ]
-                available_modalities = [modality_bandset[0] for modality_bandset in present_modalities_bandsets[sample_idx]]
+                available_modalities = [
+                    modality_bandset[0]
+                    for modality_bandset in present_modalities_bandsets[sample_idx]
+                ]
                 if modality not in available_modalities:
                     logger.debug(
                         f"Modality {modality} not present for sample {sample_idx}"
