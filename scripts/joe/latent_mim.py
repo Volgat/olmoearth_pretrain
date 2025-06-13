@@ -61,6 +61,7 @@ def build_model_config(common: CommonComponents) -> LatentMIMConfig:
         mlp_ratio=model_size["mlp_ratio"],
         supported_modality_names=common.training_modalities,
         max_patch_size=MAX_PATCH_SIZE,
+        min_patch_size=MIN_PATCH_SIZE,
         drop_path=0.1,
         max_sequence_length=12,
     )
