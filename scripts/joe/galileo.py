@@ -2,6 +2,7 @@
 
 import logging
 
+from olmo_core.config import DType
 from olmo_core.config import Config
 from olmo_core.distributed.parallel.data_parallel import (
     DataParallelConfig,
