@@ -284,12 +284,32 @@ class HeliosSample(NamedTuple):
             raise ValueError("patch_size too small for this sample and budget")
         return min(floor(max_t_within_budget), self.time)
 
+    def _get_start_t(self, missing_timesteps: dict[str, Any]) -> int:
+        start_t = MAX_SEQUENCE_LENGTH
+
+        for modality in missing_timesteps:
+            start_t = min(start_t, missing_timesteps[modality].index(True))
+
+        if start_t == MAX_SEQUENCE_LENGTH:
+            raise ValueError("Can't find good start_t")
+        return start_t
+
+    def _get_start_ts(self, missing_timesteps: dict[str, Any], max_t: int) -> int:
+        start_ts = set()
+        for modality in missing_timesteps:
+            valid_timesteps = np.flatnonzero(missing_timesteps[modality])
+            for t in valid_timesteps:
+                start_ts.update(range(max(0, t - max_t + 1), t + 1))
+
+        return sorted(list(start_ts))
+
     def subset(
         self,
         patch_size: int,
         max_tokens_per_instance: int,
         sampled_hw_p: int,
         current_length: int,
+        missing_timesteps_mask: dict[str, Any],
     ) -> "HeliosSample":
         """Subset a HelioSample that is unbatched ie no batch dimension.
 
@@ -322,10 +342,14 @@ class HeliosSample(NamedTuple):
         start_w = np.random.choice(self.width - sampled_hw + 1)
 
         # The timestamps are edge padded and we always want to start from a valid timestep
+        start_ts = self._get_start_ts(missing_timesteps_mask, max_t)
         if current_length > max_t:
-            start_t = np.random.choice(current_length - max_t + 1)
+            valid = [i for i in start_ts if i < current_length - max_t + 1]
+            # logger.warning(valid)
+            start_t = np.random.choice(valid)
         else:
             start_t = 0
+        # logger.warning(start_t)
 
         new_data_dict: dict[str, ArrayTensor] = {}
 
@@ -694,6 +718,7 @@ class HeliosDataset(Dataset):
         sample: HeliosSample,
         args: GetItemArgs,
         current_length: int,
+        missing_timesteps_mask: dict[str, Any],
     ) -> HeliosSample:
         """Apply the subset to the sample.
 
@@ -711,6 +736,7 @@ class HeliosDataset(Dataset):
                 max_tokens_per_instance=args.token_budget,
                 sampled_hw_p=args.sampled_hw_p,
                 current_length=current_length,
+                missing_timesteps_mask=missing_timesteps_mask,
             )
         else:
             sample_subset = sample
@@ -801,7 +827,18 @@ class HeliosDataset(Dataset):
             sample_dict, missing_timesteps_masks
         )
 
-        subset_sample = self.apply_subset(sample, args, current_length)
+        subset_sample = self.apply_subset(
+            sample, args, current_length, missing_timesteps_masks
+        )
+
+        data = [
+            subset_sample.sentinel1,
+            subset_sample.sentinel2_l2a,
+            subset_sample.worldcover,
+        ]
+        data = np.concatenate([d.flatten() for d in data])
+        if (data == MISSING_VALUE).all():
+            raise ValueError(f"missing everything: {h5_file_path} args: {args}")
 
         sample_dict = subset_sample.as_dict(ignore_nones=True)
 

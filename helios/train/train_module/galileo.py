@@ -15,13 +15,16 @@ from olmo_core.train.train_module.transformer import (
     TransformerActivationCheckpointingConfig,
 )
 
-from helios.data.constants import Modality
+from helios.data.constants import (
+    MISSING_VALUE,
+    Modality,
+)
 from helios.data.dataset import HeliosSample
 from helios.data.transform import TransformConfig
 from helios.nn.flexihelios import TokensAndMasks
 from helios.nn.galileo import Galileo
 from helios.train.loss import LossConfig
-from helios.train.masking import MaskedHeliosSample, MaskingConfig
+from helios.train.masking import MaskedHeliosSample, MaskingConfig, MaskValue
 from helios.train.train_module.train_module import (
     HeliosTrainModule,
     HeliosTrainModuleConfig,
@@ -255,6 +258,7 @@ class GalileoTrainModule(HeliosTrainModule):
                 masked_batch_a = self.masking_strategy_a.apply_mask(
                     microbatch, patch_size
                 )
+
                 masked_batch_b = self.masking_strategy_b.apply_mask(
                     microbatch, patch_size
                 )

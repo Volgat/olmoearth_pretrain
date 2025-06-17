@@ -116,7 +116,7 @@ def build_train_module_config(
         contrastive_config=LossConfig(
             loss_config={
                 "type": "InfoNCE",
-                "weight": 0.1,
+                "weight": 0.05,
             }
         ),
         token_exit_cfg_a={
@@ -193,7 +193,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             save_folder=common.save_folder,
             cancel_check_interval=1,
             metrics_collect_interval=1,
-            max_duration=Duration.epochs(75),
+            max_duration=Duration.epochs(100),
             checkpointer=CheckpointerConfig(work_dir=common.save_folder),
         )
         .with_callback(
