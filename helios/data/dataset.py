@@ -367,7 +367,6 @@ class HeliosSample(NamedTuple):
         start_t = np.random.choice(valid_start_ts)
 
         new_data_dict: dict[str, ArrayTensor] = {}
-
         for attribute, modality in self.as_dict(ignore_nones=True).items():
             assert modality is not None
             if attribute == "timestamps":
@@ -375,12 +374,6 @@ class HeliosSample(NamedTuple):
                 continue
             modality_spec = Modality.get(attribute)
             if modality_spec.is_spacetime_varying:
-                # check if any start T values are missing
-                for start_t in valid_start_ts:
-                    if (modality[:, :, start_t, :] == MISSING_VALUE).any():
-                        raise ValueError(
-                            f"missing timestep {start_t} for {attribute} with missing_timesteps: {missing_timesteps} and max_t: {max_t} and current_length: {current_length}"
-                        )
                 # for now, lets assume fixed resolution
                 new_data_dict[attribute] = modality[
                     start_h : start_h + sampled_hw,
