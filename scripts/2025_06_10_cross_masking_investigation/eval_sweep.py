@@ -27,4 +27,4 @@ for checkpoint in checkpoints:
         print(lr_args)
         cmd = f"{start_command} scripts/2025_06_10_cross_masking_investigation/eval.py {run_cmd} {run_name} {cluster} {lr_args} --trainer.load_path={checkpoint}"
         print(cmd)
-        # subprocess.run(cmd, shell=True)
+        subprocess.run(cmd, shell=True)
