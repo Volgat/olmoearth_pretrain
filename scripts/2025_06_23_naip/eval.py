@@ -65,7 +65,6 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             num_workers=0,
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
-            dataset_percentage=0.05,
             eval_interval=Duration.epochs(5),
         ),
         "m_bigearthnet": DownstreamTaskConfig(
