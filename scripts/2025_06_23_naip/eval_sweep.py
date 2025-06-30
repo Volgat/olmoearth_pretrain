@@ -45,21 +45,21 @@ dataset_percentage_args = [
 ]
 for probe_lr in LP_LRs:
     for dataset_percentage in dataset_percentages:
-        subprocess.call(
-            [
-                "python",
-                "scripts/2025_06_23_naip/eval.py",
-                "launch",
-                f"v0.2_base_latent_mim_128_naip_moredata_random_fixed_modality_0.5_eval_{probe_lr}_dp_{dataset_percentage}",
-                args.cluster,
-                "--trainer.load_path=/weka/dfive-default/helios/checkpoints/favyen/v0.2_base_latent_mim_128_naip_moredata_random_fixed_modality_0.5/step320000",
-            ]
-            + [arg.format(lr=probe_lr) for arg in lr_args]
-            + [
-                arg.format(dataset_percentage=dataset_percentage)
-                for arg in dataset_percentage_args
-            ],
-        )  # nosec
+        # subprocess.call(
+        #     [
+        #         "python",
+        #         "scripts/2025_06_23_naip/eval.py",
+        #         "launch",
+        #         f"v0.2_base_latent_mim_128_naip_moredata_random_fixed_modality_0.5_eval_{probe_lr}_dp_{dataset_percentage}",
+        #         args.cluster,
+        #         "--trainer.load_path=/weka/dfive-default/helios/checkpoints/favyen/v0.2_base_latent_mim_128_naip_moredata_random_fixed_modality_0.5/step320000",
+        #     ]
+        #     + [arg.format(lr=probe_lr) for arg in lr_args]
+        #     + [
+        #         arg.format(dataset_percentage=dataset_percentage)
+        #         for arg in dataset_percentage_args
+        #     ],
+        # )  # nosec
         subprocess.call(
             [
                 "python",
