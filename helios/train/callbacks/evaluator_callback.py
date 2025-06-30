@@ -44,7 +44,6 @@ class DownstreamEvaluator:
         probe_lr: float | None = None,
         input_modalities: list[str] = field(default_factory=list),
         eval_mode: str | None = None,
-        dataset_percentage: float = 1.0,
     ) -> None:
         """Initialize the downstream evaluator.
 
@@ -65,7 +64,6 @@ class DownstreamEvaluator:
             input_modalities: Input modalities, only used for multimodal tasks.
             eval_mode: whether to use knn or linear probe. Defaults to KNN for classification
                 and linear probe for segmentation. Only classification is supported by KNN
-            dataset_percentage: Percentage of the training dataset to use for the evaluation.
         """
         self.evaluation_name = evaluation_name
         self.dataset = dataset
@@ -82,7 +80,7 @@ class DownstreamEvaluator:
         self.patch_size = patch_size
         self.input_modalities = input_modalities
         self.epochs = epochs
-        self.dataset_percentage = dataset_percentage
+
         if eval_mode is None:
             eval_mode = (
                 "knn"
@@ -158,36 +156,19 @@ class DownstreamEvaluator:
         logger.info(
             f"test embeddings shape for {self.dataset}: {test_embeddings.shape}"
         )
-        # Randomly sample a percentage of the test data
-        # log number before sampling
-        logger.info(f"Number of train samples before sampling: {train_embeddings.shape[0]}")
-        num_train_samples = train_embeddings.shape[0]
-        num_train_samples_to_sample = int(
-            num_train_samples * self.dataset_percentage
-        )
-        # Randomly sample the indices integers from 0 to num_train_samples
-        train_indices = torch.randperm(num_train_samples)[
-            :num_train_samples_to_sample
-        ]
-        train_embeddings_sampled = train_embeddings[train_indices]
-        train_labels_sampled = train_labels[train_indices]
-        # log number after sampling
-        # log number of unique labels
-        logger.info(f"Number of train samples after sampling: {train_embeddings_sampled.shape[0]}")
-        logger.info(f"Number of unique train labels: {len(torch.unique(train_labels_sampled))}")
-        # logger.info(f"train labels shape for {self.dataset}: {train_labels.shape}")
-        # logger.info(f"test labels shape for {self.dataset}: {test_labels.shape}")
+        logger.info(f"train labels shape for {self.dataset}: {train_labels.shape}")
+        logger.info(f"test labels shape for {self.dataset}: {test_labels.shape}")
 
         val_result = self.eval_function(  # type: ignore
             config=self.config,
-            train_embeddings=train_embeddings_sampled,
-            train_labels=train_labels_sampled,
+            train_embeddings=train_embeddings,
+            train_labels=train_labels,
             test_embeddings=test_embeddings,
             test_labels=test_labels,
             device=self.device,
         )
         logger.info(f"Downstream evaluator {self.evaluation_name} score: {val_result}")
-
+        # free memory
         del train_embeddings, train_labels, test_embeddings, test_labels
         torch.cuda.empty_cache()
         gc.collect()
@@ -268,7 +249,6 @@ class DownstreamTaskConfig:
     probe_lr: float | None = None
     patch_size: int = 4
     probe_batch_size: int = 32
-    dataset_percentage: float = 1.0
     epochs: int = 50  # Number of training epochs for linear probing task
     eval_interval: Duration = field(default_factory=lambda: Duration.epochs(1))
     eval_mode: str | None = None
@@ -332,7 +312,6 @@ class DownstreamEvaluatorCallbackConfig(CallbackConfig):
                     patch_size=task.patch_size,
                     eval_interval=task.eval_interval,
                     epochs=task.epochs,
-                    dataset_percentage=task.dataset_percentage,
                     eval_mode=task.eval_mode,
                 )
             )
