@@ -1102,7 +1102,7 @@ class ModalityCrossSpaceMaskingStrategy(ModalityCrossMaskingStrategy):
         encode_ratio: float = 0.5,
         decode_ratio: float = 0.5,
         allow_encoding_decoding_same_bandset: bool = False,
-        min_encoded_bandsets: int = 1,
+        min_encoded_bandsets: int = 2,
         max_encoded_bandsets: int | None = None,
         min_decoded_bandsets: int | None = None,
         max_decoded_bandsets: int | None = None,
