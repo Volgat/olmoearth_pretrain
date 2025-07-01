@@ -6,10 +6,10 @@ import wandb
 
 WANDB_ENTITY = "eai-ai2"
 METRICS = [
-    "m-eurosat",
-    "m-so2sat",
-    "m-brick-kiln",
-    "m-bigearthnet",
+    "m_eurosat",
+    "m_so2sat",
+    "m_brick_kiln",
+    "m_bigearthnet",
     "m_sa_crop_type",
     "m_cashew_plant",
     "sickle_sentinel1",
@@ -28,9 +28,9 @@ PARTITIONS = [
     "0.01x_train",
     # "0.02x_train",
     "0.05x_train",
-    # "0.10x_train",
-    # "0.20x_train",
-    # "0.50x_train",
+    "0.10x_train",
+    "0.20x_train",
+    "0.50x_train",
 ]
 
 
