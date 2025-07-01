@@ -376,6 +376,7 @@ class PASTISRDataset(Dataset):
         self.labels = torch.load(path_to_splits / f"pastis_r_{split}" / "targets.pt")
         self.months = torch.load(path_to_splits / f"pastis_r_{split}" / "months.pt")
         if (partition != "default") and (split == "train"):
+            # PASTIS and PASTIS-R share the same partitions so we just use PASTIS Partitions
             with open(
                 PASTIS_DIR_PARTITION / f"{partition}_partition.json"
             ) as json_file:
