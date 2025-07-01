@@ -130,10 +130,11 @@ class HeliosSample(NamedTuple):
         moved_tensors = {}
         for key, val in self.as_dict(ignore_nones=True).items():
             if val is not None:
-                logger.info(f"moving {key} to device {device}")
-                logger.info(f"val shape: {val.shape}")
+                print(f"moving {key} to device {device}")
+                print(f"val shape: {val.shape}")
+                print(f"local rank: {torch.distributed.get_rank() if torch.distributed.is_initialized() else 'not initialized'}")
                 moved_tensors[key] = val.to(device)
-                logger.info(f"moved {key} to device {device}")
+                print(f"moved {key} to device {device}")
         return HeliosSample(**moved_tensors)
 
     def distribute_tensors(self, device_mesh: DeviceMesh) -> "HeliosSample":
