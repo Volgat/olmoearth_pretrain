@@ -42,6 +42,7 @@ class DownstreamTaskConfig:
     eval_interval: Duration = field(default_factory=lambda: Duration.epochs(1))
     eval_mode: str | None = None
     probe_type: str = "linear"
+    partition: str = field(default_factory=lambda: EvalDatasetPartition.TRAIN1X)
 
 
 class DownstreamEvaluator:
@@ -84,7 +85,6 @@ class DownstreamEvaluator:
 
         if self.eval_mode is None:
             self.eval_mode = (
-
                 "knn"
                 if self.config.task_type == TaskType.CLASSIFICATION
                 else "linear_probe"
