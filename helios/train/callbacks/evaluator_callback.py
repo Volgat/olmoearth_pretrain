@@ -109,7 +109,7 @@ class DownstreamEvaluator:
                 train_and_eval_probe,
                 batch_size=self.probe_batch_size,
                 epochs=self.epochs,
-                eval_interval=self.eval_interval,
+                eval_interval=self.eval_interval.value,
                 probe_type=self.probe_type,
                 lr=self.probe_lr,
                 patch_size=self.patch_size,
