@@ -46,7 +46,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     CANCEL_CHECK_INTERVAL = 1
     LOAD_STRATEGY = LoadStrategy.if_available
     WANDB_USERNAME = "eai-ai2"  # nosec
-    WANDB_PROJECT = "2025_06_23_naip_eval"
+    WANDB_PROJECT = "2025_06_26_naip_eval_dataset_percentage"
     PERMANENT_SAVE_INTERVAL = 5000
     EPHERMERAL_SAVE_INTERVAL = 250
     checkpointer_config = CheckpointerConfig(work_dir=common.save_folder)
@@ -59,7 +59,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     # Safe to collect everys tep for now
     garbage_collector_callback = GarbageCollectorCallback(gc_interval=1)
     EVAL_TASKS = {
-        "m-eurosat": DownstreamTaskConfig(
+        "m_eurosat": DownstreamTaskConfig(
             dataset="m-eurosat",
             embedding_batch_size=128,
             num_workers=8,
@@ -67,7 +67,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             norm_stats_from_pretrained=True,
             eval_interval=Duration.epochs(5),
         ),
-        "m-bigearthnet": DownstreamTaskConfig(
+        "m_bigearthnet": DownstreamTaskConfig(
             dataset="m-bigearthnet",
             embedding_batch_size=64,
             num_workers=8,
@@ -75,7 +75,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             norm_stats_from_pretrained=True,
             eval_interval=Duration.epochs(5),
         ),
-        "m-so2sat": DownstreamTaskConfig(
+        "m_so2sat": DownstreamTaskConfig(
             dataset="m-so2sat",
             embedding_batch_size=128,
             num_workers=8,
@@ -83,7 +83,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             norm_stats_from_pretrained=True,
             eval_interval=Duration.epochs(5),
         ),
-        "m-brick-kiln": DownstreamTaskConfig(
+        "m_brick_kiln": DownstreamTaskConfig(
             dataset="m-brick-kiln",
             embedding_batch_size=128,
             num_workers=8,
@@ -112,6 +112,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             probe_lr=0.1,
             eval_interval=Duration.epochs(10),
         ),
+        # THESE EVALS DO NOT yet supportt partition
         "sickle_sentinel1": DownstreamTaskConfig(
             dataset="sickle",
             embedding_batch_size=32,
@@ -148,10 +149,11 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             input_modalities=[Modality.SENTINEL1.name, Modality.LANDSAT.name],
             epochs=50,
         ),
+        # DO supports partitions
         "m_sa_crop_type": DownstreamTaskConfig(
             dataset="m-sa-crop-type",
             embedding_batch_size=32,
-            probe_batch_size=8,
+            probe_batch_size=32,
             num_workers=2,
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
@@ -204,6 +206,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             input_modalities=[Modality.SENTINEL1.name, Modality.SENTINEL2_L2A.name],
             epochs=50,
         ),
+        # also does not support partitions
         "breizhcrops": DownstreamTaskConfig(
             dataset="breizhcrops",
             embedding_batch_size=128,

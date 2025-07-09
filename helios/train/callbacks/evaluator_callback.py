@@ -12,7 +12,7 @@ from olmo_core.train.common import Duration
 from olmo_core.train.trainer import Trainer
 from torch.utils.data import DataLoader
 
-from helios.evals.datasets import get_eval_dataset
+from helios.evals.datasets import EvalDatasetPartition, get_eval_dataset
 from helios.evals.datasets.configs import DATASET_TO_CONFIG, TaskType
 from helios.evals.datasets.utils import eval_collate_fn
 from helios.evals.embeddings import get_embeddings
@@ -80,9 +80,11 @@ class DownstreamEvaluator:
         self.eval_interval = task.eval_interval
         self.eval_mode = task.eval_mode
         self.probe_type = task.probe_type
+        self.partition = task.partition
 
         if self.eval_mode is None:
             self.eval_mode = (
+
                 "knn"
                 if self.config.task_type == TaskType.CLASSIFICATION
                 else "linear_probe"
@@ -122,7 +124,7 @@ class DownstreamEvaluator:
             get_eval_dataset(
                 eval_dataset=self.dataset,
                 split=split,
-                partition="default",
+                partition=self.partition,
                 norm_stats_from_pretrained=self.norm_stats_from_pretrained,
                 input_modalities=self.input_modalities,
             ),
