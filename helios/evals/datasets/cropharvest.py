@@ -172,7 +172,7 @@ class CropHarvestDataset(Dataset):
         self.dataset: CropHarvest = evaluation_datasets[0]
         assert self.dataset.task.normalize is False
 
-        if split in ["train", "val"]:
+        if split in ["train", "val", "valid"]:
             array, latlons, labels = self.dataset.as_array()
             array, val_array, latlons, val_latlons, labels, val_labels = (
                 train_test_split(
