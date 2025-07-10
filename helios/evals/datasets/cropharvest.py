@@ -82,7 +82,7 @@ X_STD = np.array(
 )
 
 
-CROPHARVEST_DIR = UPath("/weka/dfive-default/presto-eval_sets/cropharvest")
+CROPHARVEST_DIR = UPath("/weka/dfive-default/presto_eval_sets/cropharvest")
 
 
 def _s2helios2ch_name(band_name: str) -> str:
