@@ -89,7 +89,7 @@ SRTM can also be processed on one machine:
 
 WorldCereal can also be processed on one machine:
 
-    cp data/rslearn_dataset_configs/config_srtm.json $DATASET_PATH/config.json
+    cp data/rslearn_dataset_configs/config_worldcereal.json $DATASET_PATH/config.json
     rslearn dataset prepare --root $DATASET_PATH --group res_10 --workers 64
     rslearn dataset ingest --root $DATASET_PATH --group res_10 --workers 64 --no-use-initial-job
     rslearn dataset materialize --root $DATASET_PATH --group res_10 --workers 64 --no-use-initial-job
