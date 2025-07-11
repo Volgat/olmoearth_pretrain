@@ -276,6 +276,7 @@ class Modality:
                     "tc-maize-second-maize-confidence",
                     "tc-springcereals-springcereals-confidence",
                     "tc-wintercereals-irrigation-confidence",
+                    "tc-wintercereals-wintercereals-confidence",
                 ],
                 16,
             )
