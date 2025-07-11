@@ -229,8 +229,8 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
         #     probe_lr=0.1,
         #     epochs=50,
         # ),
-        "cropharvest_People's Republic of China_12": DownstreamTaskConfig(
-            dataset="cropharvest_People's Republic of China_12",
+        "cropharvest_People's Republic of China_6": DownstreamTaskConfig(
+            dataset="cropharvest_People's Republic of China_6",
             embedding_batch_size=128,
             num_workers=2,
             pooling_type=PoolingType.MEAN,
