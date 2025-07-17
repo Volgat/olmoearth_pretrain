@@ -11,7 +11,7 @@ parser.add_argument("--priority", type=str, help="Priority for the launch")
 args = parser.parse_args()
 
 # Define masking ratios to sweep over
-ENCODE_RATIOS = [0.25, 0.5, 0.75]
+ENCODE_RATIOS = [0.25, 0.40]
 
 # Arguments to override masking config
 masking_args = [
@@ -40,5 +40,3 @@ for encode_ratio in ENCODE_RATIOS:
             for arg in masking_args
         ],
     )  # nosec
-
-    break
