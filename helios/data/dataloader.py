@@ -109,7 +109,6 @@ class HeliosDataLoader(DataLoaderBase):
         """The total number of batches in an epoch."""
         return self.total_unique_batches * self.num_dataset_repeats_per_epoch
 
-
     @property
     def total_size(self) -> int:
         """The total number of instances in an epoch."""
@@ -138,19 +137,15 @@ class HeliosDataLoader(DataLoaderBase):
         if self.shuffle:
             # Deterministically shuffle based on epoch and seed
             rng = get_rng(self.seed + self.epoch)  # type: ignore
-        length_of_dataset = len(self.dataset)
-        print(f"Total Length of dataset: {length_of_dataset}")
         indices_list = []
         for _ in range(self.num_dataset_repeats_per_epoch):
             indices = np.arange(len(self.dataset), dtype=np.uint32)
             if rng is not None:
                 rng.shuffle(indices)
             # Remove tail of data to make it evenly divisible
-            print(f"Total unique size: {self.total_unique_size}")
             cropped_indices = indices[: self.total_unique_size]
             indices_list.append(cropped_indices)
         indices = np.concatenate(indices_list)
-        print(f"Number of indices in this epoch: {indices.shape}")
         return indices
 
     def build_and_save_global_indices(self, in_memory: bool = False) -> None:
@@ -181,7 +176,6 @@ class HeliosDataLoader(DataLoaderBase):
                         f"Global data order indices saved to:\n'{self._global_indices_file}'"
                     )
         barrier()
-
 
     def reshuffle(
         self, epoch: int | None = None, in_memory: bool = False, **kwargs: Any
