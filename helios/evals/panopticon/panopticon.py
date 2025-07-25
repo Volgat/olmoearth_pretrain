@@ -65,25 +65,14 @@ class PanopticonWrapper(nn.Module):
         # Get original dimensions
         original_height = data.shape[2]
 
-        # Resize the image based on patch size
-        if original_height < 224:
-            image_size = 224
-            data = F.interpolate(
-                data,
-                size=(image_size, image_size),
-                mode="bilinear",
-                align_corners=False
-            )
-        else:
-            # Move to nearest multiple of patch_size
-            image_size = ((original_height // self.patch_size) - 1) * self.patch_size
-            data = F.interpolate(
-                data,
-                size=(image_size, image_size),
-                mode="bilinear",
-                align_corners=False
-            )
-
+        # Resize the image to the Panopticon pre-training input size
+        image_size = 224
+        data = F.interpolate(
+            data,
+            size=(image_size, image_size),
+            mode="bilinear",
+            align_corners=False
+        )
         return data
 
     def _create_channel_ids(self, modality: str, batch_size: int) -> torch.Tensor:
@@ -107,6 +96,7 @@ class PanopticonWrapper(nn.Module):
             if band == "B10":
                 # skipping B10 band for this eval I think because the helios dataloader skips it
                 continue
+            band = band.upper()
             chn_ids.append(sensor_config["bands"][band]["gaussian"]["mu"])
         chn_ids = torch.tensor(chn_ids, dtype=torch.float32, device=self.device)
         chn_ids = repeat(chn_ids, "c -> b c", b=batch_size)
