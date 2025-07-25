@@ -269,14 +269,14 @@ class Modality:
         band_sets=[
             BandSet(
                 [
-                    "tc-annual-temporarycrops-confidence",
-                    "tc-maize-main-irrigation-confidence",
-                    "tc-maize-main-maize-confidence",
-                    "tc-maize-second-irrigation-confidence",
-                    "tc-maize-second-maize-confidence",
-                    "tc-springcereals-springcereals-confidence",
-                    "tc-wintercereals-irrigation-confidence",
-                    "tc-wintercereals-wintercereals-confidence",
+                    "tc-annual-temporarycrops",
+                    "tc-maize-main-irrigation",
+                    "tc-maize-main-maize",
+                    "tc-maize-second-irrigation",
+                    "tc-maize-second-maize",
+                    "tc-springcereals-springcereals",
+                    "tc-wintercereals-irrigation",
+                    "tc-wintercereals-wintercereals",
                 ],
                 16,
             )
