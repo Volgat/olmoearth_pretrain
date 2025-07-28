@@ -70,6 +70,11 @@ def convert_worldcereal(window_path: UPath, helios_path: UPath) -> None:
     if concatenated_arrays is None:
         return None
 
+    # 255 = missing data, which we will treat as 0s
+    # 254 = not cropland. This only occurs in crop type products
+    # in addition, because of our resampling we rarely get
+    # other values (e.g. 252). Lets set them all to 0
+    concatenated_arrays[concatenated_arrays > 100] = 0
     assert concatenated_arrays.min() >= 0
     assert concatenated_arrays.max() <= 100
 
