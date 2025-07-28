@@ -145,76 +145,10 @@ def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     return HeliosConcatDatasetConfig(dataset_configs=dataset_configs)
 
 
-def build_trainer_config(common: CommonComponents) -> TrainerConfig:
-    """Build the trainer config for an experiment."""
-    MAX_DURATION = Duration.epochs(75)
-    METRICS_COLLECT_INTERVAL = 10
-    CANCEL_CHECK_INTERVAL = 25
-    LOAD_STRATEGY = LoadStrategy.if_available
-    WANDB_USERNAME = "eai-ai2"  # nosec
-    WANDB_PROJECT = "v0.2_sweep"
-    PERMANENT_SAVE_INTERVAL = 5000
-    EPHERMERAL_SAVE_INTERVAL = 250
-    checkpointer_config = CheckpointerConfig(work_dir=common.save_folder)
-    wandb_callback = HeliosWandBCallback(
-        name=common.run_name,
-        project=WANDB_PROJECT,
-        entity=WANDB_USERNAME,
-        enabled=True,  # set to False to avoid wandb errors
-    )
-    # Safe to collect everys tep for now
-    garbage_collector_callback = GarbageCollectorCallback(gc_interval=1)
-    EVAL_TASKS = {
-        "m-eurosat": DownstreamTaskConfig(
-            dataset="m-eurosat",
-            embedding_batch_size=128,
-            num_workers=8,
-            pooling_type=PoolingType.MEAN,
-            norm_stats_from_pretrained=True,
-            eval_interval=Duration.steps(4000),
-        ),
-        "pastis": DownstreamTaskConfig(
-            dataset="pastis",
-            embedding_batch_size=32,
-            probe_batch_size=8,
-            num_workers=8,
-            pooling_type=PoolingType.MEAN,
-            norm_stats_from_pretrained=True,
-            probe_lr=0.1,
-            eval_interval=Duration.steps(20000),
-            input_modalities=[Modality.SENTINEL2_L2A.name],
-            epochs=50,
-        ),
-    }
-    trainer_config = (
-        TrainerConfig(
-            work_dir=common.save_folder,
-            load_strategy=LOAD_STRATEGY,
-            save_folder=common.save_folder,
-            cancel_check_interval=CANCEL_CHECK_INTERVAL,
-            metrics_collect_interval=METRICS_COLLECT_INTERVAL,
-            max_duration=MAX_DURATION,
-            checkpointer=checkpointer_config,
-        )
-        .with_callback("wandb", wandb_callback)
-        .witf
-
 def build_visualize_config(common: CommonComponents) -> HeliosVisualizeConfig:
     """Build the visualize config for an experiment."""
     return HeliosVisualizeConfig(
         num_samples=None,
         output_dir=str(UPath(common.save_folder) / "visualizations"),
         std_multiplier=2.0,
-    )
-
-
-if __name__ == "__main__":
-    main(
-        common_components_builder=build_common_components,
-        model_config_builder=build_model_config,
-        train_module_config_builder=build_train_module_config,
-        dataset_config_builder=build_dataset_config,
-        dataloader_config_builder=build_dataloader_config,
-        trainer_config_builder=build_trainer_config,
-        visualize_config_builder=build_visualize_config,
     )

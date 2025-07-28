@@ -291,3 +291,10 @@ class PanopticonConfig(Config):
     torchhub_id: str = "panopticon_vitb14"
     patch_size: int = 14
     device: str = "cuda"
+
+    def build(self) -> PanopticonWrapper:
+        return PanopticonWrapper(
+            torchhub_id=self.torchhub_id,
+            patch_size=self.patch_size,
+            device=self.device,
+        )
