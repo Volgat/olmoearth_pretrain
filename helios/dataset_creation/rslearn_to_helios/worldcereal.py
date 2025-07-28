@@ -39,7 +39,7 @@ def _fill_nones_with_zeros(ndarrays: list[np.ndarray | None]) -> np.ndarray | No
     return np.concatenate(return_list, axis=0)
 
 
-def confidence_to_probabilities(x: np.ndarray) -> np.ndarray:
+def scale_confidences(x: np.ndarray) -> np.ndarray:
     """From eq.1 of the worldcereal paper.
 
     As a complementary product of the binary prediction,
@@ -52,9 +52,20 @@ def confidence_to_probabilities(x: np.ndarray) -> np.ndarray:
 
     confidence = ((probability - 0.5) / 0.5) * 100
 
-    This function reverses eq. (1) to go back to a probability.
+    This function reverses eq. (1) to return to a probability.
+    Probability is between 0.5 and 1, where 0.5 == not confident, and 1 == confident.
     """
     return ((x / 100) / 2) + 0.5
+
+
+def to_probabilities(binary: np.ndarray, confidence: np.ndarray) -> np.ndarray:
+    """Take the binary (1, 0) and confidence (< 0.5) values and return probabilities."""
+    confidences = scale_confidences(confidence)
+    # the resampling may have made the values non-binary, so lets binarize them again.
+    binary = binary >= 0.5
+    # since the output of scale_confidences, c, is between 0.5 and 1, I want
+    # (1 - c) where binary == 0 and (c) where binary == 1
+    return (binary * confidences) + ((1 - binary) * (1 - confidences))
 
 
 def convert_worldcereal(window_path: UPath, helios_path: UPath) -> None:
@@ -70,16 +81,34 @@ def convert_worldcereal(window_path: UPath, helios_path: UPath) -> None:
     window = Window.load(window_path)
     window_metadata = get_window_metadata(window)
     for band in band_set.bands:
-        # layer name does not include "-confidence"
-        layer_name = "-".join(band.split("-")[:-1])
-        if not window.is_layer_completed(layer_name):
+        confidence_layer = f"{band}-confidence"
+        classification_layer = f"{band}-classification"
+        both_done = [
+            window.is_layer_completed(confidence_layer),
+            window.is_layer_completed(classification_layer),
+        ]
+        if sum(both_done) == 0:
             ndarrays.append(None)
             continue
+        elif sum(both_done) == 1:
+            raise RuntimeError(
+                "Expected both the confidence and classification layers, or neither. "
+                f"Got one for {window_path}, {band}"
+            )
 
-        raster_dir = window.get_raster_dir(layer_name, [band])
+        binary_dir = window.get_raster_dir(classification_layer, [classification_layer])
+        confidence_dir = window.get_raster_dir(confidence_layer, [confidence_layer])
+
         ndarrays.append(
-            GEOTIFF_RASTER_FORMAT.decode_raster(
-                path=raster_dir, projection=window.projection, bounds=window.bounds
+            to_probabilities(
+                binary=GEOTIFF_RASTER_FORMAT.decode_raster(
+                    path=binary_dir, projection=window.projection, bounds=window.bounds
+                ),
+                confidence=GEOTIFF_RASTER_FORMAT.decode_raster(
+                    path=confidence_dir,
+                    projection=window.projection,
+                    bounds=window.bounds,
+                ),
             )
         )
 
@@ -87,23 +116,12 @@ def convert_worldcereal(window_path: UPath, helios_path: UPath) -> None:
         band_set.bands
     ), f"Expected {len(band_set.bands)} arrays, got {len(ndarrays)}"
     concatenated_arrays = _fill_nones_with_zeros(ndarrays)
+
     if concatenated_arrays is None:
         return None
 
-    # 255 = missing data, which we will treat as 0s
-    # 254 = not cropland. This only occurs in crop type products
-    # in addition, because of our resampling we rarely get
-    # other values (e.g. 252). Lets set them all to 0
-    concatenated_arrays[concatenated_arrays > 100] = 0
-
-    # all values should now be confidences between
-    # 0 and 100
-    assert (
-        concatenated_arrays.min() >= 0
-    ), f"Got min value of {concatenated_arrays.min()}"
-    assert (
-        concatenated_arrays.max() <= 100
-    ), f"Got max value of {concatenated_arrays.max()}"
+    assert concatenated_arrays.min() >= 0
+    assert concatenated_arrays.max() <= 1
 
     dst_fname = get_modality_fname(
         helios_path,
