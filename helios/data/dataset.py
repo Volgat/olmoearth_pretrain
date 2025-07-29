@@ -431,10 +431,10 @@ class HeliosSample(NamedTuple):
         summed_dict: dict[str, ArrayTensor] = {}
         for key, val in self.as_dict(ignore_nones=True).items():
             assert val is not None  # keep mypy happy. True because ignore_nones=True
-            other_val = getattr(val, key)
+            other_val = getattr(other, key)
             if other_val is None:
                 raise ValueError(
-                    "Add requires both HeliosSamples to have the same modalities"
+                    f"Add requires both HeliosSamples to have the same modalities, other is missing {key}"
                 )
             summed_dict[key] = val + other_val
         summed_dict["timestamps"] = timestamps_to_keep
