@@ -130,6 +130,17 @@ class GeobenchDataset(Dataset):
         self.band_indices = [
             original_band_names.index(band_name) for band_name in self.band_names
         ]
+
+        # this is only necessary for landsat
+        self.original_band_indices_after_imputation: list[int] = []
+        if self.is_landsat:
+            band_order_in_geobench_names = [
+                _landsathelios2geobench_name(b) for b in Modality.LANDSAT.band_order
+            ]
+            self.original_band_indices_after_imputation = [
+                band_order_in_geobench_names.index(b) for b in original_band_names
+            ]
+
         imputed_band_info = impute_normalization_stats(
             task.band_stats,
             config.imputes,
@@ -243,6 +254,24 @@ class GeobenchDataset(Dataset):
                 landsat = torch.tensor(
                     self.normalizer_computed.normalize(Modality.LANDSAT, landsat)
                 )
+                # For Landsat (ForestNet), only 5/11 bands are present, and the rest
+                # are imputed. this means some of the means and standard deviations
+                # from the pretrained stats are very different. To handle this, we
+                # redo the imputation
+                landsat_pre_imputation = [
+                    landsat[:, :, :, idx]
+                    for idx in self.original_band_indices_after_imputation
+                ]
+                landsat = np.stack(
+                    self._impute_bands(
+                        landsat_pre_imputation,
+                        self.band_names,
+                        self.config.imputes,
+                        all_bands=GEOBENCH_L8_BAND_NAMES,
+                    ),
+                    dim=-1,
+                )[:, :, :, EVAL_TO_HELIOS_L8_BANDS]
+
             sample_dict["landsat"] = landsat.float()
 
         else:
