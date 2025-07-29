@@ -23,7 +23,6 @@ def get_embeddings(
     embeddings = []
     labels = []
     model.eval()
-    # move model to GPU
     device = model.device
     total_samples = len(data_loader)
     with torch.no_grad():
