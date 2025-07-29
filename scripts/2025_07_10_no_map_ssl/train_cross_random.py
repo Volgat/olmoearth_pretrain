@@ -63,6 +63,7 @@ def build_model_config(common: CommonComponents) -> LatentMIMConfig:
         mlp_ratio=model_size["mlp_ratio"],
         supported_modality_names=common.training_modalities,
         max_patch_size=MAX_PATCH_SIZE,
+        learnable_channel_embeddings=False,
         drop_path=0.1,
         max_sequence_length=12,
     )
@@ -74,6 +75,7 @@ def build_model_config(common: CommonComponents) -> LatentMIMConfig:
         num_heads=model_size["decoder_num_heads"],
         supported_modality_names=common.training_modalities,
         max_sequence_length=12,
+        learnable_channel_embeddings=False,
     )
     model_config = LatentMIMConfig(
         encoder_config=encoder_config,
@@ -99,8 +101,8 @@ def build_train_module_config(
                 "type": "modality_cross_random",
                 "encode_ratio": 0.5,
                 "decode_ratio": 0.5,
-                # "allow_encoding_decoding_same_bandset": True,
-                # "min_decoded_bandsets": None,
+                "allow_encoding_decoding_same_bandset": True,
+                "min_decoded_bandsets": None,
                 # "only_decode_modalities": [
                 #     Modality.OPENSTREETMAP_RASTER.name,
                 #     Modality.WORLDCOVER.name,
