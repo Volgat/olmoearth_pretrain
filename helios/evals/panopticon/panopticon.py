@@ -198,7 +198,6 @@ class Panopticon(nn.Module):
         return output_features
 
 
-    # TODO: add a Temporal poolin type option
     def forward_features(self, masked_helios_sample: MaskedHeliosSample, pooling: PoolingType = PoolingType.MEAN) -> torch.Tensor:
         """Forward pass through the panopticon model.
 
@@ -207,7 +206,6 @@ class Panopticon(nn.Module):
 
         Returns:
         """
-        # supports multi-timestep input single timestep output
         per_timestep_panopticon_inputs = self.prepare_input(masked_helios_sample)
         output_features = []
         for panopticon_input in per_timestep_panopticon_inputs:
