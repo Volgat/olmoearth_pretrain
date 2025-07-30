@@ -1,4 +1,4 @@
-"""DINOv2 model wrapper."""
+"""DINOv2 model https://github.com/facebookresearch/dinov2 ."""
 
 import logging
 import math
@@ -23,9 +23,10 @@ IMAGENET_DEFAULT_STD = (0.229, 0.224, 0.225)
 
 
 def make_normalize_transform(
-    mean=IMAGENET_DEFAULT_MEAN,
-    std=IMAGENET_DEFAULT_STD,
+    mean: tuple[float, float, float] = IMAGENET_DEFAULT_MEAN,
+    std: tuple[float, float, float] = IMAGENET_DEFAULT_STD,
 ) -> transforms.Normalize:
+    """Make a normalize transform."""
     return transforms.Normalize(mean=mean, std=std)
 
 
@@ -66,7 +67,7 @@ class DINOv2(nn.Module):
         # Load the model
         self._load_model(torchhub_id)
 
-    def _load_model(self, torchhub_id: str):
+    def _load_model(self, torchhub_id: str) -> None:
         """Load the dinov2 model from torch hub."""
         # Hack to get around https://discuss.pytorch.org/t/torch-hub-load-gives-httperror-rate-limit-exceeded/124769
         torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
@@ -90,14 +91,7 @@ class DINOv2(nn.Module):
         data: torch.Tensor,
         modality: str,
     ) -> list[torch.Tensor]:
-        """Process individual modality data.
-
-        Args:
-            data: Input tensor of shape [B, H, W, T, C]
-
-        Returns:
-            Processed tensor of shape [B, C*T, H, W]
-        """
+        """Process individual modality data."""
         # Rearrange from "b h w t c -> b (c t) h w" for DinoV2/dinov2 format
         t_dim = data.shape[3]
 
@@ -130,17 +124,11 @@ class DINOv2(nn.Module):
     def prepare_input(
         self,
         masked_helios_sample: MaskedHeliosSample,
-    ) -> dict[str, torch.Tensor]:
-        """Prepare input for the dinov2 model from MaskedHeliosSample.
-
-        Args:
-            masked_helios_sample: Input MaskedHeliosSample object
-
-        Returns:
-            Dictionary with 'imgs' and 'chn_ids' keys for dinov2 model
-        """
+    ) -> list[torch.Tensor]:
+        """Prepare input for the dinov2 model from MaskedHeliosSample."""
         # Process each modality
-        input_data_timesteps = {}
+        # TODO: Does not yet support multiple modalities via multiple forward passes
+        input_data_timesteps: dict[int, list[torch.Tensor]] = {}
         for modality in masked_helios_sample.modalities:
             if modality not in ["sentinel2_l2a", "landsat"]:
                 continue  # Skip non-rgb modalities
@@ -157,7 +145,6 @@ class DINOv2(nn.Module):
                 if i not in input_data_timesteps:
                     input_data_timesteps[i] = []
                 input_data_timesteps[i].append(data_i)
-            batch_size = processed_data[0].shape[0]
 
         if not input_data_timesteps:
             raise ValueError("No valid modalities found for processing")
@@ -175,14 +162,7 @@ class DINOv2(nn.Module):
         masked_helios_sample: MaskedHeliosSample,
         pooling: PoolingType = PoolingType.MEAN,
     ) -> torch.Tensor:
-        """Forward pass through dinov2 model for classification.
-
-        Args:
-            masked_helios_sample: Input MaskedHeliosSample object
-
-        Returns:
-            Model embeddings
-        """
+        """Forward pass through dinov2 model for classification."""
         # Prepare input
         per_timestep_inputs = self.prepare_input(masked_helios_sample)
         # potentially will need to add a flag for segmentation
@@ -207,13 +187,7 @@ class DINOv2(nn.Module):
         masked_helios_sample: MaskedHeliosSample,
         pooling: PoolingType = PoolingType.MEAN,
     ) -> torch.Tensor:
-        """Forward pass through dinov2 model for segmentation.
-
-        Args:
-            x_dict: Input dictionary with 'imgs' and 'chn_ids' keys
-
-        Returns:
-        """
+        """Forward pass through dinov2 model for segmentation."""
         # supports multi-timestep input single timestep output
         per_timestep_dinov2_inputs = self.prepare_input(masked_helios_sample)
         output_features = []

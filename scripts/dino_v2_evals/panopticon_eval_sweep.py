@@ -1,6 +1,6 @@
 """Run an evaluation sweep for DINOv2."""
 
-import subprocess
+import subprocess  # nosec
 
 # Evaluation That sweeps over the following:
 # Learning Rate

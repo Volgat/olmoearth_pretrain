@@ -53,7 +53,7 @@ def normalize_bands(
     image: np.ndarray,
     means: np.array,
     stds: np.array,
-    method: NormMethod = NormMethod.NORM_NO_CLIP,
+    method: str = NormMethod.NORM_NO_CLIP,
 ) -> np.ndarray:
     """Normalize an image with given mean and std arrays, and a normalization method."""
     original_dtype = image.dtype

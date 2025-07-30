@@ -1,4 +1,4 @@
-"""Wrapper for Running Evals on Panopticon"""
+"""Panopticon model https://github.com/Panopticon-FM/panopticon?tab=readme-ov-file ."""
 
 import logging
 import math
@@ -36,7 +36,7 @@ class Panopticon(nn.Module):
         # Load the panopticon model
         self._load_model(torchhub_id)
 
-    def _load_model(self, torchhub_id: str):
+    def _load_model(self, torchhub_id: str) -> None:
         """Load the panopticon model from torch hub."""
         import time
 
@@ -91,15 +91,7 @@ class Panopticon(nn.Module):
     def _create_channel_ids(
         self, modality: str, batch_size: int, device: torch.device
     ) -> torch.Tensor:
-        """Create channel IDs for the panopticon model.
-
-        Args:
-            total_channels: Total number of channels across all modalities
-            batch_size: Batch size
-
-        Returns:
-            Channel IDs tensor of shape [1, total_channels] or [batch_size, total_channels]
-        """
+        """Create channel IDs for the panopticon model."""
         # Bands are in the EVAL_TO_HELIOS_S2_BANDS order so we need to use that to pull the information from the yaml files
         if modality == "sentinel2_l2a":
             modality_yaml_name = "sentinel2"
@@ -125,18 +117,11 @@ class Panopticon(nn.Module):
 
     def prepare_input(
         self, masked_helios_sample: MaskedHeliosSample
-    ) -> dict[str, torch.Tensor]:
-        """Prepare input for the panopticon model from MaskedHeliosSample.
-
-        Args:
-            masked_helios_sample: Input MaskedHeliosSample object
-
-        Returns:
-            Dictionary with 'imgs' and 'chn_ids' keys for panopticon model
-        """
+    ) -> list[dict[str, torch.Tensor]]:
+        """Prepare input for the panopticon model from MaskedHeliosSample."""
         # Process each modality
-        input_data_timesteps = {}
-        channel_ids_list = []
+        input_data_timesteps: dict[int, list[torch.Tensor]] = {}
+        channel_ids_list: list[torch.Tensor] = []
         for modality in masked_helios_sample.modalities:
             if modality in ["timestamps", "latlon"]:
                 continue  # Skip non-image modalities
@@ -178,14 +163,7 @@ class Panopticon(nn.Module):
         masked_helios_sample: MaskedHeliosSample,
         pooling: PoolingType = PoolingType.MEAN,
     ) -> torch.Tensor:
-        """Forward pass through the panopticon model.
-
-        Args:
-            masked_helios_sample: Input MaskedHeliosSample object
-
-        Returns:
-            Model embeddings
-        """
+        """Forward pass through the panopticon model."""
         # Prepare input
         per_timestep_panopticon_inputs = self.prepare_input(masked_helios_sample)
         # potentially will need to add a flag for segmentation
@@ -205,13 +183,7 @@ class Panopticon(nn.Module):
         masked_helios_sample: MaskedHeliosSample,
         pooling: PoolingType = PoolingType.MEAN,
     ) -> torch.Tensor:
-        """Forward pass through the panopticon model.
-
-        Args:
-            x_dict: Input dictionary with 'imgs' and 'chn_ids' keys
-
-        Returns:
-        """
+        """Forward pass through the panopticon model."""
         per_timestep_panopticon_inputs = self.prepare_input(masked_helios_sample)
         output_features = []
         for panopticon_input in per_timestep_panopticon_inputs:
@@ -247,6 +219,7 @@ class PanopticonConfig(Config):
     torchhub_id: str = "panopticon_vitb14"
 
     def build(self) -> Panopticon:
+        """Build the Panopticon model."""
         return Panopticon(
             torchhub_id=self.torchhub_id,
         )

@@ -20,9 +20,10 @@ from helios.data.concat import HeliosConcatDatasetConfig
 from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
-from helios.evals.dinov2.dinov2 import DINOv2Config
+from helios.evals.models import DINOv2Config
 from helios.internal.common import build_common_components
 from helios.internal.experiment import CommonComponents, HeliosVisualizeConfig, main
+from helios.nn.flexihelios import PoolingType
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.callbacks import (
     DownstreamEvaluatorCallbackConfig,

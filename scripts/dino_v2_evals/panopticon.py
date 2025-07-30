@@ -11,7 +11,7 @@ from helios.data.concat import HeliosConcatDatasetConfig
 from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
-from helios.evals.panopticon.panopticon import PanopticonConfig
+from helios.evals.models import PanopticonConfig
 from helios.internal.experiment import CommonComponents, HeliosVisualizeConfig
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.loss import LossConfig
