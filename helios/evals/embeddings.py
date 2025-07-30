@@ -39,7 +39,7 @@ def get_embeddings(
 
             embeddings.append(batch_embeddings.cpu())
             labels.append(label)
-            logger.debug(f"Processed {i} / {total_samples}")
+            logger.info(f"Processed {i} / {total_samples}")
 
     embeddings = torch.cat(embeddings, dim=0)  # (N, dim)
     labels = torch.cat(labels, dim=0)  # (N)

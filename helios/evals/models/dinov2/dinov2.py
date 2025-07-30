@@ -137,7 +137,8 @@ class DINOv2(nn.Module):
                 raise ValueError(
                     "DINOv2 does not yet support multiple modalities via multiple forward passes"
                 )
-            if modality.upper() not in self.supported_modalities:
+            if modality not in self.supported_modalities:
+                logger.warning(f"Skipping modality {modality} as it is not in the supported modalities list {self.supported_modalities}")
                 continue  # Skip non-rgb modalities
 
             data = getattr(masked_helios_sample, modality)
