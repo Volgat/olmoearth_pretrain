@@ -2,6 +2,7 @@
 
 import argparse
 import subprocess  # nosec
+
 from helios.nn.pooled_modality_predictor import DimsToPool
 
 parser = argparse.ArgumentParser()
@@ -12,7 +13,11 @@ parser.add_argument("--priority", type=str, help="Priority for the launch")
 args = parser.parse_args()
 
 
-POOLING_METHODS = [DimsToPool.MODALITY, DimsToPool.TEMPORAL, DimsToPool.MODALITY_TEMPORAL, DimsToPool.ALL]
+POOLING_METHODS = [
+    DimsToPool.MODALITY,
+    DimsToPool.TEMPORAL,
+    DimsToPool.MODALITY_TEMPORAL,
+]
 
 # Arguments to override masking config
 masking_args = [
@@ -30,7 +35,7 @@ for pooling_method in POOLING_METHODS:
             "python",
             "scripts/2025_07_31_cross_pooled_encoding/train_pooled_encoder.py",
             "launch",
-            f"lmim_cross_random0.5_pooled_{pooling_method}",
+            f"lmim_cross_random0.5_pooledfix_{pooling_method}",
             args.cluster,
             "--launch.num_gpus=8",
             f"--model.encoder_config.dims_to_pool={pooling_method.upper()}",
