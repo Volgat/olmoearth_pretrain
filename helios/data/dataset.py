@@ -56,6 +56,7 @@ class HeliosSample(NamedTuple):
     # naip_10 is currently 4x the height/width of sentinel2_l2a.
     naip_10: ArrayTensor | None = None  # [B, H, W, T, len(NAIP_bands)]
     gse: ArrayTensor | None = None  # [B, H, W, 1, len(GSE_bands)]
+    cdl: ArrayTensor | None = None  # [B, H, W, 1, len(CDL_bands)]
 
     # TODO: Add unit tests for this
     def shape(self, attribute: str, mask: bool = False) -> Sequence[int]:
@@ -415,6 +416,44 @@ class HeliosSample(NamedTuple):
                 new_data_dict[attribute] = modality
         return HeliosSample(**new_data_dict)
 
+    def scale(self, s: float) -> "HeliosSample":
+        """Multiply a HeliosSample by a float."""
+        return HeliosSample(
+            **{k: cast(ArrayTensor, v) * s for k, v in self.as_dict().items()}
+        )
+
+    def add(
+        self, other: "HeliosSample", timestamps_to_keep: ArrayTensor
+    ) -> "HeliosSample":
+        """Add two HeliosSamples together."""
+        if not isinstance(other, HeliosSample):
+            raise ValueError("Addition only supported for HeliosSamples")
+        summed_dict: dict[str, ArrayTensor] = {}
+        for key, val in self.as_dict(ignore_nones=True).items():
+            assert val is not None  # keep mypy happy. True because ignore_nones=True
+            other_val = getattr(other, key)
+            if other_val is None:
+                raise ValueError(
+                    f"Add requires both HeliosSamples to have the same modalities, other is missing {key}"
+                )
+            summed_dict[key] = val + other_val
+        summed_dict["timestamps"] = timestamps_to_keep
+        return HeliosSample(**summed_dict)
+
+    def rotate(self) -> "HeliosSample":
+        """Rotate the instances by one.
+
+        If previously, we had a batch of three instances [B1, B2, B3],
+        we will now have a batch of three instances [B2, B3, B1].
+        """
+        output_dict: dict[str, ArrayTensor] = {}
+        for key, v in self.as_dict().items():
+            if isinstance(v, np.ndarray):
+                output_dict[key] = np.concatenate((v[1:], v[:1]), axis=0)
+            elif isinstance(v, torch.Tensor):
+                output_dict[key] = torch.cat((v[1:], v[:1]), dim=0)
+        return HeliosSample(**output_dict)
+
 
 def collate_helios(batch: list[tuple[int, HeliosSample]]) -> tuple[int, HeliosSample]:
     """Collate function that automatically handles any modalities present in the samples."""
@@ -699,9 +738,9 @@ class HeliosDataset(Dataset):
         self, sample_dict: dict[str, Any], missing_timesteps_masks: dict[str, Any]
     ) -> tuple[HeliosSample, list[str]]:
         """Fill the sample with missing values."""
-        assert (
-            sample_dict["timestamps"].shape[0] == self.max_sequence_length
-        ), f"Timestamps shape {sample_dict['timestamps'].shape[0]} does not match max_sequence_length {self.max_sequence_length}"
+        assert sample_dict["timestamps"].shape[0] == self.max_sequence_length, (
+            f"Timestamps shape {sample_dict['timestamps'].shape[0]} does not match max_sequence_length {self.max_sequence_length}"
+        )
         missing_modalities = []
         sample = HeliosSample(**sample_dict)
         for modality in self.training_modalities:
