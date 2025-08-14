@@ -160,39 +160,39 @@ def build_dataloader_config(common: CommonComponents) -> HeliosDataLoaderConfig:
 def build_dataset_config(common: CommonComponents) -> HeliosDatasetConfig:
     """Build the dataset config for an experiment."""
     dataset_configs = [
-        # presto
-        HeliosDatasetConfig(
-            h5py_dir="/weka/dfive-default/helios/dataset/presto/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/469728",
-            training_modalities=common.training_modalities,
-        ),
+        # # presto
+        # HeliosDatasetConfig(
+        #     h5py_dir="/weka/dfive-default/helios/dataset/presto/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/469728",
+        #     training_modalities=common.training_modalities,
+        # ),
         # osm_sampling
         HeliosDatasetConfig(
             h5py_dir="/weka/dfive-default/helios/dataset/osm_sampling/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/1138828",
             training_modalities=common.training_modalities,
-            # dataset_percentage=0.005,
+            dataset_percentage=0.005,
         ),
-        # osmbig
-        HeliosDatasetConfig(
-            h5py_dir="/weka/dfive-default/helios/dataset/osmbig/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/1291656",
-            training_modalities=common.training_modalities,
-        ),
-        # presto_neighbor
-        HeliosDatasetConfig(
-            h5py_dir="/weka/dfive-default/helios/dataset/presto_neighbor/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/3507008",
-            training_modalities=common.training_modalities,
-        ),
-        # worldcover_sampling
-        HeliosDatasetConfig(
-            h5py_dir="/weka/dfive-default/helios/dataset/worldcover_sampling/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/5662848",
-            training_modalities=common.training_modalities,
-        ),
+        # # osmbig
+        # HeliosDatasetConfig(
+        #     h5py_dir="/weka/dfive-default/helios/dataset/osmbig/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/1291656",
+        #     training_modalities=common.training_modalities,
+        # ),
+        # # presto_neighbor
+        # HeliosDatasetConfig(
+        #     h5py_dir="/weka/dfive-default/helios/dataset/presto_neighbor/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/3507008",
+        #     training_modalities=common.training_modalities,
+        # ),
+        # # worldcover_sampling
+        # HeliosDatasetConfig(
+        #     h5py_dir="/weka/dfive-default/helios/dataset/worldcover_sampling/h5py_data_w_missing_timesteps_zstd_3_128_x_4/era5_10_landsat_naip_10_openstreetmap_raster_sentinel1_sentinel2_l2a_srtm_worldcover/5662848",
+        #     training_modalities=common.training_modalities,
+        # ),
     ]
     return HeliosConcatDatasetConfig(dataset_configs=dataset_configs)
 
 
 def build_trainer_config(common: CommonComponents) -> TrainerConfig:
     """Build the trainer config for an experiment."""
-    MAX_DURATION = Duration.epochs(300)
+    MAX_DURATION = Duration.epochs(300 * 200)
     METRICS_COLLECT_INTERVAL = 10
     CANCEL_CHECK_INTERVAL = 25
     LOAD_STRATEGY = LoadStrategy.if_available
