@@ -4,8 +4,8 @@ from logging import getLogger
 from typing import Any
 
 import torch
-from torch import nn
 from einops import reduce
+from torch import nn
 
 from helios.evals.datasets.configs import TaskType
 from helios.evals.models import DINOv2, Panopticon
@@ -39,6 +39,7 @@ class EvalWrapper:
             patch_size: The patch size to use for the model.
             pooling_type: The pooling type to use for the model.
             concat_features: Whether to concatenate features across modalities.
+            use_pooled_tokens: Whether to use pooled tokens.
         """
         super().__init__()
         self.model = model
@@ -48,6 +49,7 @@ class EvalWrapper:
         self.concat_features = concat_features
         self.spatial_pool = task_type == TaskType.SEGMENTATION
         self.use_pooled_tokens = use_pooled_tokens
+
     @property
     def device(self) -> torch.device:
         """Get the device of the model."""
@@ -81,7 +83,7 @@ class HeliosEvalWrapper(EvalWrapper):
             batch_embeddings: TokensAndMasks = self.model(
                 masked_helios_sample, patch_size=self.patch_size
             )[0]  # (bsz, dim)
-                # Concat features across modalities in space averaged across time
+            # Concat features across modalities in space averaged across time
             batch_embeddings = batch_embeddings.pool_unmasked_tokens(
                 self.pooling_type,
                 spatial_pooling=self.spatial_pool,
@@ -101,10 +103,14 @@ class HeliosEvalWrapper(EvalWrapper):
                 if pooled_tokens.shape[1] == 1 and pooled_tokens.ndim == 3:
                     # unsqueeze to get a W H C T
                     pooled_tokens = pooled_tokens.unsqueeze(1)
-                pooled_tokens = reduce(pooled_tokens, "b h w ... d -> b h w d", self.pooling_type)
+                pooled_tokens = reduce(
+                    pooled_tokens, "b h w ... d -> b h w d", self.pooling_type
+                )
             else:
                 # Take the mean of all dims excetp the first and last
-                pooled_tokens = reduce(pooled_tokens, "b ... d -> b d", self.pooling_type)
+                pooled_tokens = reduce(
+                    pooled_tokens, "b ... d -> b d", self.pooling_type
+                )
             batch_embeddings = pooled_tokens
         return batch_embeddings
 

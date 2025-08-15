@@ -35,7 +35,7 @@ from helios.nn.flexihelios import (
 from helios.nn.latent_mim import LatentMIMConfig
 from helios.nn.pooled_modality_predictor import (
     EncoderAttnPoolConfig,
-    PooledModalityPredictorV2Config,
+    PooledModalityPredictorConfig,
 )
 from helios.train.callbacks import (
     DownstreamEvaluatorCallbackConfig,
@@ -68,7 +68,7 @@ def build_model_config(common: CommonComponents) -> LatentMIMConfig:
         drop_path=0.1,
         max_sequence_length=12,
     )
-    decoder_config = PooledModalityPredictorV2Config(
+    decoder_config = PooledModalityPredictorConfig(
         encoder_embedding_size=model_size["encoder_embedding_size"],
         decoder_embedding_size=model_size["decoder_embedding_size"],
         depth=model_size["decoder_depth"],

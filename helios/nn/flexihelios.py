@@ -742,6 +742,8 @@ class FlexiHeliosCompositeEncodings(nn.Module):
             timestamps: Optional timestamps for temporal encodings
             patch_size: Optional patch size for spatial encodings
             input_res: Optional input resolution for spatial encodings
+            use_modality_encodings: Whether to use modality encodings
+            use_temporal_encodings: Whether to use temporal encodings
 
         Returns:
             Tensor with encodings applied based on modality type
@@ -1421,7 +1423,6 @@ class Encoder(FlexiHeliosBase):
         tokens_per_modality_dict.update(original_masks_dict)
         return tokens_per_modality_dict
 
-    # TODO: we want to have a single API for the encoder and decoder
     def forward(
         self,
         x: MaskedHeliosSample,
@@ -1429,7 +1430,7 @@ class Encoder(FlexiHeliosBase):
         input_res: int = BASE_GSD,
         token_exit_cfg: dict | None = None,
         always_pass_none_mask_to_transformer: bool = False,
-    ) -> tuple[TokensAndMasks, torch.Tensor]:
+    ) -> tuple[TokensAndMasks, torch.Tensor, dict[str, torch.Tensor]]:
         """Process masked input samples into token representations.
 
         Args:
@@ -1456,6 +1457,8 @@ class Encoder(FlexiHeliosBase):
                 always_pass_none_mask_to_transformer=always_pass_none_mask_to_transformer,
             )
         output = TokensAndMasks(**patchified_tokens_and_masks)
+        # TODO: we should probably switch this to a dict
+        pooled_dict: dict[str, torch.Tensor] = {}
         return output, self.project_and_aggregate(output), pooled_dict
 
     def apply_fsdp(self, **fsdp_kwargs: Any) -> None:
@@ -1469,7 +1472,7 @@ class Encoder(FlexiHeliosBase):
         fully_shard(self, **fsdp_kwargs)
 
 
-class Predictor(FlexiHeliosBase):
+class PredictorBase(FlexiHeliosBase):
     """Predictor module that generates predictions from encoded tokens."""
 
     cross_attn = True
@@ -1688,6 +1691,21 @@ class Predictor(FlexiHeliosBase):
         tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
         return tokens
 
+    def is_any_data_to_be_decoded(self, modality_mask: Tensor) -> bool:
+        """Check if any data is to be decoded for a given modality."""
+        return (MaskValue.DECODER.value == modality_mask).any()
+
+    def apply_fsdp(self, **fsdp_kwargs: Any) -> None:
+        """Apply FSDP to the model."""
+        super().apply_fsdp(**fsdp_kwargs)
+        fully_shard(self, **fsdp_kwargs)
+
+
+class Predictor(PredictorBase):
+    """Predictor module that generates predictions from encoded tokens."""
+
+    cross_attn = True
+
     def apply_attn(
         self,
         x: dict[str, Tensor],
@@ -1774,10 +1792,6 @@ class Predictor(FlexiHeliosBase):
         tokens_per_modality_dict.update(original_masks_dict)
         return tokens_per_modality_dict
 
-    def is_any_data_to_be_decoded(self, modality_mask: Tensor) -> bool:
-        """Check if any data is to be decoded for a given modality."""
-        return (MaskValue.DECODER.value == modality_mask).any()
-
     def forward(
         self,
         x: TokensAndMasks,
@@ -1840,11 +1854,6 @@ class Predictor(FlexiHeliosBase):
             output_dict[modality] = torch.stack(per_modality_output_tokens, dim=-2)
             output_dict[masked_modality_name] = modality_mask
         return TokensAndMasks(**output_dict)
-
-    def apply_fsdp(self, **fsdp_kwargs: Any) -> None:
-        """Apply FSDP to the model."""
-        super().apply_fsdp(**fsdp_kwargs)
-        fully_shard(self, **fsdp_kwargs)
 
 
 @dataclass
@@ -1926,7 +1935,7 @@ class PredictorConfig(Config):
         """Get the supported modalities."""
         return get_modality_specs_from_names(self.supported_modality_names)
 
-    def build(self) -> "Predictor":
+    def build(self) -> "PredictorBase":
         """Build the predictor."""
         self.validate()
         kwargs = self.as_dict(exclude_none=True, recurse=False)

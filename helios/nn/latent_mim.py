@@ -57,11 +57,15 @@ class LatentMIM(nn.Module, DistributedMixins):
             reconstructed: MAE predictions if enabled
         """
         # TODO: Input And outputs here are not consistent between encoder and decoder need a tokensandmaks++
-        latent, latent_projected_and_pooled, pooled_dict = self.encoder(x, patch_size=patch_size)
+        latent, latent_projected_and_pooled, pooled_dict = self.encoder(
+            x, patch_size=patch_size
+        )
         reconstructed = None
         if self.reconstructor:
             reconstructed = self.reconstructor(latent, x.timestamps, patch_size)
-        decoded = self.decoder(latent, pooled_dict, timestamps=x.timestamps, patch_size=patch_size)
+        decoded = self.decoder(
+            latent, pooled_dict, timestamps=x.timestamps, patch_size=patch_size
+        )
         return latent, decoded, latent_projected_and_pooled, reconstructed
 
     def apply_fsdp(

@@ -33,10 +33,9 @@ from helios.internal.utils import MODEL_SIZE_ARGS
 from helios.nn.flexihelios import (
     EncoderConfig,
     PoolingType,
-    PredictorConfig,
 )
-from helios.nn.pooled_modality_predictor import PooledModalityPredictorConfig
 from helios.nn.latent_mim import LatentMIMConfig
+from helios.nn.pooled_modality_predictor import PooledModalityPredictorConfig
 from helios.train.callbacks import (
     DownstreamEvaluatorCallbackConfig,
     HeliosSpeedMonitorCallback,
