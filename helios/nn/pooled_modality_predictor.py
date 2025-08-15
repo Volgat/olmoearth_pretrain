@@ -202,7 +202,7 @@ class PooledModalityPredictor(PredictorBase):
         timestamps: Tensor,
         patch_size: int,
         input_res: int,
-        pooled_dict: dict[str, Tensor],
+        pooled_tokens_and_masks: dict[str, Tensor],
     ) -> dict[str, Tensor]:
         """Apply attention to the tokens."""
         logger.warning("Calling apply_attn for PooledModalityPredictor")
@@ -214,7 +214,7 @@ class PooledModalityPredictor(PredictorBase):
         )
         tokens_dict.update(original_masks_dict)
 
-        pooled_tokens = pooled_dict["modality_pooled_tokens"]
+        pooled_tokens = pooled_tokens_and_masks["modality_pooled_tokens"]
         if self.include_encoder_encodings:
             encoding_kwargs = self._which_encodings_to_use()
             logger.info(f"encoding_kwargs: {encoding_kwargs}")
@@ -228,7 +228,7 @@ class PooledModalityPredictor(PredictorBase):
             )
         pooled_tokens = rearrange(pooled_tokens, "b ... d -> b (...) d")
         pooled_attn_mask = rearrange(
-            pooled_dict["modality_pooled_masks"], "b ... -> b (...)"
+            pooled_tokens_and_masks["modality_pooled_masks"], "b ... -> b (...)"
         )
 
         (
@@ -290,7 +290,7 @@ class PooledModalityPredictor(PredictorBase):
     def forward(
         self,
         x: TokensAndMasks,
-        pooled_dict: dict[str, Tensor],
+        pooled_tokens_and_masks: dict[str, Tensor],
         timestamps: Tensor,
         patch_size: int,
         input_res: int = BASE_GSD,
@@ -300,7 +300,7 @@ class PooledModalityPredictor(PredictorBase):
         Args:
             x: TokensAndMasks containing the masks to use to make decodings.
                 These tokens are discarded in this function - only the masks are used
-            pooled_dict: Dictionary containing the pooled tokens and their masks
+            pooled_tokens_and_masks: Dictionary containing the pooled tokens and their masks
             timestamps: Timestamps of the tokens
             patch_size: Patch size of the tokens
             input_res: Input resolution of the tokens
@@ -314,10 +314,10 @@ class PooledModalityPredictor(PredictorBase):
         )
 
         # Apply input norma nd projection on pooled tokens
-        pooled_tokens = pooled_dict["modality_pooled_tokens"]
+        pooled_tokens = pooled_tokens_and_masks["modality_pooled_tokens"]
         pooled_tokens = self.input_norm(pooled_tokens)
         pooled_tokens = self.encoder_to_decoder_embed(pooled_tokens)
-        pooled_dict["modality_pooled_tokens"] = pooled_tokens
+        pooled_tokens_and_masks["modality_pooled_tokens"] = pooled_tokens
 
         # Prepare the Learnable Masked Outputs on the original Unpooled Tokens
         decoder_emedded_dict = x.as_dict(return_none=False)
@@ -328,7 +328,7 @@ class PooledModalityPredictor(PredictorBase):
             timestamps,
             patch_size,
             input_res,
-            pooled_dict=pooled_dict,
+            pooled_tokens_and_masks=pooled_tokens_and_masks,
         )
 
         # Project and Normalize Output Tokens
@@ -500,11 +500,11 @@ class EncodeEarlyAttnPool(Encoder):
             **expand_mask_kwargs,
         )
         # TODO: Update names so they make sense for all the different options
-        pooled_dict = {
+        pooled_tokens_and_masks = {
             "modality_pooled_tokens": pooled_tokens,
             "modality_pooled_masks": pooled_attn_mask,
         }
-        return pooled_dict
+        return pooled_tokens_and_masks
 
     def collapse_and_combine_hwtc_pooled_tokens(
         self, x: dict[str, Tensor]
@@ -823,7 +823,7 @@ class EncodeEarlyAttnPool(Encoder):
         if token_exit_cfg is None or any(
             [exit_depth > 0 for exit_depth in token_exit_cfg.values()]
         ):
-            pooled_dict = self.apply_attn(
+            pooled_tokens_and_masks = self.apply_attn(
                 x=patchified_tokens_and_masks,
                 timestamps=x.timestamps,
                 patch_size=patch_size,
@@ -832,14 +832,14 @@ class EncodeEarlyAttnPool(Encoder):
                 always_pass_none_mask_to_transformer=always_pass_none_mask_to_transformer,
             )
         else:
-            pooled_dict = {}
+            pooled_tokens_and_masks = {}
 
         output_dict: dict[str, Any] = {
             "tokens_and_masks": tokenized_output,
             "project_aggregated": self.project_and_aggregate(tokenized_output),
         }
-        if pooled_dict:
-            output_dict["pooled_tokens_and_masks"] = pooled_dict
+        if pooled_tokens_and_masks:
+            output_dict["pooled_tokens_and_masks"] = pooled_tokens_and_masks
 
         return output_dict
 
