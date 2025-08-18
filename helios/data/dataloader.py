@@ -47,7 +47,6 @@ class HeliosDataLoader(DataLoaderBase):
         max_patch_size: int,
         sampled_hw_p_list: list[int],
         token_budget: int | None = None,
-        apply_cutmix: bool = False,
         dp_world_size: int = 1,
         dp_rank: int = 0,
         fs_local_rank: int = 0,
@@ -78,7 +77,6 @@ class HeliosDataLoader(DataLoaderBase):
         self.token_budget = token_budget
         self.patch_sizes = np.arange(min_patch_size, max_patch_size + 1)
         self.sampled_hw_p_list = sampled_hw_p_list
-        self.apply_cutmix = apply_cutmix
         self.collator = collator
         self.seed = seed
         self.shuffle = shuffle
@@ -249,7 +247,6 @@ class HeliosDataLoader(DataLoaderBase):
             patch_size=patch_size,
             sampled_hw_p=sampled_hw_p,
             token_budget=self.token_budget,
-            apply_cutmix=self.apply_cutmix,
         )
         item = self.dataset[args]
         return item
@@ -370,12 +367,11 @@ class HeliosDataLoader(DataLoaderBase):
             [
                 (
                     patch_size,
-                    self._get_mock_sample(rng).subset(
+                    self._get_mock_sample(rng).subset_default(
                         patch_size,
                         max_tokens_per_instance=1500,
                         sampled_hw_p=6,
                         current_length=12,
-                        apply_cutmix=self.apply_cutmix,
                     ),
                 )
                 for num in range(batch_size)
