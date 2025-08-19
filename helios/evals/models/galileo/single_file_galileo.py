@@ -6,6 +6,7 @@
 import collections.abc
 import itertools
 import json
+import logging
 import math
 from collections import OrderedDict
 from collections import OrderedDict as OrderedDictType
@@ -28,6 +29,8 @@ from upath import UPath
 from helios.data.constants import Modality
 from helios.nn.flexihelios import PoolingType
 from helios.train.masking import MaskedHeliosSample
+
+logger = logging.getLogger(__name__)
 
 # constants
 CONFIG_FILENAME = "config.json"
@@ -1755,6 +1758,10 @@ class GalileoWrapper(nn.Module):
             s1=x.sentinel1,
             months=x.timestamps[:, :, 1] if x.timestamps is not None else None,
         )
+        patch_size = self.patch_size
+        if s_t_x.shape[1] < self.patch_size:
+            logger.info(f"tile size {s_t_x.shape[1]} < self.patch size {self.patch_size}. Using tile size as patch size.")
+            patch_size = s_t_x.shape[1]
         output = self.galileo_encoder(
             s_t_x,
             sp_x,
@@ -1765,7 +1772,7 @@ class GalileoWrapper(nn.Module):
             t_m,
             st_m,
             month,
-            patch_size=self.patch_size,
+            patch_size=patch_size,
             add_layernorm_on_exit=self.add_layernorm_on_exit,
         )
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = output
