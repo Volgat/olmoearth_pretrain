@@ -10,6 +10,7 @@ from torch import nn
 from helios.evals.datasets.configs import TaskType
 from helios.evals.models import DINOv2, GalileoWrapper, Panopticon
 from helios.nn.flexihelios import FlexiHeliosBase, PoolingType, TokensAndMasks
+from helios.nn.pooled_modality_predictor import EncodeEarlyAttnPool
 from helios.nn.st_model import STBase
 from helios.train.masking import MaskedHeliosSample
 
@@ -49,6 +50,10 @@ class EvalWrapper:
         self.concat_features = concat_features
         self.spatial_pool = task_type == TaskType.SEGMENTATION
         self.use_pooled_tokens = use_pooled_tokens
+        if self.use_pooled_tokens:
+            assert isinstance(self.model, EncodeEarlyAttnPool), (
+                "Pooled tokens are only supported for EncodeEarlyAttnPool"
+            )
 
     @property
     def device(self) -> torch.device:
