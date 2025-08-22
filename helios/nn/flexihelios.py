@@ -1838,8 +1838,7 @@ class Predictor(PredictorBase):
         )
         for modality in modalities_to_process:
             x_modality = getattr(x, modality)
-            # Are these normalizations masked correctly?
-            # Does not account for missing tokens
+            # Although, we do not account for missing tokens both proj and normalize are on token dimension so there is no mixing with real tokens
             x_modality = self.input_norm(x_modality)
             x_modality = self.encoder_to_decoder_embed(x_modality)
             masked_modality_name = x.get_masked_modality_name(modality)
