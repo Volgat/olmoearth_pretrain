@@ -94,16 +94,6 @@ class AttnPool(nn.Module):
         if self.gate is not None:
             nn.init.zeros_(self.gate.weight)  # start near uniform mix
 
-    def masked_mean(
-        self, x: torch.Tensor, mask: torch.Tensor
-    ) -> torch.tensor:  # x:[B*,N,D], mask:[B*,N] (True=masked)
-        """Compute the mean of x, weighted by the inverse of the mask."""
-        if mask is None:
-            return x.mean(dim=1)
-        w = (~mask).float()
-        w = w / (w.sum(dim=1, keepdim=True).clamp_min(1))
-        return (x * w.unsqueeze(-1)).sum(dim=1)
-
     def forward(
         self, feat_tokens: torch.Tensor, mask: torch.Tensor | None
     ) -> torch.Tensor:
@@ -163,7 +153,7 @@ class AttnPool(nn.Module):
 
         # MLP + LN head
         z = self.out_norm(self.out_layer(z))
-        return z  # + masked_mean_feat_tokens
+        return z
 
 
 class PooledModalityPredictor(PredictorBase):
