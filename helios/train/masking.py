@@ -868,6 +868,17 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
             for sample_idx in present_sample_indices:
                 sample_idx = sample_idx.item()
                 for bandset_idx in range(num_bandsets):
+                    # check if that modality bandset has any encoded tokens if it has no encoded tokens it is not present
+                    is_any_tokens_encoded_for_sample = (
+                        torch.sum(
+                            modality_mask[sample_idx, ..., bandset_idx]
+                            == MaskValue.ONLINE_ENCODER.value
+                        )
+                        > 0
+                    )
+                    # only say something is present if it has any encoded tokens
+                    if not is_any_tokens_encoded_for_sample:
+                        continue
                     present_modalities_bandsets[sample_idx].append(
                         (modality, bandset_idx)
                     )
@@ -1091,6 +1102,7 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
             masked_batch_dict[masked_modality_name] = out_modality_mask
 
         masked_batch = MaskedHeliosSample(**masked_batch_dict)
+
         return masked_batch
 
     def apply_mask(
@@ -1098,6 +1110,23 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
     ) -> MaskedHeliosSample:
         """Apply space masking to the input data."""
         masked_sample = self.strategy.apply_mask(batch, patch_size, **kwargs)
+        # get shape of each modality in the masked sample
+        modality_shapes = {
+            modality: getattr(masked_sample, modality).shape
+            for modality in masked_sample.modalities
+        }
+        logger.info(f"Modality shapes: {modality_shapes}")
+        num_encoded_per_modality = {
+            modality: (
+                getattr(
+                    masked_sample, MaskedHeliosSample.get_masked_modality_name(modality)
+                )
+                == MaskValue.ONLINE_ENCODER.value
+            ).sum()
+            for modality in masked_sample.modalities
+        }
+        logger.info(f"Num encoded per modality: {num_encoded_per_modality}")
+
         present_modalities_bandsets = self.get_sample_present_modalities_bandsets(
             masked_sample
         )
@@ -1107,6 +1136,29 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
         masked_sample = self.apply_bandset_mask_rules(
             masked_sample, encoded_decoded_bandsets, present_modalities_bandsets
         )
+        # Check to see if any sample indexes have no encoded tokens
+        no_encoded_sample_idxs = []
+        for sample_idx in range(masked_sample.timestamps.shape[0]):
+            encoded_tokens = 0
+            for modality in masked_sample.modalities:
+                masked_modality_name = MaskedHeliosSample.get_masked_modality_name(
+                    modality
+                )
+                encoded_tokens += (
+                    getattr(masked_sample, masked_modality_name)
+                    == MaskValue.ONLINE_ENCODER.value
+                ).sum()
+
+            if encoded_tokens == 0:
+                no_encoded_sample_idxs.append(sample_idx)
+        if len(no_encoded_sample_idxs) > 0:
+            logger.info(
+                f"No encoded sample idxs: {no_encoded_sample_idxs} encoded decoded bandsets: {[encoded_decoded_bandsets[sample_idx] for sample_idx in no_encoded_sample_idxs]}"
+            )
+            logger.info(
+                f"Encoded decoded bandsets for no encoded sample idxs: {encoded_decoded_bandsets[no_encoded_sample_idxs]}"
+            )
+            raise ValueError("No encoded sample idxs found")
         return masked_sample
 
 
