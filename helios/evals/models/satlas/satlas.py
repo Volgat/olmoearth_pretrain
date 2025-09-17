@@ -19,13 +19,24 @@ from helios.train.masking import MaskedHeliosSample
 logger = logging.getLogger(__name__)
 
 
-HELIOS_TO_SATLAS_S2 = [
-    Modality.SENTINEL2_L2A.band_order.index(b)
-    for b in ["B04", "B03", "B02", "B05", "B06", "B07", "B08", "B11", "B12"]
-]
+HELIOS_TO_SATLAS = {
+    Modality.SENTINEL2_L2A.name: [
+        Modality.SENTINEL2_L2A.band_order.index(b)
+        # TODO @favyenb is this band ordering correct?
+        for b in ["B04", "B03", "B02", "B05", "B06", "B07", "B08", "B11", "B12"]
+    ],
+    Modality.SENTINEL1.name: [
+        Modality.SENTINEL1.band_order.index(b) for b in ["VV", "VH"]
+    ],
+    # Our Landsat models input 11 bands, B1-B11 in order, of Landsat-8 and Landsat-9 images.
+    Modality.LANDSAT.name: [
+        Modality.SENTINEL1.band_order.index(b)
+        for b in ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11"]
+    ],
+}
 
 
-class SatlasPretrain(nn.Module):
+class Satlas(nn.Module):
     """Class containing the Satlas model that can ingest MaskedHeliosSample objects."""
 
     patch_size: int = 8
@@ -57,9 +68,8 @@ class SatlasPretrain(nn.Module):
         weights = torch.load(
             self.load_directory / "satlas-model-v1-lowres-band.pth", map_location="cpu"
         )  # todo: how to select this?
-        num_channels = 9  # this also needs to be selected based on the modality
         self.satlas = satlaspretrain_models.Model(
-            num_channels=num_channels,
+            num_channels=len(HELIOS_TO_SATLAS[modality]),
             multi_image=False,
             backbone=self.size,
             fpn=False,
@@ -88,10 +98,7 @@ class SatlasPretrain(nn.Module):
 
         for i in range(t_dim):
             data_i = rearrange(data[:, :, :, i, :], "b h w c -> b c h w")
-
-            # Rearrange sen2 data
-            if modality == "sentinel2_l2a":
-                data_i = data_i[:, HELIOS_TO_SATLAS_S2, :, :]
+            data_i = data_i[:, HELIOS_TO_SATLAS[modality], :, :]
 
             new_height = (
                 self.patch_size if original_height == 1 else self.image_resolution
@@ -159,9 +166,9 @@ class SatlasConfig(Config):
     size: str = "base"
     load_directory: str = "/weka/dfive-default/helios/models/satlas"
 
-    def build(self) -> SatlasPretrain:
+    def build(self) -> Satlas:
         """Build the Satlas model."""
-        return SatlasPretrain(
+        return Satlas(
             size=self.size,
             load_directory=self.load_directory,
         )
