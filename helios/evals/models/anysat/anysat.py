@@ -166,8 +166,8 @@ class AnySat(nn.Module):
                 )
                 doy = self._month_day_to_day_of_year(months=months)
             else:
-                months = masked_helios_sample.timestamps[:, 1]
-                days = masked_helios_sample.timestamps[:, -1]
+                months = masked_helios_sample.timestamps[:, :, 1]
+                days = masked_helios_sample.timestamps[:, :, -1]
                 doy = self._month_day_to_day_of_year(months=months, days=days)
             input_data[f"{self.helios_modalities_to_anysat_names[modality]}_dates"] = (
                 doy
