@@ -13,25 +13,10 @@ from einops import rearrange, repeat
 from timm.layers import to_2tuple
 from timm.models.vision_transformer import Block
 from helios.evals.models.prithvi.prithvi_mae import PrithviMAE
+from helios.data.constants import Modality
+
 
 class PrithviWrapper(nn.Module):
-    # we assume any data passed to this wrapper
-    # will contain S2 data with the following channels
-    INPUT_S2_BAND_ORDERING = [
-        "B01",
-        "B02",
-        "B03",
-        "B04",
-        "B05",
-        "B06",
-        "B07",
-        "B08",
-        "B08A",
-        "B09",
-        "B10",
-        "B11",
-        "B12",
-    ]
 
     def __init__(self, weights_path: Path, do_pool=True, temporal_pooling: str = "mean"):
         super().__init__()
@@ -53,7 +38,7 @@ class PrithviWrapper(nn.Module):
         self.grid_size = int(config["img_size"] // config["patch_size"][-1])
         self.bands = config["bands"]
 
-        self.inputs_to_prithvi = [self.INPUT_S2_BAND_ORDERING.index(b) for b in self.bands]
+        self.inputs_to_prithvi = [Modality.SENTINEL2_L2A.band_order.index(b) for b in self.bands]
         self.do_pool = do_pool
         if temporal_pooling not in ["mean", "max"]:
             raise ValueError(
