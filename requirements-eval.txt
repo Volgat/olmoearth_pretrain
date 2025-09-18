@@ -5,3 +5,4 @@ geopandas
 rioxarray
 scikit-learn
 xarray
+timm==0.9.7
