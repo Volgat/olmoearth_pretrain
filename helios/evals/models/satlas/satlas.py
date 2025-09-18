@@ -75,24 +75,24 @@ class Satlas(nn.Module):
             use_pretrained_normalizer: Whether or not to apply satlas pretraining normalization
         """
         super().__init__()
-        self.cur_init_modality: str = "no_modality_yet"  # doesn't match a modality yet
         self.size = size
         self.load_directory = UPath(load_directory)
         # need to have some model at init so that the trainer can build correctly
-        self._initialize_model(Modality.SENTINEL2_L2A.name)
+        supported_modalities = self.modality_size_to_weights[self.size].keys()
+        self.models = nn.ParameterDict(
+            {modality: self._load_model(modality) for modality in supported_modalities}
+        )
         self.dim = 1024 if size == "base" else 768
         self.image_resolution = 512
         self.use_pretrained_normalizer = use_pretrained_normalizer
 
-    def _initialize_model(self, modality: str) -> None:
-        if self.cur_init_modality == modality:
-            return None
+    def _load_model(self, modality: str) -> satlaspretrain_models.Model:
         # check init modality to see if we need to reinitialize the model
         weights = torch.load(
             self.load_directory / self.modality_size_to_weights[self.size][modality],
             map_location="cpu",
-        )  # todo: how to select this?
-        self.model = satlaspretrain_models.Model(
+        )
+        return satlaspretrain_models.Model(
             num_channels=len(HELIOS_TO_SATLAS[modality]),
             multi_image=False,
             backbone=self.size_to_backbone[self.size],
@@ -101,7 +101,6 @@ class Satlas(nn.Module):
             num_categories=None,
             weights=weights,
         )
-        self.cur_init_modality = modality
 
     @staticmethod
     def normalize(image: torch.Tensor, modality: str) -> torch.Tensor:
@@ -156,17 +155,16 @@ class Satlas(nn.Module):
     def prepare_input(
         self,
         masked_helios_sample: MaskedHeliosSample,
-    ) -> list[torch.Tensor]:
+    ) -> tuple[list[torch.Tensor], str]:
         """Prepare input for the Satlas model from MaskedHeliosSample."""
         if len(masked_helios_sample.modalities) != 1:
             raise RuntimeError(
                 f"Satlas only supports one modality. Received {len(masked_helios_sample.modalities)}: {masked_helios_sample.modalities}"
             )
         modality = masked_helios_sample.modalities[0]
-        self._initialize_model(modality)
 
         data = getattr(masked_helios_sample, modality)
-        return self._process_modality_data(data, modality)
+        return self._process_modality_data(data, modality), modality
 
     def forward(
         self,
@@ -175,11 +173,10 @@ class Satlas(nn.Module):
         spatial_pool: bool = False,
     ) -> torch.Tensor:
         """Forward pass through the satlas model."""
-        processed_inputs = self.prepare_input(masked_helios_sample)
+        processed_inputs, modality = self.prepare_input(masked_helios_sample)
         outputs_list: list[torch.Tensor] = []
         for per_t_input in processed_inputs:
-            assert self.model is not None  # since we called self.prepare_input
-            output = self.model(per_t_input)[-1]
+            output = self.models[modality](per_t_input)[-1]
             # output shape for atto: (bsz, 320, 7, 7)
             # output shape for tiny: (bsz, 768, 6, 6)
             if not spatial_pool:
