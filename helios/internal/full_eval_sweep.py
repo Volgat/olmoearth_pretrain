@@ -166,8 +166,15 @@ def get_prithvi_args(pretrained_normalizer: bool = True) -> str:
 
         prithvi_args += " " + "--model.use_pretrained_normalizer=True"
     else:
+        prithvi_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.STANDARDIZE"
+                for task_name in EVAL_TASKS.keys()
+            ]
+        )
         # IF we use dataset stats we want to turn off the pretrained normalizer
         prithvi_args += " " + "--model.use_pretrained_normalizer=False"
+
     prithvi_args += " " + " ".join(
         [
             f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.embedding_batch_size=8"
