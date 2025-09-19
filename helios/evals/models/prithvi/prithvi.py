@@ -108,9 +108,7 @@ class Prithvi(nn.Module):
             data - torch.tensor(PRITHVI_MEAN, dtype=data.dtype, device=data.device)
         ) / (torch.tensor(PRITHVI_STD, dtype=data.dtype, device=data.device))
 
-    def _process_modality_data(
-        self, data: torch.Tensor, modality: str
-    ) -> list[torch.Tensor]:
+    def _process_modality_data(self, data: torch.Tensor, modality: str) -> torch.Tensor:
         """Process individual modality data.
 
         Args:
@@ -151,7 +149,7 @@ class Prithvi(nn.Module):
     def prepare_input(
         self,
         masked_helios_sample: MaskedHeliosSample,
-    ) -> list[torch.Tensor]:
+    ) -> torch.Tensor:
         """Prepare input for the Prithvi model from MaskedHeliosSample."""
         if len(masked_helios_sample.modalities) != 1:
             raise RuntimeError(
@@ -174,6 +172,7 @@ class Prithvi(nn.Module):
     ) -> torch.Tensor:
         """Forward pass through the satlas model."""
         processed_input = self.prepare_input(masked_helios_sample)
+        print(processed_input.shape)
         output = self.model.forward_features(processed_input)[-1]
         # following
         # https://github.com/IBM/terratorch/blob/main/terratorch/models/backbones/prithvi_mae.py#L449
