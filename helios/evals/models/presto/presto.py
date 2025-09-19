@@ -36,6 +36,8 @@ PRESTO_S2_DIV_VALUE = 1e4
 class PrestoWrapper(nn.Module):
     """Class containing the Presto model that can ingest MaskedHeliosSample objects."""
 
+    supported_modalities = [Modality.SENTINEL2_L2A.name, Modality.SENTINEL1.name]
+
     def __init__(
         self,
         load_directory: str = "/weka/dfive-default/helios/models/presto",
