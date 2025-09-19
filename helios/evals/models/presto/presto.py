@@ -1,9 +1,11 @@
 """Presto wrapper to ingest Masked Helios Samples."""
 
 import logging
+from dataclasses import dataclass
 
 import torch
 from einops import repeat
+from olmo_core.config import Config
 from torch import nn
 from upath import UPath
 
@@ -159,3 +161,16 @@ class PrestoWrapper(nn.Module):
             return repeat(output, "b d -> b h w d", h=1, w=1)
         else:
             return output
+
+
+@dataclass
+class PrestoConfig(Config):
+    """olmo_core style config for PrestoWrapper."""
+
+    load_directory: str = "/weka/dfive-default/helios/models/presto"
+
+    def build(self) -> PrestoWrapper:
+        """Build the Croma model."""
+        return PrestoWrapper(
+            load_directory=self.load_directory,
+        )
