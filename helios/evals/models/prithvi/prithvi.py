@@ -172,7 +172,6 @@ class Prithvi(nn.Module):
     ) -> torch.Tensor:
         """Forward pass through the satlas model."""
         processed_input = self.prepare_input(masked_helios_sample)
-        print(processed_input.shape)
         output = self.model.forward_features(processed_input)[-1]
         # following
         # https://github.com/IBM/terratorch/blob/main/terratorch/models/backbones/prithvi_mae.py#L449
