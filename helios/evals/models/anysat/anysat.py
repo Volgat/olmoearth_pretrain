@@ -54,6 +54,12 @@ class AnySat(nn.Module):
         Modality.SENTINEL1.name: "s1",
     }
 
+    supported_modalities = [
+        Modality.SENTINEL2_L2A.name,
+        Modality.LANDSAT.name,
+        Modality.SENTINEL1.name,
+    ]
+
     def __init__(self) -> None:
         """AnySat wrapper."""
         super().__init__()
