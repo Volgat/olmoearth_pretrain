@@ -180,14 +180,17 @@ class Prithvi(nn.Module):
         # take for classification: https://github.com/IBM/terratorch/blob/main/terratorch/models/scalar_output_model.py#L19
         output = output[:, 1:, :]
         t = output.shape[2]
+        side = math.isqrt((output).shape[1] / t)
 
         if not spatial_pool:
             # then we don't want to keep the spatial dimensions
-            output = output.mean(dim=1)
+            output = rearrange(
+                output, "b (t h w) c -> b t (h w) c", h=side, w=side, t=t
+            )
+            output = output.mean(dim=2)
         else:
-            side = math.isqrt((output).shape[1] / t)
             # (t h w) following the unpatchify order
-            output = rearrange(output, "b (t h w) c -> b t h w c", h=side, w=side)
+            output = rearrange(output, "b (t h w) c -> b t h w c", h=side, w=side, t=t)
 
         # stack in the timestep dimension and take the mean or maybe the max?
         if pooling == PoolingType.MEAN:
