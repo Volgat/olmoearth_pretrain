@@ -212,7 +212,7 @@ class CopernicusFM(torch.nn.Module):
         pooling: PoolingType = PoolingType.MEAN,
         spatial_pool: bool = False,
     ) -> torch.Tensor:
-        """Forward pass through croma model."""
+        """Forward pass through CopernicusFM model."""
         # Prepare input
         per_timestep_inputs, wavelengths, bandwidths = self.prepare_input(
             masked_helios_sample
