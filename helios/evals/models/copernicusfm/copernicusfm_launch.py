@@ -10,9 +10,8 @@ from helios.data.concat import HeliosConcatDatasetConfig
 from helios.data.constants import Modality
 from helios.data.dataloader import HeliosDataLoaderConfig
 from helios.data.dataset import HeliosDatasetConfig
-from helios.evals.models import CopernicusFM
+from helios.evals.models import CopernicusFMConfig
 from helios.internal.experiment import CommonComponents, HeliosVisualizeConfig
-from helios.nn.latent_mim import LatentMIMConfig
 from helios.train.loss import LossConfig
 from helios.train.masking import MaskingConfig
 from helios.train.train_module.latent_mim import LatentMIMTrainModuleConfig
@@ -23,9 +22,9 @@ MAX_PATCH_SIZE = 8
 MIN_PATCH_SIZE = 1
 
 
-def build_model_config(common: CommonComponents) -> LatentMIMConfig:
+def build_model_config(common: CommonComponents) -> CopernicusFMConfig:
     """Build the model config for an experiment."""
-    model_config = CopernicusFM()
+    model_config = CopernicusFMConfig()
     return model_config
 
 
