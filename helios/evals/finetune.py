@@ -165,6 +165,11 @@ def run_finetune_eval(
         use_pooled_tokens=use_pooled_tokens,
     ).to(device)
 
+    # Trigger _init_head once with a tiny dry pass
+    with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
+        sample_batch, _ = next(iter(train_loader))
+        _ = ft(_to_device(sample_batch, device))
+
     opt = torch.optim.AdamW(ft.parameters(), lr=lr)
     if task_config.task_type == TaskType.CLASSIFICATION:
         loss_fn: nn.Module = (
