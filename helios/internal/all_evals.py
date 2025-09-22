@@ -55,6 +55,7 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
+        epochs=50,
     ),
     "m_forestnet": DownstreamTaskConfig(
         dataset="m-forestnet",
@@ -64,6 +65,7 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=False,
         eval_interval=Duration.epochs(5),
+        epochs=50,
     ),
     "m_bigearthnet": DownstreamTaskConfig(
         dataset="m-bigearthnet",
@@ -73,6 +75,7 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
+        epochs=50,
     ),
     "m_so2sat": DownstreamTaskConfig(
         dataset="m-so2sat",
@@ -82,6 +85,7 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
+        epochs=50,
     ),
     "m_brick_kiln": DownstreamTaskConfig(
         dataset="m-brick-kiln",
@@ -91,6 +95,7 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
+        epochs=50,
     ),
 <<<<<<< HEAD
 =======
@@ -104,6 +109,7 @@ EVAL_TASKS = {
         norm_stats_from_pretrained=False,
         probe_lr=0.01,
         eval_interval=Duration.epochs(10),
+        epochs=50,
     ),
     "pastis_sentinel2": DownstreamTaskConfig(
         dataset="pastis",
