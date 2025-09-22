@@ -160,7 +160,7 @@ class CopernicusFM(torch.nn.Module):
             data_i = rearrange(data[:, :, :, i, :], "b h w c -> b c h w")
 
             new_height = (
-                self.model.patch_size if original_height == 1 else self.image_resolution
+                self.patch_size if original_height == 1 else self.image_resolution
             )
 
             data_i = F.interpolate(
