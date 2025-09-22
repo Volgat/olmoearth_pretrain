@@ -80,7 +80,8 @@ class CopernicusFM(torch.nn.Module):
         """
         super().__init__()
 
-        self.model = vit_base_patch16(num_classes=10, global_pool=False)
+        # global_pool=True so that we initialize the fc_norm layer
+        self.model = vit_base_patch16(num_classes=10, global_pool=True)
         check_point = torch.load(
             UPath(load_directory) / "CopernicusFM_ViT_base_varlang_e100.pth"
         )
