@@ -33,6 +33,7 @@ class _BackboneWithHead(nn.Module):
         use_pooled_tokens: bool = False,
     ) -> None:
         super().__init__()
+        self.backbone = model
         self.wrapper = get_eval_wrapper(
             model,
             task_type=task_type,
