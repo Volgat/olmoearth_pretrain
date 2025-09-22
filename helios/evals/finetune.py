@@ -143,6 +143,13 @@ def _eval_seg(
     return mean_iou(preds, labels, num_classes=num_classes, ignore_label=-1)
 
 
+def count_params(module: nn.Module) -> tuple[int, int]:
+    """Count total and trainable parameters in a module."""
+    total = sum(p.numel() for p in module.parameters())
+    trainable = sum(p.numel() for p in module.parameters() if p.requires_grad)
+    return total, trainable
+
+
 def run_finetune_eval(
     task_config: EvalDatasetConfig,
     model: nn.Module,
@@ -169,6 +176,10 @@ def run_finetune_eval(
     with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
         sample_batch, _ = next(iter(train_loader))
         _ = ft(_to_device(sample_batch, device))
+
+    total, trainable = count_params(ft)
+    logger.info(f"Total parameters: {total:,}")
+    logger.info(f"Trainable parameters: {trainable:,}")
 
     opt = torch.optim.AdamW(ft.parameters(), lr=lr)
     if task_config.task_type == TaskType.CLASSIFICATION:
