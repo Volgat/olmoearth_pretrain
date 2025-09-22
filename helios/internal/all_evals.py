@@ -55,7 +55,6 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
-        epochs=50,
     ),
     "m_forestnet": DownstreamTaskConfig(
         dataset="m-forestnet",
@@ -65,7 +64,6 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=False,
         eval_interval=Duration.epochs(5),
-        epochs=50,
     ),
     "m_bigearthnet": DownstreamTaskConfig(
         dataset="m-bigearthnet",
@@ -75,7 +73,6 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
-        epochs=50,
     ),
     "m_so2sat": DownstreamTaskConfig(
         dataset="m-so2sat",
@@ -85,7 +82,6 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
-        epochs=50,
     ),
     "m_brick_kiln": DownstreamTaskConfig(
         dataset="m-brick-kiln",
@@ -95,10 +91,7 @@ EVAL_TASKS = {
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         eval_interval=Duration.epochs(5),
-        epochs=50,
     ),
-<<<<<<< HEAD
-=======
     "mados": DownstreamTaskConfig(
         dataset="mados",
         embedding_batch_size=128,
@@ -109,7 +102,6 @@ EVAL_TASKS = {
         norm_stats_from_pretrained=False,
         probe_lr=0.01,
         eval_interval=Duration.epochs(10),
-        epochs=50,
     ),
     "pastis_sentinel2": DownstreamTaskConfig(
         dataset="pastis",
@@ -164,7 +156,6 @@ EVAL_TASKS = {
         input_modalities=[Modality.SENTINEL1.name, Modality.SENTINEL2_L2A.name],
         epochs=50,
     ),
->>>>>>> 53c43f4b (adjust the ft batch size)
     "m_sa_crop_type": DownstreamTaskConfig(
         dataset="m-sa-crop-type",
         embedding_batch_size=32,
@@ -284,8 +275,6 @@ EVAL_TASKS = {
         probe_lr=0.1,
         epochs=50,
     ),
-<<<<<<< HEAD
-=======
     "sen1floods11": DownstreamTaskConfig(
         dataset="sen1floods11",
         embedding_batch_size=128,
@@ -297,7 +286,6 @@ EVAL_TASKS = {
         probe_lr=0.1,
         eval_interval=Duration.epochs(10),
     ),
->>>>>>> 53c43f4b (adjust the ft batch size)
     # example of "in season" cropland mapping - 6 indicates only the
     # first 6 timesteps are passed to the model
     "cropharvest_Peoples_Republic_of_China_6": DownstreamTaskConfig(

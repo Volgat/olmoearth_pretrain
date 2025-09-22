@@ -339,6 +339,7 @@ class DownstreamEvaluator:
             train_loader=train_loader,
             val_loader=val_loader,
         )
+        logger.info(f"Downstream evaluator {self.evaluation_name} score: {val_result}")
 
         torch.cuda.empty_cache()
         gc.collect()
