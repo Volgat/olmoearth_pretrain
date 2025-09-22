@@ -327,10 +327,7 @@ class Dynamic_MLP_OFA(nn.Module):
         dynamic_weight = weight.view(
             inplanes, self.kernel_size, self.kernel_size, self.embed_dim
         )
-        print("in Dynamic MLP OFA")
-        print(dynamic_weight.shape, inplanes.shape)
         dynamic_weight = dynamic_weight.permute([3, 0, 1, 2])
-        print(dynamic_weight.shape, inplanes.shape)
         if bias is not None:
             bias = bias.view([self.embed_dim]) * self.scaler
 
@@ -417,7 +414,10 @@ class Dynamic_MLP_OFA_spectral(nn.Module):
         dynamic_weight = weight.view(
             inplanes, self.kernel_size, self.kernel_size, self.embed_dim
         )  # 9, 3, 3, 1024
+        print("in Dynamic MLP OFA")
+        print(img_feat.shape, dynamic_weight.shape, inplanes.shape)
         dynamic_weight = dynamic_weight.permute([3, 0, 1, 2])  # 1024, 9, 3, 3
+        print(dynamic_weight.shape)
 
         # resize the weight to match different preferred kernel sizes
         if kernel_size != None and self.kernel_size != kernel_size:
