@@ -1,5 +1,6 @@
 """Get metrics summary from W&B. See get_max_metrics."""
 
+import csv
 import sys
 
 import wandb
@@ -13,9 +14,6 @@ METRICS = [
     "m-bigearthnet",
     "m-sa-crop-type",
     "m-cashew-plant",
-    "sickle-sentinel1",
-    "sickle_landsat",
-    "sickle_sentinel1_landsat",
     "pastis_sentinel1",
     "pastis_sentinel2",
     "pastis_sentinel1_sentinel2",
@@ -138,6 +136,8 @@ if __name__ == "__main__":
     # If you are not sweeping across probe learning rates, this can just be the name
     # of the run (as long as no other run shares the same prefix).
     run_prefix = sys.argv[2]
+    # output CSV file
+    output_file = sys.argv[3]
 
     # Check if user wants partition-based aggregation
     if len(sys.argv) > 3 and sys.argv[3] == "--per-partition":
@@ -166,14 +166,28 @@ if __name__ == "__main__":
         metrics = get_max_metrics(project_name, run_prefix)
 
         print("\nFinal Results:")
+        rows = []
         for metric in METRICS:
             try:
                 k = f"eval/{metric}"
-                print(f"{metric} {metrics[k]}")
+                val = metrics[k]
+                print(f"{metric} {val}")
+                rows.append((metric, val))
             except KeyError:
                 try:
-                    metric = metric.replace("-", "_")
-                    k = f"eval/{metric}"
-                    print(f"{metric} {metrics[k]}")
+                    metric_alt = metric.replace("-", "_")
+                    k = f"eval/{metric_alt}"
+                    val = metrics[k]
+                    print(f"{metric_alt} {val}")
+                    rows.append((metric_alt, val))
                 except KeyError:
                     print(f"Metric {metric} not found")
+                    rows.append((metric, "not found"))
+
+        # Write to CSV
+        with open(output_file, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["metric", "value"])
+            writer.writerows(rows)
+
+        print(f"\nMetrics written to {output_file}")
