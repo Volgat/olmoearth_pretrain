@@ -111,29 +111,45 @@ def ft_loop_through_params() -> Generator[dict[str, Any], None, None]:
         }
 
 
-def get_dino_v3_args() -> str:
+def get_dino_v3_args(finetune: bool = False) -> str:
     """Get the dino v3 arguments."""
     # Normalization strategy is to scale with min max to 0 - 256 and then scale back to 0 - 1
     # Normalization is then applied by the eval wrapper by default
     dino_v3_args = dataset_args
-    dino_v3_args += " " + " ".join(
-        [
-            f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NORM_YES_CLIP_MIN_MAX_INT"
-            for task_name in EVAL_TASKS.keys()
-        ]
-    )
+    if not finetune:
+        dino_v3_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NORM_YES_CLIP_MIN_MAX_INT"
+                for task_name in EVAL_TASKS.keys()
+            ]
+        )
+    else:
+        dino_v3_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NORM_YES_CLIP_MIN_MAX_INT"
+                for task_name in FT_EVAL_TASKS.keys()
+            ]
+        )
     return dino_v3_args
 
 
-def get_croma_args() -> str:
+def get_croma_args(finetune: bool = False) -> str:
     """Get the croma arguments."""
     croma_args = dataset_args
-    croma_args += " " + " ".join(
-        [
-            f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NORM_YES_CLIP_2_STD"
-            for task_name in EVAL_TASKS.keys()
-        ]
-    )
+    if not finetune:
+        croma_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NORM_YES_CLIP_2_STD"
+                for task_name in EVAL_TASKS.keys()
+            ]
+        )
+    else:
+        croma_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NORM_YES_CLIP_2_STD"
+                for task_name in FT_EVAL_TASKS.keys()
+            ]
+        )
     return croma_args
 
 
@@ -165,12 +181,20 @@ def get_tessera_args(pretrained_normalizer: bool = True) -> str:
 def get_panopticon_args() -> str:
     """Get the panopticon arguments."""
     panopticon_args = dataset_args
-    panopticon_args += " " + " ".join(
-        [
-            f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.STANDARDIZE"
-            for task_name in EVAL_TASKS.keys()
-        ]
-    )
+    if not finetune:
+        panopticon_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.STANDARDIZE"
+                for task_name in EVAL_TASKS.keys()
+            ]
+        )
+    else:
+        panopticon_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.STANDARDIZE"
+                for task_name in FT_EVAL_TASKS.keys()
+            ]
+        )
     return panopticon_args
 
 
@@ -258,23 +282,40 @@ def get_galileo_args(pretrained_normalizer: bool = True) -> str:
     if pretrained_normalizer:
         # To use galileo pretrained normalizer we want to leave normalization to the galileo wrapper
         galileo_args = dataset_args
-        galileo_args += " " + " ".join(
-            [
-                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NO_NORM"
-                for task_name in EVAL_TASKS.keys()
-            ]
-        )
+        if not finetune:
+            galileo_args += " " + " ".join(
+                [
+                    f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NO_NORM"
+                    for task_name in EVAL_TASKS.keys()
+                ]
+            )
+        else:
+            galileo_args += " " + " ".join(
+                [
+                    f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NO_NORM"
+                    for task_name in FT_EVAL_TASKS.keys()
+                ]
+            )
 
         galileo_args += " " + "--model.use_pretrained_normalizer=True"
     else:
         # IF we use dataset stats we want to turn off the pretrained normalizer
         galileo_args += " " + "--model.use_pretrained_normalizer=False"
-    galileo_args += " " + " ".join(
-        [
-            f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.embedding_batch_size=8"
-            for task_name in EVAL_TASKS.keys()
-        ]
-    )
+
+    if not finetune:
+        galileo_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.embedding_batch_size=8"
+                for task_name in EVAL_TASKS.keys()
+            ]
+        )
+    else:
+        galileo_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.embedding_batch_size=8"
+                for task_name in FT_EVAL_TASKS.keys()
+            ]
+        )
     return galileo_args
 
 
@@ -390,10 +431,10 @@ def _get_checkpoint_args(checkpoint_path: str) -> str:
     return ""
 
 
-def _get_model_specific_args(args: argparse.Namespace) -> str:
+def _get_model_specific_args(args: argparse.Namespace, finetune: bool = False) -> str:
     """Get model-specific command arguments."""
     if args.dino_v3:
-        return get_dino_v3_args()
+        return get_dino_v3_args(finetune=finetune)
     elif args.panopticon:
         return get_panopticon_args()
     elif args.clay:
@@ -530,7 +571,7 @@ def _build_default_ft_command(
     logger.info(f"Running FT defaults: lr={lr}")
     run_name = f"{base_run_name}_FT_defaults"
 
-    cmd_args = _get_model_specific_args(args)
+    cmd_args = _get_model_specific_args(args, finetune=True)
     cmd_args += " " + ft_mode_args
     cmd_args += " " + ft_lr_args_template.format(arg=lr)
 
@@ -571,7 +612,7 @@ def _build_ft_hyperparameter_command(
     cmd_args = ""
     cmd_args += " " + ft_mode_args
     cmd_args += " " + ft_lr_args_template.format(arg=lr)
-    cmd_args += " " + _get_model_specific_args(args)
+    cmd_args += " " + _get_model_specific_args(args, finetune=True)
 
     module_path = (
         args.module_path if args.module_path is not None else _get_module_path(args)
