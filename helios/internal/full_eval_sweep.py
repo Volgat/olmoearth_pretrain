@@ -106,23 +106,9 @@ def no_norm_sweep() -> Generator[dict[str, Any], None, None]:
 def ft_loop_through_params() -> Generator[dict[str, Any], None, None]:
     """Yield FT sweep points (ft_lr * norm_mode * pooling)."""
     for lr in FT_LRs:
-        for norm_mode in Normalization_MODES:
-            for pooling_type in pooling_types:
-                yield {
-                    "ft_lr": lr,
-                    "norm_mode": norm_mode,
-                    "pooling_type": pooling_type,
-                }
-
-
-def no_norm_ft_sweep() -> Generator[dict[str, Any], None, None]:
-    """Yield a dict of FT hps we are sweeping over (no normalization)."""
-    for pooling_type in pooling_types:
-        for lr in FT_LRs:
-            yield {
-                "ft_lr": lr,
-                "pooling_type": pooling_type,
-            }
+        yield {
+            "ft_lr": lr,
+        }
 
 
 def get_dino_v3_args() -> str:
@@ -486,7 +472,7 @@ def _build_default_command(
     return (
         f"TRAIN_SCRIPT_PATH={module_path} {launch_command} helios/internal/all_evals.py "
         f"{sub_command} {run_name} {args.cluster} --launch.priority=high "
-        f"--launch.task_name=eval {checkpoint_args} --trainer.callbacks.wandb.project={project_name}{extra} {cmd_args}"
+        f"--launch.task_name=eval {checkpoint_args} --trainer.callbacks.wandb.project={project_name}{extra} {cmd_args} "
     )
 
 
@@ -554,6 +540,7 @@ def _build_default_ft_command(
     logger.info(f"Using module path {module_path}")
 
     return (
+        f"FINETUNE=1 "
         f"TRAIN_SCRIPT_PATH={module_path} {launch_command} helios/internal/all_evals.py "
         f"{sub_command} {run_name} {args.cluster} --launch.priority=high "
         f"--launch.task_name=eval {checkpoint_args} --trainer.callbacks.wandb.project={project_name}{extra} {cmd_args} "
@@ -591,6 +578,7 @@ def _build_ft_hyperparameter_command(
         args.module_path if args.module_path is not None else _get_module_path(args)
     )
     return (
+        f"FINETUNE=1 "
         f"TRAIN_SCRIPT_PATH={module_path} {launch_command} helios/internal/all_evals.py "
         f"{sub_command} {run_name} {args.cluster} --launch.priority=high {cmd_args} "
         f"--launch.task_name=eval {checkpoint_args} --trainer.callbacks.wandb.project={project_name}{extra} "
@@ -651,11 +639,7 @@ def build_commands(args: argparse.Namespace, extra_cli: list[str]) -> list[str]:
             )
             commands_to_run.append(cmd)
         else:
-            hp_params = (
-                no_norm_ft_sweep()
-                if args.dino_v3 or args.panopticon
-                else ft_loop_through_params()
-            )
+            hp_params = ft_loop_through_params()
             for params in hp_params:
                 cmd = _build_ft_hyperparameter_command(
                     args,
