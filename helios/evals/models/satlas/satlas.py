@@ -175,6 +175,10 @@ class Satlas(nn.Module):
         processed_inputs, modality = self.prepare_input(masked_helios_sample)
         outputs_list: list[torch.Tensor] = []
         for per_t_input in processed_inputs:
+            # we only take the last feature map from satlas for consistency with
+            # the other models. For segmentation tasks, multi scale feature maps
+            # may be preferred. An example of this is in
+            # https://github.com/allenai/rslearn/blob/master/rslearn/models/swin.py
             output = self.models[modality](per_t_input)[-1]
             # output shape for atto: (bsz, 320, 7, 7)
             # output shape for tiny: (bsz, 768, 6, 6)
