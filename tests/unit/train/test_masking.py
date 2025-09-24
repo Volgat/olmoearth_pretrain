@@ -1362,6 +1362,7 @@ class TestModalityCrossMaskingStrategy:
         encoded_decoded_bandsets = strat.select_encoded_decoded_bandsets(
             present_modalities_bandsets
         )
+
         # Now we should see 2, 3, 4, and 5 band sets being encoded in different samples.
         # 5 band sets encoded is possible since we can decode portions of each one.
         counts = {
