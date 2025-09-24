@@ -826,14 +826,14 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
         self.strategy = strategy
         self.allow_encoding_decoding_same_bandset = allow_encoding_decoding_same_bandset
         if min_encoded_bandsets is None:
-            assert max_encoded_bandsets is None, (
-                "max_encoded_bandsets must be set if min_encoded_bandsets is set"
-            )
+            assert (
+                max_encoded_bandsets is None
+            ), "max_encoded_bandsets must be set if min_encoded_bandsets is set"
         else:
-            assert min_encoded_bandsets > 1, (
-                "min_encoded_bandsets must be greater than 1 so that we don't only  \
+            assert (
+                min_encoded_bandsets > 1
+            ), "min_encoded_bandsets must be greater than 1 so that we don't only  \
                 encode a modality that is randomly masked on batch dimension ie latlon"
-            )
         self.min_encoded_bandsets = min_encoded_bandsets
         self.max_encoded_bandsets = max_encoded_bandsets
         self.min_decoded_bandsets = min_decoded_bandsets
@@ -908,38 +908,43 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
             else:
                 # Select Indices to Encode
                 num_present_modalities = len(present_modalities_bandsets_for_sample)
-                encodable_modalities = [
+                encodable_modality_bandsets = [
                     modality_bandset
                     for modality_bandset in present_modalities_bandsets_for_sample
                     if modality_bandset[0] not in self.only_decode_modalities
                 ]
-                num_encodable_modalities = len(encodable_modalities)
+                num_encodable_modality_bandsets = len(encodable_modality_bandsets)
                 # if min and max are none we will always encode all encodable bandsets
                 # if min is none, max must be none
+                upper_limit = num_encodable_modality_bandsets
+                if not self.allow_encoding_decoding_same_bandset:
+                    # Otherwise no decoding will be done
+                    upper_limit -= 1
                 if self.max_encoded_bandsets is None:
-                    max_encoded_bandsets = num_encodable_modalities
+                    max_encoded_bandsets = upper_limit
                 else:
                     max_encoded_bandsets = min(
-                        self.max_encoded_bandsets, num_encodable_modalities
+                        self.max_encoded_bandsets, upper_limit
                     )
 
                 if self.min_encoded_bandsets is None:
-                    min_encoded_bandsets = num_encodable_modalities
+                    min_encoded_bandsets = num_encodable_modality_bandsets
                 else:
                     min_encoded_bandsets = min(
-                        self.min_encoded_bandsets, num_encodable_modalities
+                        self.min_encoded_bandsets, num_encodable_modality_bandsets
                     )
-
-                num_encoded_bandsets = np.random.randint(
+                # Ensure min is less than max
+                min_encoded_bandsets = min(min_encoded_bandsets, max_encoded_bandsets)
+                num_bandsets_to_encode = np.random.randint(
                     min_encoded_bandsets, max_encoded_bandsets + 1
                 )
                 encoded_idxs = np.random.choice(
-                    len(encodable_modalities),
-                    size=num_encoded_bandsets,
+                    len(encodable_modality_bandsets),
+                    size=num_bandsets_to_encode,
                     replace=False,
                 )
                 encoded_bandset_idxs = set(
-                    [encodable_modalities[i] for i in encoded_idxs]
+                    [encodable_modality_bandsets[i] for i in encoded_idxs]
                 )
                 # Select Indices to Decode
                 min_decoded_bandsets = min(
