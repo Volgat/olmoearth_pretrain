@@ -50,7 +50,7 @@ EVAL_TASKS = {
     "nandi_sentinel2": DownstreamTaskConfig(
         dataset="nandi",
         embedding_batch_size=128,
-        num_workers=4,
+        num_workers=0,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         input_modalities=[Modality.SENTINEL2_L2A.name],
@@ -83,7 +83,7 @@ EVAL_TASKS = {
     "m_brick_kiln": DownstreamTaskConfig(
         dataset="m-brick-kiln",
         embedding_batch_size=128,
-        num_workers=4,
+        num_workers=0,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         input_modalities=[Modality.SENTINEL1.name],
@@ -92,7 +92,7 @@ EVAL_TASKS = {
     "nandi_landset": DownstreamTaskConfig(
         dataset="nandi",
         embedding_batch_size=128,
-        num_workers=4,
+        num_workers=0,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         input_modalities=[Modality.LANDSAT.name],
@@ -110,7 +110,7 @@ EVAL_TASKS = {
     "awf_sentinel2": DownstreamTaskConfig(
         dataset="awf",
         embedding_batch_size=32,
-        num_workers=4,
+        num_workers=0,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         input_modalities=[Modality.SENTINEL2_L2A.name],
@@ -118,7 +118,7 @@ EVAL_TASKS = {
     "awf_sentinel1": DownstreamTaskConfig(
         dataset="awf",
         embedding_batch_size=32,
-        num_workers=4,
+        num_workers=0,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         input_modalities=[Modality.SENTINEL1.name],
@@ -126,7 +126,7 @@ EVAL_TASKS = {
     "awf_landsat": DownstreamTaskConfig(
         dataset="awf",
         embedding_batch_size=32,
-        num_workers=4,
+        num_workers=0,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         input_modalities=[Modality.LANDSAT.name],
@@ -134,7 +134,7 @@ EVAL_TASKS = {
     "awf_sentinel2_sentinel1": DownstreamTaskConfig(
         dataset="awf",
         embedding_batch_size=32,
-        num_workers=4,
+        num_workers=0,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
         input_modalities=[Modality.SENTINEL2_L2A.name, Modality.SENTINEL1.name],
