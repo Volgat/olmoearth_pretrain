@@ -387,17 +387,19 @@ class DownstreamEvaluatorCallbackConfig(CallbackConfig):
             )
 
     def verify_input_layers(self, task: DownstreamTaskConfig) -> None:
-        """Verify the input layers configuration for a task."""
-        # Check that input_layers is only set for rslearn tasks
-        if (task.dataset not in ["nandi", "awf"]) and len(task.input_layers) > 0:
+        """Check input_layers config."""
+        rslearn_datasets = {"nandi", "awf"}
+        layers = task.input_layers or []
+
+        # input_layers not allowed on non-rslearn datasets
+        if task.dataset not in rslearn_datasets and layers:
             raise ValueError(
-                f"input_layers must be set for rslearn tasks, got {task.dataset}"
+                f"`input_layers` not supported for dataset '{task.dataset}'."
             )
-        # Make sure input_layers contains only unique layers
-        if len(task.input_layers) != len(set(task.input_layers)):
-            raise ValueError(
-                f"input_layers must contain unique layers, got {task.input_layers}"
-            )
+
+        # input_layers must be unique
+        if len(layers) != len(set(layers)):
+            raise ValueError(f"`input_layers` must be unique, got {layers}")
 
     def build(self, trainer: Trainer) -> Callback | None:
         """Build the downstream evaluator callback."""
