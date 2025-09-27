@@ -188,7 +188,7 @@ class RslearnToHeliosDataset(Dataset):
         end_time: str = "2023-09-01",
     ):
         """Initialize RslearnToHeliosDataset."""
-        if split not in ("train", "val", "test"):
+        if split not in ("train", "val", "valid", "test"):
             raise ValueError(f"Invalid split {split}")
         if not norm_stats_from_pretrained:
             raise ValueError("Only norm_stats_from_pretrained=True is supported")
@@ -205,7 +205,7 @@ class RslearnToHeliosDataset(Dataset):
             rslearn_dataset_groups=ds_groups,
             layers=layers,
             input_size=input_size,
-            split=split,
+            split="val" if split == "valid" else split,  # rslearn uses 'val'
             property_name=property_name,
             classes=classes,
         )
