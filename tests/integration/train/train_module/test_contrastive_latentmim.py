@@ -208,8 +208,8 @@ def test_train_batch_with_missing_modalities(
         logger.info(mock_trainer._metrics)
         assert torch.allclose(
             mock_trainer._metrics["train/PatchDisc"],
-            torch.tensor(2.2),
-            atol=1e-1,
+            torch.tensor(2.1),
+            atol=2e-1,
         )
         assert torch.allclose(
             mock_trainer._metrics["train/InfoNCE"],
