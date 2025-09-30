@@ -1,60 +1,26 @@
-"""PASTIS-R (S2+S1) dataset class."""
+"""Pastis 128, copied from helios/evals/datasets/pastis_dataset.py.
+
+Less dependencies make it easier to run.
+"""
 
 import json
-import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from typing import Any
 
-import einops
 import numpy as np
 import torch
 import torch.multiprocessing
-from torch.utils.data import Dataset
 from upath import UPath
-
-from helios.data.constants import Modality
-from helios.data.dataset import HeliosSample
-from helios.evals.datasets.constants import (
-    EVAL_S1_BAND_NAMES,
-    EVAL_S2_BAND_NAMES,
-    EVAL_TO_HELIOS_S1_BANDS,
-    EVAL_TO_HELIOS_S2_BANDS,
-)
-from helios.evals.datasets.normalize import normalize_bands
-from helios.train.masking import MaskedHeliosSample
-
-logger = logging.getLogger(__name__)
-
-torch.multiprocessing.set_sharing_strategy("file_system")
 
 DATA_DIR = UPath("/weka/dfive-default/helios/evaluation/PASTIS-R")
 PASTIS_DIR = UPath("/weka/dfive-default/presto_eval_sets/pastis_r")
 PASTIS_DIR_ORIG = UPath("/weka/dfive-default/presto_eval_sets/pastis_r_origsize")
 PASTIS_DIR_PARTITION = UPath("/weka/dfive-default/presto_eval_sets/pastis")
 
-
-S2_BAND_STATS = {
-    "01 - Coastal aerosol": {"mean": 1201.6458740234375, "std": 1254.5341796875},
-    "02 - Blue": {"mean": 1201.6458740234375, "std": 1254.5341796875},
-    "03 - Green": {"mean": 1398.6396484375, "std": 1200.8133544921875},
-    "04 - Red": {"mean": 1452.169921875, "std": 1260.5355224609375},
-    "05 - Vegetation Red Edge": {"mean": 1783.147705078125, "std": 1188.0682373046875},
-    "06 - Vegetation Red Edge": {"mean": 2698.783935546875, "std": 1163.632080078125},
-    "07 - Vegetation Red Edge": {"mean": 3022.353271484375, "std": 1220.4384765625},
-    "08 - NIR": {"mean": 3164.72802734375, "std": 1237.6727294921875},
-    "08A - Vegetation Red Edge": {"mean": 3270.47412109375, "std": 1232.5126953125},
-    "09 - Water vapour": {"mean": 3270.47412109375, "std": 1232.5126953125},
-    "10 - SWIR - Cirrus": {"mean": 2392.800537109375, "std": 930.82861328125},
-    "11 - SWIR": {"mean": 2392.800537109375, "std": 930.82861328125},
-    "12 - SWIR": {"mean": 1632.4835205078125, "std": 829.1475219726562},
-}
-
-S1_BAND_STATS = {
-    "vv": {"mean": -10.7902, "std": 2.8360},
-    "vh": {"mean": -17.3257, "std": 2.8106},
-}
+# defined in data/constants.py
+MODALITY_SENTINEL2L2A_NAME = "sentinel2_l2a"
+MODALITY_SENTINEL1_NAME = "sentinel1"
 
 
 class PASTISRProcessor:
@@ -122,8 +88,8 @@ class PASTISRProcessor:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Aggregate images into monthly averages."""
         if (
-            modality_name != Modality.SENTINEL2_L2A.name
-            and modality_name != Modality.SENTINEL1.name
+            modality_name != MODALITY_SENTINEL2L2A_NAME
+            and modality_name != MODALITY_SENTINEL1_NAME
         ):
             raise ValueError(
                 f"Unsupported modality: {modality_name} for PASTIS dataset!"
@@ -137,12 +103,12 @@ class PASTISRProcessor:
             month = str(date)[:6]
             img = torch.tensor(images[int(idx)], dtype=torch.float32)
             # S2 in PASTIS has 10 bands, so imputation is always needed
-            if modality_name == Modality.SENTINEL2_L2A.name:
+            if modality_name == MODALITY_SENTINEL2L2A_NAME:
                 if img.shape[0] == 10:
                     img = self.impute(img)
                 else:
                     raise ValueError(
-                        f"Sentinal2 image has {img.shape[0]} bands, expected 10!"
+                        f"Sentinal2 image has {img.shape[0]} bands, expected 10. Shape is {img.shape}!"
                     )
             months_dict[month].append(img)
 
@@ -181,9 +147,9 @@ class PASTISRProcessor:
         # Only extract the first two bands (vv/vh) for S1
         s1_images = s1_images[:, :2, ...]
         s2_images, months = self.aggregate_months(
-            Modality.SENTINEL2_L2A.name, s2_images, dates
+            MODALITY_SENTINEL2L2A_NAME, s2_images, dates
         )
-        s1_images, _ = self.aggregate_months(Modality.SENTINEL1.name, s1_images, dates)
+        s1_images, _ = self.aggregate_months(MODALITY_SENTINEL1_NAME, s1_images, dates)
 
         targets = torch.tensor(targets, dtype=torch.long)
         # PASTIS has 19 classes, the last one is void label, convert it to -1 to ignore
@@ -346,147 +312,5 @@ def process_pastis_orig_size(
     processor.process()
 
 
-class PASTISRDataset(Dataset):
-    """PASTIS-R dataset class."""
-
-    allowed_modalities = [Modality.SENTINEL1.name, Modality.SENTINEL2_L2A.name]
-
-    def __init__(
-        self,
-        path_to_splits: Path = PASTIS_DIR,
-        split: str = "train",
-        partition: str = "default",
-        norm_stats_from_pretrained: bool = True,
-        norm_method: str = "norm_no_clip",
-        input_modalities: list[str] = [],
-    ):
-        """Init PASTIS-R dataset.
-
-        Args:
-            path_to_splits: Path where .pt objects returned by process_pastis_r have been saved
-            split: Split to use
-            partition: Partition to use
-            norm_stats_from_pretrained: Whether to use normalization stats from pretrained model
-            norm_method: Normalization method to use, only when norm_stats_from_pretrained is False
-            input_modalities: List of modalities to use, must be a subset of ["sentinel1", "sentinel2_l2a"]
-        """
-        assert split in ["train", "valid", "test"]
-
-        assert len(input_modalities) > 0, "input_modalities must be set"
-        assert all(
-            modality in self.allowed_modalities for modality in input_modalities
-        ), f"input_modalities must be a subset of {self.allowed_modalities}"
-
-        self.input_modalities = input_modalities
-
-        # Does not support 12 band L2A data
-        self.s2_means, self.s2_stds = self._get_norm_stats(
-            S2_BAND_STATS, EVAL_S2_BAND_NAMES
-        )
-        self.s1_means, self.s1_stds = self._get_norm_stats(
-            S1_BAND_STATS, EVAL_S1_BAND_NAMES
-        )
-        self.split = split
-        self.norm_method = norm_method
-
-        self.norm_stats_from_pretrained = norm_stats_from_pretrained
-        # If normalize with pretrained stats, we initialize the normalizer here
-        if self.norm_stats_from_pretrained:
-            from helios.data.normalize import Normalizer, Strategy
-
-            self.normalizer_computed = Normalizer(Strategy.COMPUTED)
-
-        self.s2_images_dir = path_to_splits / f"pastis_r_{split}" / "s2_images"
-        self.s1_images_dir = path_to_splits / f"pastis_r_{split}" / "s1_images"
-        self.labels = torch.load(path_to_splits / f"pastis_r_{split}" / "targets.pt")
-        self.months = torch.load(path_to_splits / f"pastis_r_{split}" / "months.pt")
-        if (partition != "default") and (split == "train"):
-            # PASTIS and PASTIS-R share the same partitions so we just use PASTIS Partitions
-            with open(
-                PASTIS_DIR_PARTITION / f"{partition}_partition.json"
-            ) as json_file:
-                subset_indices = json.load(json_file)
-            self.months = self.months[subset_indices]
-            self.labels = self.labels[subset_indices]
-            self.indices = subset_indices
-        else:
-            self.indices = list(range(len(self.months)))
-
-    @staticmethod
-    def _get_norm_stats(
-        imputed_band_info: dict[str, dict[str, float]],
-        band_names: list[str],
-    ) -> tuple[np.ndarray, np.ndarray]:
-        means = []
-        stds = []
-        for band_name in band_names:
-            assert band_name in imputed_band_info, f"{band_name} not found in band_info"
-            means.append(imputed_band_info[band_name]["mean"])  # type: ignore
-            stds.append(imputed_band_info[band_name]["std"])  # type: ignore
-        return np.array(means), np.array(stds)
-
-    def __len__(self) -> int:
-        """Length of the dataset."""
-        return len(self.indices)
-
-    def __getitem__(self, idx: int) -> tuple[MaskedHeliosSample, torch.Tensor]:
-        """Return a single PASTIS data instance."""
-        image_idx = self.indices[idx]
-        s2_image: np.ndarray = torch.load(
-            self.s2_images_dir / f"{image_idx}.pt"
-        ).numpy()
-        s2_image = einops.rearrange(s2_image, "t c h w -> h w t c")  # (64, 64, 12, 13)
-
-        s1_image: np.ndarray = torch.load(
-            self.s1_images_dir / f"{image_idx}.pt"
-        ).numpy()
-        s1_image = einops.rearrange(s1_image, "t c h w -> h w t c")  # (64, 64, 12, 2)
-
-        labels = self.labels[idx]  # (64, 64)
-        months = self.months[idx]  # (12)
-
-        # If using norm stats from pretrained we should normalize before we rearrange
-        if not self.norm_stats_from_pretrained:
-            s2_image = normalize_bands(
-                s2_image, self.s2_means, self.s2_stds, self.norm_method
-            )
-            s1_image = normalize_bands(
-                s1_image, self.s1_means, self.s1_stds, self.norm_method
-            )
-
-        s2_image = s2_image[:, :, :, EVAL_TO_HELIOS_S2_BANDS]
-        s1_image = s1_image[:, :, :, EVAL_TO_HELIOS_S1_BANDS]
-        if self.norm_stats_from_pretrained:
-            s2_image = self.normalizer_computed.normalize(
-                Modality.SENTINEL2_L2A, s2_image
-            )
-            s1_image = self.normalizer_computed.normalize(Modality.SENTINEL1, s1_image)
-
-        timestamps = []
-        for month in months:
-            item = int(month)
-            item_month, item_year = str(item)[4:], str(item)[:4]
-            # NOTE: month is 0-indexed, from 0 to 11
-            timestamps.append(
-                torch.tensor([1, int(item_month) - 1, int(item_year)], dtype=torch.long)
-            )
-        timestamps = torch.stack(timestamps)
-
-        # Build sample dict based on requested modalities
-        sample_dict = {"timestamps": timestamps}
-
-        if Modality.SENTINEL1.name in self.input_modalities:
-            sample_dict[Modality.SENTINEL1.name] = torch.from_numpy(s1_image).float()
-        if Modality.SENTINEL2_L2A.name in self.input_modalities:
-            sample_dict[Modality.SENTINEL2_L2A.name] = torch.from_numpy(
-                s2_image
-            ).float()
-
-        if not sample_dict:
-            raise ValueError(f"No valid modalities found in: {self.input_modalities}")
-
-        masked_sample = MaskedHeliosSample.from_heliossample(
-            HeliosSample(**sample_dict)
-        )
-
-        return masked_sample, labels.long()
+if __name__ == "__main__":
+    process_pastis_orig_size()
