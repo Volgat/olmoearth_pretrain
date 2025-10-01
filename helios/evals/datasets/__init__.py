@@ -139,7 +139,6 @@ def get_eval_dataset(
             ds_path="/weka/dfive-default/rslearn-eai/datasets/crop/kenya_nandi/20250625",
             ds_groups=["groundtruth_polygon_split_window_32"],
             layers=input_layers,
-            # Use 4*4 input size for crop type classification
             input_size=4,
             split=split,
             property_name="category",
@@ -157,7 +156,6 @@ def get_eval_dataset(
             ds_path="/weka/dfive-default/rslearn-eai/datasets/crop/awf_2023",
             ds_groups=["20250822"],
             layers=input_layers,
-            # Use 32*32 input size for LULC classification
             input_size=32,
             split=split,
             property_name="lulc",
