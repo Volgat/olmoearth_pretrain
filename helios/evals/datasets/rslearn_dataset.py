@@ -1,9 +1,12 @@
 """Convert rslearn dataset to Helios evaluation dataset format."""
 
+import json
 from collections import defaultdict
 from datetime import datetime
+from importlib.resources import files
 from typing import Any
 
+import numpy as np
 import torch
 from dateutil.relativedelta import relativedelta
 from einops import rearrange
@@ -23,6 +26,8 @@ from helios.data.constants import Modality as DataModality
 from helios.data.utils import convert_to_db
 from helios.train.masking import HeliosSample, MaskedHeliosSample
 
+from .normalize import normalize_bands
+
 # rslearn layer name -> (helios modality name, all bands)
 RSLEARN_TO_HELIOS: dict[str, tuple[str, list[str]]] = {
     "sentinel2": ("sentinel2_l2a", DataModality.SENTINEL2_L2A.band_order),
@@ -41,19 +46,21 @@ def build_rslearn_model_dataset(
     input_size: int | None = None,
     split: str = "train",
     property_name: str = "category",
+    skip_targets: bool = False,
 ) -> RsModelDataset:
     """Build an rslearn ModelDataset.
 
     Args:
         rslearn_dataset: The source RslearnDataset.
         rslearn_dataset_groups: Optional list of dataset group names to include.
-        layers: Optional list of rslearn layer names to use as model inputs.
+        layers: List of rslearn layer names to use as model inputs.
             Example: "sentinel2". Only provide the base name, do not include
             layer names such as "sentinel2.1" or "sentinel2.n".
         input_size: Optional input patch size (pixels) to crop/resize samples to.
         split: Dataset split to use (e.g., "train", "val", "test").
         property_name: The property in the dataset to use as the target label.
-        classes: Optional list of class names. If None, inferred from dataset.
+        classes: List of class names. If None, inferred from dataset.
+        skip_targets: Whether or not to skip the target, if True, property_name and classes can be placeholder.
 
     Returns:
         RsModelDataset: A dataset object ready for training or evaluation.
@@ -121,8 +128,8 @@ def build_rslearn_model_dataset(
     split_config = RsSplitConfig(
         transforms=transforms,
         groups=rslearn_dataset_groups,
-        skip_targets=False,
-        tags={"split": split} if split else {},
+        skip_targets=skip_targets,
+        tags={"helios_split": split} if split else {},
     )
 
     return RsModelDataset(
@@ -192,14 +199,19 @@ class RslearnToHeliosDataset(Dataset):
         partition: str = "default",
         norm_stats_from_pretrained: bool = True,
         norm_method: str = "norm_no_clip",
+        ds_norm_stats_json: str | None = None,
         start_time: str = "2022-09-01",
         end_time: str = "2023-09-01",
     ):
         """Initialize RslearnToHeliosDataset."""
         if split not in ("train", "val", "valid", "test"):
             raise ValueError(f"Invalid split {split}")
-        if not norm_stats_from_pretrained:
-            raise ValueError("Only norm_stats_from_pretrained=True is supported")
+
+        if not norm_stats_from_pretrained and ds_norm_stats_json is None:
+            raise ValueError(
+                "norm_stats_from_pretrained=False requires a JSON file with dataset stats "
+                "(set ds_norm_stats_json)."
+            )
 
         if not input_modalities:
             raise ValueError("Must specify at least one input modality")
@@ -226,6 +238,43 @@ class RslearnToHeliosDataset(Dataset):
             from helios.data.normalize import Normalizer, Strategy
 
             self.normalizer_computed = Normalizer(Strategy.COMPUTED)
+        else:
+            self.dataset_norm_stats = self._get_norm_stats(ds_norm_stats_json)  # type: ignore
+            self.norm_method = norm_method
+
+    @staticmethod
+    def _get_norm_stats(ds_norm_stats_json: str) -> dict:
+        """Load dataset norm stats."""
+        with (
+            files("helios.evals.dataset_band_stats") / ds_norm_stats_json
+        ).open() as f:
+            blob = json.load(f)
+        out = {}
+        for modality, per_band in blob.items():
+            band_order = DataModality.get(modality).band_order
+            means, stds, mins, maxs = [], [], [], []
+
+            for band in band_order:
+                band_stats = (
+                    per_band.get(band)
+                    or per_band.get(band.upper())
+                    or per_band.get(band.lower())
+                )
+                if band_stats is None:
+                    raise ValueError(f"Missing stats for {band} in modality {modality}")
+                means.append(band_stats["mean"])
+                stds.append(band_stats["std"])
+                mins.append(band_stats["min"])
+                maxs.append(band_stats["max"])
+
+            out[modality] = {
+                "means": np.array(means, dtype=np.float32),
+                "stds": np.array(stds, dtype=np.float32),
+                "mins": np.array(mins, dtype=np.float32),
+                "maxs": np.array(maxs, dtype=np.float32),
+            }
+
+        return out
 
     def __len__(self) -> int:
         """Length of the dataset."""
@@ -254,6 +303,16 @@ class RslearnToHeliosDataset(Dataset):
 
             if self.norm_stats_from_pretrained:
                 x = self.normalizer_computed.normalize(DataModality.get(modality), x)
+            else:
+                modality_stats = self.dataset_norm_stats[modality]
+                x = normalize_bands(
+                    image=x,
+                    means=modality_stats["means"],
+                    stds=modality_stats["stds"],
+                    mins=modality_stats["mins"],
+                    maxs=modality_stats["maxs"],
+                    method=self.norm_method,
+                )
 
             sample_dict[modality] = torch.as_tensor(x, dtype=torch.float32)
 

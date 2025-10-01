@@ -150,6 +150,7 @@ def get_eval_dataset(
             input_modalities=input_modalities,
             start_time="2022-09-01",
             end_time="2023-09-01",
+            ds_norm_stats_json="nandi_band_stats.json",
         )
     elif eval_dataset == "awf":
         return RslearnToHeliosDataset(
@@ -177,6 +178,7 @@ def get_eval_dataset(
             input_modalities=input_modalities,
             start_time="2023-01-01",
             end_time="2023-12-31",
+            ds_norm_stats_json="awf_band_stats.json",
         )
     else:
         raise ValueError(f"Unrecognized eval_dataset {eval_dataset}")
