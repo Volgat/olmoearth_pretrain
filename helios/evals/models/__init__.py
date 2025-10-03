@@ -1,6 +1,7 @@
 """Models for evals."""
 
 from helios.evals.models.anysat.anysat import AnySat, AnySatConfig
+from helios.evals.models.clay.clay import Clay, ClayConfig
 from helios.evals.models.copernicusfm.copernicusfm import (
     CopernicusFM,
     CopernicusFMConfig,
@@ -30,6 +31,8 @@ def get_launch_script_path(model_name: str) -> str:
         return "helios/evals/models/satlas/satlas_launch.py"
     elif model_name == "croma":
         return "helios/evals/models/croma/croma_launch.py"
+    elif model_name == "clay":
+        return "helios/evals/models/clay/clay_launch.py"
     elif model_name == "copernicusfm":
         return "helios/evals/models/copernicusfm/copernicusfm_launch.py"
     elif model_name == "presto":
@@ -58,6 +61,8 @@ __all__ = [
     "SatlasConfig",
     "Croma",
     "CromaConfig",
+    "Clay",
+    "ClayConfig",
     "CopernicusFM",
     "CopernicusFMConfig",
     "PrestoWrapper",

@@ -150,6 +150,26 @@ def get_panopticon_args() -> str:
     return panopticon_args
 
 
+def get_clay_args(pretrained_normalizer: bool = True) -> str:
+    """Get the clay arguments."""
+    clay_args = dataset_args
+    if pretrained_normalizer:
+        # To use clay pretrained normalizer we want to leave normalization to the clay wrapper
+        clay_args = dataset_args
+        clay_args += " " + " ".join(
+            [
+                f"--trainer.callbacks.downstream_evaluator.tasks.{task_name}.norm_method=NormMethod.NO_NORM"
+                for task_name in EVAL_TASKS.keys()
+            ]
+        )
+
+        clay_args += " " + "--model.use_pretrained_normalizer=True"
+    else:
+        # IF we use dataset stats we want to turn off the pretrained normalizer
+        clay_args += " " + "--model.use_pretrained_normalizer=False"
+    return clay_args
+
+
 def get_copernicusfm_args() -> str:
     """Get the copernicusfm arguments."""
     copernicusfm_args = dataset_args
@@ -324,6 +344,8 @@ def _get_model_specific_args(args: argparse.Namespace) -> str:
         return get_dino_v3_args()
     elif args.panopticon:
         return get_panopticon_args()
+    elif args.clay:
+        return get_clay_args()
     elif args.galileo:
         return get_galileo_args()
     elif args.satlas:
@@ -351,6 +373,7 @@ def _get_normalization_args(args: argparse.Namespace, norm_mode: str) -> str:
         "prithvi_v2": get_prithviv2_args,
         "satlas": get_satlas_args,
         "presto": get_presto_args,
+        "clay": get_clay_args,
     }
     for model, func in model_map.items():
         if getattr(args, model, False):
@@ -380,7 +403,12 @@ def _build_default_command(
     )
     run_name = f"{base_run_name}_defaults"
 
+    # Add model-specific args
     cmd_args = _get_model_specific_args(args)
+
+    # Add normalization-specific args
+    cmd_args += _get_normalization_args(args, norm_mode)
+
     module_path = (
         args.module_path if args.module_path is not None else _get_module_path(args)
     )
@@ -441,6 +469,8 @@ def _get_module_path(args: argparse.Namespace) -> str:
         return get_launch_script_path("panopticon")
     elif args.croma:
         return get_launch_script_path("croma")
+    elif args.clay:
+        return get_launch_script_path("clay")
     elif args.galileo:
         return get_launch_script_path("galileo")
     elif args.presto:
@@ -566,6 +596,11 @@ def main() -> None:
         "--croma",
         action="store_true",
         help="If set, use the croma normalization settings",
+    )
+    parser.add_argument(
+        "--clay",
+        action="store_true",
+        help="If set, use the clay normalization settings",
     )
     parser.add_argument(
         "--copernicusfm",
