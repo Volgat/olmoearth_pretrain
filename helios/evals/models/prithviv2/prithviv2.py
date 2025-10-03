@@ -62,7 +62,7 @@ class PrithviV2(nn.Module):
         super().__init__()
 
         hub_id = MODEL_TO_HF_INFO[size]["hf_hub_id"]
-        revision = MODEL_TO_HF_INFO[size]["revison"]
+        revision = MODEL_TO_HF_INFO[size]["revision"]
         weights_path = MODEL_TO_HF_INFO[size]["weights"]
 
         if not (UPath(load_directory) / "config.json").exists():
