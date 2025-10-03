@@ -19,6 +19,6 @@ MODEL_TO_HF_INFO = {
     PrithviV2Models.VIT_600: {
         "hf_hub_id": f"ibm-nasa-geospatial/{PrithviV2Models.VIT_600.value}",
         "weights": f"{PrithviV2Models.VIT_600.value}.pt",
-        "revision": "b2f2520ab889f42a25c5361ba18761fcb4ea44ad",
+        "revision": "87f15784813828dc37aa3197a143cd4689e4d080",
     },
 }
