@@ -20,6 +20,7 @@ from helios.evals.models import (
     PrestoWrapper,
     PrithviV2,
     Satlas,
+    Terramind,
     Tessera,
 )
 from helios.nn.flexihelios import FlexiHeliosBase, PoolingType, TokensAndMasks
@@ -137,6 +138,21 @@ class HeliosEvalWrapper(EvalWrapper):
                     pooled_tokens, "b ... d -> b d", self.pooling_type
                 )
             batch_embeddings = pooled_tokens
+        return batch_embeddings, labels
+
+
+class TerramindEvalWrapper(EvalWrapper):
+    """Wrapper for Terramind models."""
+
+    def __call__(
+        self, masked_helios_sample: MaskedHeliosSample, labels: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass through the model produces the embedding specified by initialization."""
+        batch_embeddings = self.model(
+            masked_helios_sample,
+            pooling=self.pooling_type,
+            spatial_pool=self.spatial_pool,
+        )
         return batch_embeddings, labels
 
 
@@ -400,6 +416,9 @@ def get_eval_wrapper(model: nn.Module, **kwargs: Any) -> EvalWrapper:
     elif isinstance(model, GalileoWrapper):
         logger.info("Using GalileoEvalWrapper")
         return GalileoEvalWrapper(model=model, **kwargs)
+    elif isinstance(model, Terramind):
+        logger.info("Using TerramindEvalWrapper")
+        return TerramindEvalWrapper(model=model, **kwargs)
     elif isinstance(model, CopernicusFM):
         logger.info("Using CopernicusFMWrapper")
         return CopernicusFMWrapper(model=model, **kwargs)
