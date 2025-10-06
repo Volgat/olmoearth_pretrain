@@ -58,14 +58,14 @@ class DownstreamTaskConfig:
     # Only for rslearn datasets, e.g. nandi, awf
     input_layers: list[str] = field(default_factory=list)
     # LP / KNN (embedding-based)
-    embedding_batch_size: int | None = 128  # used for get_embeddings
+    embedding_batch_size: int = 128
     # LP
     probe_lr: float | None = None
-    probe_batch_size: int | None = 32
+    probe_batch_size: int = 32
     linear_probe_eval_interval: int = 50  # calculate val results every N epochs
     # FT
     ft_lr: float | None = None
-    ft_batch_size: int | None = 32
+    ft_batch_size: int = 32
     # LP / FT
     epochs: int = 50
     # LP / KNN / FT
@@ -126,6 +126,8 @@ class DownstreamEvaluator:
         self.use_pooled_tokens = task.use_pooled_tokens
         if self.eval_mode is None:
             self.eval_mode = get_eval_mode(self.config.task_type)
+        if isinstance(self.eval_mode, str):
+            self.eval_mode = EvalMode(self.eval_mode)
 
         assert self.eval_mode in [
             EvalMode.KNN,
@@ -204,6 +206,7 @@ class DownstreamEvaluator:
                 partition=self.partition,
                 norm_stats_from_pretrained=self.norm_stats_from_pretrained,
                 input_modalities=self.input_modalities,
+                input_layers=self.input_layers,
                 norm_method=self.norm_method,
             ),
             collate_fn=eval_collate_fn,
