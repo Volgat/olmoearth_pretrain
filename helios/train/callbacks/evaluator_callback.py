@@ -87,7 +87,7 @@ class DownstreamEvaluator:
         task: DownstreamTaskConfig,
         trainer: Trainer,
         device: torch.device | None = None,
-        run_on_test: bool = False,
+        run_on_test: bool = True,
     ) -> None:
         """Initialize the downstream evaluator.
 

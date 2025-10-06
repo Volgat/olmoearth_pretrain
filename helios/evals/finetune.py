@@ -52,7 +52,6 @@ class _BackboneWithHead(nn.Module):
 
     def _init_head(self, emb_dim: int, device: torch.device) -> None:
         """Initialize the head based on the embedding dimension."""
-        self.batch_norm = nn.BatchNorm1d(emb_dim).to(device=device)
         if self.task_type == TaskType.CLASSIFICATION:
             self._head = nn.Linear(emb_dim, self.num_classes, bias=True)
         else:
@@ -69,11 +68,12 @@ class _BackboneWithHead(nn.Module):
         emb, _ = self.wrapper(batch, None)
         emb = cast(torch.Tensor, emb)
         emb_dim = emb.shape[-1]
+        self.batch_norm = nn.BatchNorm1d(emb_dim).to(device=dev)
         if not self._inited:
             self._init_head(emb_dim, dev)
         if emb.device != dev:
             emb = emb.to(dev, non_blocking=True)
-        # Follow linear probe, apply BatchNorm before linear layer for classification tasks
+        # Apply BatchNorm before linear layer for classification tasks
         if self.task_type == TaskType.CLASSIFICATION:
             emb = self.batch_norm(emb)
         return self._head(emb)
