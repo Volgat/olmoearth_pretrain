@@ -287,6 +287,9 @@ class DownstreamEvaluator:
     def _val_finetune(self) -> tuple[float, float]:
         """Validate the model using finetuning."""
         logger.info(f"Validating {self.dataset} with finetune")
+        # Zero out optimizer state
+        self.trainer.train_module.optimizer.zero_grad(set_to_none=True)
+        self.trainer.train_module.optimizer.state = {}
 
         train_loader = self._get_data_loader("train", self.ft_batch_size)
         val_loader = self._get_data_loader("valid", self.ft_batch_size)
