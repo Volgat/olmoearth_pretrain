@@ -439,7 +439,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
                 tasks=FT_EVAL_TASKS if os.environ.get("FINETUNE") else EVAL_TASKS,
                 eval_on_startup=True,
                 cancel_after_first_eval=True,
-                run_on_test=False,
+                run_on_test=True,
             ),
         )
         .with_callback("garbage_collector", garbage_collector_callback)
