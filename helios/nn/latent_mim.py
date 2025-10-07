@@ -126,6 +126,7 @@ class LatentMIMConfig(Config):
     encoder_config: Config
     decoder_config: Config
     reconstructor_config: Config | None = None
+    reinitialize_targets: bool = False
 
     def validate(self) -> None:
         """Validate the configuration."""
