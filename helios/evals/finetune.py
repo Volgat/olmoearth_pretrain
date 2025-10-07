@@ -64,7 +64,7 @@ class _BackboneWithHead(nn.Module):
         self._head = self._head.to(device=device)
         self._inited = True
 
-    def forward(self, batch: MaskedHeliosSample) -> torch.Tensor:
+    def forward(self, batch: MaskedHeliosSample, labels: torch.Tensor) -> torch.Tensor:
         """Forward pass through the model and head."""
         dev = next(self.wrapper.parameters()).device
         # classification: (B, D), segmentation: (B, H, W, D)
@@ -103,7 +103,7 @@ def _eval_cls(
         label = label.to(device=device)
         masked = _to_device(masked, device)
         with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
-            logits = module(masked)  # (B, C)
+            logits = module(masked, label)  # (B, C)
         logits_all.append(logits.float().cpu())
         labels_all.append(label.cpu())
     logits = torch.cat(logits_all, 0)
@@ -127,7 +127,7 @@ def _eval_seg(
         label = label.to(device=device)
         masked = _to_device(masked, device)
         with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
-            logits = module(masked)  # (B, H, W, C*p*p)
+            logits = module(masked, label)  # (B, H, W, C*p*p)
             H, W = logits.shape[1], logits.shape[2]
             logits = rearrange(
                 logits,
@@ -189,8 +189,8 @@ def run_finetune_eval(
 
     # Trigger _init_head once with a tiny dry pass
     with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
-        sample_batch, _ = next(iter(train_loader))
-        _ = ft(_to_device(sample_batch, device))
+        sample_batch, label = next(iter(train_loader))
+        _ = ft(_to_device(sample_batch, device), _to_device(label, device))
 
     total, trainable = count_params(ft)
     logger.info(f"Total parameters: {total:,}")
@@ -220,7 +220,7 @@ def run_finetune_eval(
             label = label.to(device=device)
             masked = _to_device(masked, device)
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
-                logits = ft(masked)
+                logits = ft(masked, label)
                 if task_config.task_type == TaskType.SEGMENTATION:
                     H, W = logits.shape[1], logits.shape[2]
                     logits = rearrange(
