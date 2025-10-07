@@ -6,6 +6,8 @@ python scripts/2025_10_02_phase2/base.py launch phase2.0_base_random_masking ai2
 python scripts/2025_10_02_phase2/ablations/base_mae.py phase2.0_base_mae ai2/ceres-cirrascale  --launch.clusters='[ai2/jupiter-cirrascale-2]' --launch.priority=high
 # random init the target projections
 python scripts/2025_10_02_phase2/base.py launch phase2.0_base_random_target ai2/ceres-cirrascale  --train_module.reinit_targets=True --launch.clusters='[ai2/jupiter-cirrascale-2]' --launch.priority=high
+# original patch disc loss
+python scripts/2025_10_02_phase2/base.py launch phase2.0_base_random_masking ai2/ceres-cirrascale  --train_module.loss_config.loss_config.type="patch_discrimination_new" --launch.clusters='[ai2/jupiter-cirrascale-2]' --launch.priority=high
 ###### Modality abations below ######
 # I have successively removed modalities here, so that
 # each run has fewer modalities than a previous one
