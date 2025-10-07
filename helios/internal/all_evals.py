@@ -366,14 +366,6 @@ FT_EVAL_TASKS = {
         norm_stats_from_pretrained=True,
         epochs=50,
     ),
-    "m_forestnet": DownstreamTaskConfig(
-        dataset="m-forestnet",
-        ft_batch_size=8,
-        num_workers=4,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=False,
-        epochs=50,
-    ),
     "m_bigearthnet": DownstreamTaskConfig(
         dataset="m-bigearthnet",
         ft_batch_size=32,
