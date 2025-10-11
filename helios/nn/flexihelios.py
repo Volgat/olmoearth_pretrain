@@ -246,8 +246,9 @@ class TokensAndMasks(NamedTuple):
             num_encoded_tokens = torch.sum(mask, -1, keepdim=True)
             logger.debug(f"num_encoded_tokens: {num_encoded_tokens}")
             if (num_encoded_tokens == 0).any():
+                zero_encoded = torch.argwhere(num_encoded_tokens == 0)
                 raise ValueError(
-                    f"num_encoded_tokens is 0 for some samples {num_encoded_tokens}"
+                    f"num_encoded_tokens is 0 for some samples {num_encoded_tokens}, input_shape: {self.sentinel2_l2a.shape}, mask at that index is {self.sentinel2_l2a_mask[zero_encoded]}"  # type: ignore
                 )
             return x_for_pooling.sum(dim=1) / num_encoded_tokens
         else:

@@ -1,6 +1,7 @@
 """Test masking."""
 
 import logging
+import random
 
 import torch
 
@@ -1166,10 +1167,11 @@ def test_modality_cross_random_masking_has_online_encoder_and_decoder_tokens() -
         allow_encoding_decoding_same_bandset=True,
     )
 
-    for _ in range(100):
-        b, h_w, t = 100, 1, 1
-
-        patch_size = 1
+    for _ in range(1000):
+        h_w = random.choice([1, 2, 3, 4, 5, 6])
+        t = random.choice([1, 2, 3])
+        b = 100
+        patch_size = h_w
 
         days = torch.randint(1, 31, (b, 1, t), dtype=torch.long)
         months = torch.randint(1, 13, (b, 1, t), dtype=torch.long)
