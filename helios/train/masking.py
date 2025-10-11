@@ -1127,20 +1127,23 @@ class ModalityCrossMaskingStrategy(MaskingStrategy):
         no_encoded_indices = torch.argwhere(num_encoded == 0)
         no_decoded_indices = torch.argwhere(num_decoded == 0)
         for i in no_encoded_indices:
-            for _, val in masked_batch_dict.items():
-                modality_index = val[i]
-                # will this happen inplace?
-                modality_index[
-                    modality_index == MaskValue.TARGET_ENCODER_ONLY.value
-                ] = MaskValue.ONLINE_ENCODER.value
+            for key, val in masked_batch_dict.items():
+                if key.endswith("mask"):
+                    modality_index = val[i]
+                    # will this happen inplace?
+                    modality_index[
+                        modality_index == MaskValue.TARGET_ENCODER_ONLY.value
+                    ] = MaskValue.ONLINE_ENCODER.value
+                    masked_batch_dict[key][i] = modality_index
         for i in no_decoded_indices:
             for key, val in masked_batch_dict.items():
-                modality_index = val[i]
-                # will this happen inplace?
-                modality_index[
-                    modality_index == MaskValue.TARGET_ENCODER_ONLY.value
-                ] = MaskValue.DECODER.value
-                masked_batch_dict[key][i] = modality_index
+                if key.endswith("mask"):
+                    modality_index = val[i]
+                    # will this happen inplace?
+                    modality_index[
+                        modality_index == MaskValue.TARGET_ENCODER_ONLY.value
+                    ] = MaskValue.DECODER.value
+                    masked_batch_dict[key][i] = modality_index
         masked_batch = MaskedHeliosSample(**masked_batch_dict)
 
         return masked_batch
