@@ -367,15 +367,15 @@ class DownstreamEvaluatorCallback(Callback):
     def post_step(self) -> None:
         """Run the evaluators in-loop."""
         for evaluator in self.evaluators:
-            if not self._check_supported_modalities(evaluator):
-                logger.info(
-                    f"Skipping {evaluator.evaluation_name} because it requires a modality that is not supported by the model"
-                )
-                continue
             eval_interval_steps = self.trainer.convert_duration_to_steps(
                 evaluator.eval_interval
             )
             if self.step <= 1 or self.step % eval_interval_steps != 0:
+                continue
+            if not self._check_supported_modalities(evaluator):
+                logger.info(
+                    f"Skipping {evaluator.evaluation_name} because it requires a modality that is not supported by the model"
+                )
                 continue
             self._perform_eval(evaluator)
 
