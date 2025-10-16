@@ -283,21 +283,12 @@ class DownstreamEvaluatorCallback(Callback):
     @property
     def model_supported_modalities(self) -> list[str]:
         """Get the supported modalities for the model."""
-        logger.info("Collecting model supported modalities.")
         if hasattr(self.trainer.train_module.model, "supported_modalities"):
-            logger.info(
-                f"model has supported_modalities: {self.trainer.train_module.model.supported_modalities}"
-            )
             return self.trainer.train_module.model.supported_modalities
         elif hasattr(self.trainer.train_module.model, "encoder"):
-            logger.info("model has encoder")
             if hasattr(self.trainer.train_module.model.encoder, "supported_modalities"):
-                logger.info(
-                    f"encoder has supported_modalities: {self.trainer.train_module.model.encoder.supported_modality_names}"
-                )
                 return self.trainer.train_module.model.encoder.supported_modality_names
         else:
-            print(self.trainer.train_module.model)
             logger.info(
                 "Can't find a supported_modalities attribute; defaulting to all modalities."
             )
@@ -370,13 +361,12 @@ class DownstreamEvaluatorCallback(Callback):
             eval_interval_steps = self.trainer.convert_duration_to_steps(
                 evaluator.eval_interval
             )
-            # TODO this should be after the step check below - moved for debugging.
+            if self.step <= 1 or self.step % eval_interval_steps != 0:
+                continue
             if not self._check_supported_modalities(evaluator):
                 logger.info(
                     f"Skipping {evaluator.evaluation_name} because it requires a modality that is not supported by the model"
                 )
-                continue
-            if self.step <= 1 or self.step % eval_interval_steps != 0:
                 continue
             self._perform_eval(evaluator)
 
