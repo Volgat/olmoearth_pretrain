@@ -31,5 +31,5 @@ jobs:
 
       - name: Linting
         run: |
-          pip install -r requirements-dev.txt
+          uv sync --locked --dev
           pre-commit run --all-files
