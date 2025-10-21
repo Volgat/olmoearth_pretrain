@@ -11,6 +11,7 @@ import math
 from collections import OrderedDict
 from collections import OrderedDict as OrderedDictType
 from collections.abc import Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -1206,6 +1207,7 @@ class Encoder(GalileoBase):
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
+            x = blk(x=x, y=None, attn_mask=~new_m.bool())
             temp_mask = ~new_m.bool()
 
             if temp_mask.all():
@@ -1681,6 +1683,10 @@ class Decoder(GalileoBase):
             torch.stack(output_st, dim=-2),
         )
 
+AUTOCAST_DTYPE_MAP = {
+    "bfloat16": torch.bfloat16,
+    "float32": torch.float32,
+}
 
 class GalileoWrapper(nn.Module):
     """GalileoWrapper."""
@@ -1698,6 +1704,7 @@ class GalileoWrapper(nn.Module):
         month: int = 6,
         add_layernorm_on_exit: bool = True,
         use_pretrained_normalizer: bool = True,
+        autocast_dtype: str | None = "bfloat16"
     ):
         """Init GalileoWrapper."""
         super().__init__()
@@ -1734,6 +1741,11 @@ class GalileoWrapper(nn.Module):
             self.normalizer = Normalizer(std=True, normalizing_dicts=load_normalization_values(Path(__file__).resolve().parent / "normalization_config.json"))
         else:
             self.normalizer = None
+
+        if autocast_dtype is not None:
+            self.autocast_dtype = AUTOCAST_DTYPE_MAP[autocast_dtype]
+        else:
+            self.autocast_dtype = None
 
     def preproccess(
         self,
@@ -1870,19 +1882,33 @@ class GalileoWrapper(nn.Module):
         if s_t_x.shape[1] < self.patch_size:
             logger.info(f"tile size {s_t_x.shape[1]} < self.patch size {self.patch_size}. Using tile size as patch size.")
             patch_size = s_t_x.shape[1]
-        output = self.galileo_encoder(
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_m,
-            sp_m,
-            t_m,
-            st_m,
-            month,
-            patch_size=patch_size,
-            add_layernorm_on_exit=self.add_layernorm_on_exit,
-        )
+
+        # Decide context based on self.autocast_dtype
+        device = s_t_x.device
+        if self.autocast_dtype is None:
+            context = nullcontext()
+        else:
+            assert device is not None
+            context = torch.amp.autocast(
+                device_type=device.type,
+                dtype=self.autocast_dtype
+            )
+
+        with context:
+            output = self.galileo_encoder(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                month,
+                patch_size=patch_size,
+                add_layernorm_on_exit=self.add_layernorm_on_exit,
+            )
+
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = output
         if not spatial_pool:
             return self.galileo_encoder.average_tokens(

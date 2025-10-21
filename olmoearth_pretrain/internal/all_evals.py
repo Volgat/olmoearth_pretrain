@@ -405,7 +405,7 @@ FT_EVAL_TASKS = {
     ),
     "m_bigearthnet": DownstreamTaskConfig(
         dataset="m-bigearthnet",
-        ft_batch_size=32,
+        ft_batch_size=16,
         num_workers=4,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
@@ -419,104 +419,33 @@ FT_EVAL_TASKS = {
         norm_stats_from_pretrained=True,
         epochs=50,
     ),
+    # default: 32, galileo & anysat: 16, change patch size
+    # 256 * 256, limit to 32 * 32
+    # 24,576, 10 classes, segmentation
+    # anysat: ps = 8, bs = 8
+    # galileo: ps = 8, bs = 1
     "m_sa_crop_type": DownstreamTaskConfig(
         dataset="m-sa-crop-type",
         ft_batch_size=32,
         num_workers=2,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=False,
+        norm_method=NormMethod.NORM_NO_CLIP_2_STD,
         epochs=50,
     ),
     "mados": DownstreamTaskConfig(
         dataset="mados",
-        ft_batch_size=32,
+        ft_batch_size=16,
         num_workers=8,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=False,
+        norm_method=NormMethod.NORM_NO_CLIP_2_STD,
         epochs=50,
     ),
-    "cropharvest_Togo_12_sentinel2": DownstreamTaskConfig(
-        dataset="cropharvest_Togo_12",
-        ft_batch_size=32,
-        num_workers=2,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.SENTINEL2_L2A.name],
-        patch_size=1,
-        epochs=50,
-    ),
-    "cropharvest_Togo_12_sentinel1": DownstreamTaskConfig(
-        dataset="cropharvest_Togo_12",
-        ft_batch_size=32,
-        num_workers=2,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.SENTINEL1.name],
-        patch_size=1,
-        epochs=50,
-    ),
-    # example of "in season" cropland mapping - 6 indicates only the
-    # first 6 timesteps are passed to the model
-    "cropharvest_Peoples_Republic_of_China_6": DownstreamTaskConfig(
-        dataset="cropharvest_People's Republic of China_6",
-        ft_batch_size=32,
-        num_workers=2,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.SENTINEL2_L2A.name],
-        patch_size=1,
-        epochs=50,
-    ),
-    "cropharvest_Peoples_Republic_of_China_6_sentinel1": DownstreamTaskConfig(
-        dataset="cropharvest_People's Republic of China_6",
-        ft_batch_size=32,
-        num_workers=2,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.SENTINEL1.name],
-        patch_size=1,
-        epochs=50,
-    ),
-    "nandi_sentinel2": DownstreamTaskConfig(
-        dataset="nandi",
-        ft_batch_size=32,
-        num_workers=0,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.SENTINEL2_L2A.name],
-        input_layers=["sentinel2"],
-        epochs=50,
-    ),
-    "nandi_landsat": DownstreamTaskConfig(
-        dataset="nandi",
-        ft_batch_size=32,
-        num_workers=0,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.LANDSAT.name],
-        input_layers=["landsat"],
-        epochs=50,
-    ),
-    "awf_sentinel2": DownstreamTaskConfig(
-        dataset="awf",
-        ft_batch_size=32,
-        num_workers=0,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.SENTINEL2_L2A.name],
-        input_layers=["sentinel2"],
-        epochs=50,
-    ),
-    "awf_landsat": DownstreamTaskConfig(
-        dataset="awf",
-        ft_batch_size=32,
-        num_workers=0,
-        pooling_type=PoolingType.MEAN,
-        norm_stats_from_pretrained=True,
-        input_modalities=[Modality.LANDSAT.name],
-        input_layers=["landsat"],
-        epochs=50,
-    ),
+    # default: 16, satlas: 8, anysat & galileo?
+    # anysat: 4
+    # galileo: 2
+    # olmoearth: 8
     "pastis_sentinel2": DownstreamTaskConfig(
         dataset="pastis",
         ft_batch_size=16,
@@ -526,13 +455,46 @@ FT_EVAL_TASKS = {
         input_modalities=[Modality.SENTINEL2_L2A.name],
         epochs=50,
     ),
-    "breizhcrops": DownstreamTaskConfig(
-        dataset="breizhcrops",
+    "m_brick_kiln": DownstreamTaskConfig(
+        dataset="m-brick-kiln",
         ft_batch_size=64,
-        num_workers=0,
+        num_workers=4,
         pooling_type=PoolingType.MEAN,
         norm_stats_from_pretrained=True,
-        patch_size=1,
+        epochs=50,
+    ),
+    "sen1floods11": DownstreamTaskConfig(
+        dataset="sen1floods11",
+        ft_batch_size=32,
+        num_workers=4,
+        pooling_type=PoolingType.MEAN,
+        norm_stats_from_pretrained=False,
+        norm_method=NormMethod.NORM_NO_CLIP_2_STD,
+        epochs=50,
+    ),
+    # default bs: 32, ps: 4
+    # galileo: bs: 1, ps: 8
+    # anysat: bs: 4, ps: 8
+    "m_cashew_plant": DownstreamTaskConfig(
+        dataset="m-cashew-plant",
+        ft_batch_size=32,
+        num_workers=4,
+        pooling_type=PoolingType.MEAN,
+        norm_stats_from_pretrained=False,
+        norm_method=NormMethod.NORM_NO_CLIP_2_STD,
+        epochs=50,
+    ),
+    # default bs: 32, ps: 4
+    # anysat: bs: 2, ps: 16
+    # galileo: no Landsat
+    # helios: bs: 16
+    "m_forestnet": DownstreamTaskConfig(
+        dataset="m-forestnet",
+        ft_batch_size=16,
+        num_workers=4,
+        pooling_type=PoolingType.MEAN,
+        norm_stats_from_pretrained=False,
+        norm_method=NormMethod.NORM_NO_CLIP_2_STD,
         epochs=50,
     ),
 }

@@ -84,6 +84,7 @@ class Panopticon(nn.Module):
         for i in range(t_dim):
             data_i = rearrange(data[:, :, :, i, :], "b h w c -> b c h w")
 
+            # TODO: 224 should not be hardcoded here
             new_height = self.patch_size if original_height == 1 else 224
 
             data_i = F.interpolate(

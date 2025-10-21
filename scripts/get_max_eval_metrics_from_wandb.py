@@ -397,7 +397,7 @@ if __name__ == "__main__":
                 print(f"\n{partition}:")
                 for metric in METRICS:
                     # Try original name
-                    key = f"eval/{metric}"
+                    key = f"eval/test/{metric}"
                     val = partition_metrics[partition].get(key)
                     # Fallback with underscore variant
                     if val is None:
