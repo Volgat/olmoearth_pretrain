@@ -157,7 +157,8 @@ def build_launch_config(
             # Clone private repo.
             "pip install uv",
             # so that we can use uv tools
-            'export PATH="/root/.local/bin:$PATH"uv tool install gh',
+            'export PATH="/root/.local/bin:$PATH"',
+            "uv tool install gh",
             "gh auth status",
             "gh repo clone $REPO_URL .",
             'git checkout "$GIT_REF"',
