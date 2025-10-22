@@ -164,6 +164,7 @@ def build_launch_config(
             "pip install uv",
             # so that we can use uv tools
             'export PATH="/root/.local/bin:$PATH" ',
+            "alias python='uv run python'",
             "uv sync --locked --all-groups",
         ],
     )
