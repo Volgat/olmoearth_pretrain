@@ -167,7 +167,7 @@ def build_launch_config(
             "uv sync --locked --all-groups",
             # activate the uv venv
             "venv_path=$(uv run python -c 'import sys; print(sys.executable)')",
-            'source "$(dirname "$python_path")/activate"',
+            'source "$(dirname "$venv_path")/activate"',
             # check this worked
             'uv run python -c "import sys; print(sys.executable)"',
             'python -c "import sys; print(sys.executable)"',
