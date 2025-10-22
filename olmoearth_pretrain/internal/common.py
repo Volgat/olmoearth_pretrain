@@ -156,7 +156,8 @@ def build_launch_config(
             'echo "$GCP_CREDENTIALS" > $GOOGLE_APPLICATION_CREDENTIALS',
             # Clone private repo.
             "pip install uv",
-            "uv tool install gh",
+            # so that we can use uv tools
+            'export PATH="/root/.local/bin:$PATH"uv tool install gh',
             "gh auth status",
             "gh repo clone $REPO_URL .",
             'git checkout "$GIT_REF"',
