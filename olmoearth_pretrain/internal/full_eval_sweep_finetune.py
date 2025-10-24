@@ -1,7 +1,7 @@
 """Launch fine-tune evaluation sweeps for OlmoEarth and other models.
 
 Example run:
-python olmoearth_pretrain/internal/full_eval_sweep_finetune.py --project_name 2025_10_08_phase2_finetune --module_path olmoearth_pretrain/evals/models/clay/clay_launch.py --cluster ai2/titan --model_name clay --clay --defaults_only
+python olmoearth_pretrain/internal/full_eval_sweep_finetune.py --project_name 2025_10_08_phase2_finetune --module_path olmoearth_pretrain/evals/models/clay/clay_launch.py --cluster ai2/titan --model clay --defaults_only
 
 python olmoearth_pretrain/internal/full_eval_sweep_finetune.py --checkpoint_path /weka/dfive-default/helios/checkpoints/joer/phase2.0_base_lr0.0001_wd0.02/step667200 --project_name 2025_10_08_phase2_finetune --module_path scripts/2025_10_02_phase2/base.py --cluster ai2/titan --defaults_only
 """
@@ -154,18 +154,8 @@ MODEL_PRESETS: dict[str, ModelPreset] = {
 }
 
 
-def _selected_model_flag(args: argparse.Namespace) -> str | None:
-    """Get the selected model flag."""
-    flags = [name for name in MODEL_PRESETS if getattr(args, name)]
-    if len(flags) > 1:
-        raise ValueError(
-            f"Specify at most one model preset flag (got: {', '.join(sorted(flags))})."
-        )
-    return flags[0] if flags else None
-
-
 def _build_model_args(
-    selected_flag: str | None, normalizer: bool | None = None
+    selected_preset: str | None, normalizer: bool | None = None
 ) -> list[str]:
     """Build the model arguments.
 
@@ -174,9 +164,9 @@ def _build_model_args(
     If normalizer=True (sweep case): force --model.use_pretrained_normalizer=True
              and set per-task norm to NO_NORM (on top of the preset).
     """
-    if selected_flag is None:
+    if selected_preset is None:
         return []
-    preset = MODEL_PRESETS[selected_flag]
+    preset = MODEL_PRESETS[selected_preset]
 
     args = list(DATASET_STATS_ARGS) if preset.include_dataset_stats else []
     args.extend(_format_per_task_args(preset.per_task_overrides))
@@ -192,21 +182,21 @@ def _build_model_args(
     return args
 
 
-def _resolve_module_path(args: argparse.Namespace, selected_flag: str | None) -> str:
+def _resolve_module_path(args: argparse.Namespace, selected_preset: str | None) -> str:
     """Get the module path."""
     if args.module_path:
         logger.info(f"Using module path {args.module_path}")
         return args.module_path
 
-    if selected_flag is None:
+    if selected_preset is None:
         raise ValueError(
-            "Provide --module_path or specify a model preset flag that implies one."
+            "Provide --module_path or select a model preset key that implies one."
         )
 
-    preset = MODEL_PRESETS[selected_flag]
+    preset = MODEL_PRESETS[selected_preset]
     if preset.launch_script_key is None:
         raise ValueError(
-            f"--{selected_flag} has no default launch script. Pass --module_path explicitly."
+            f"Model preset '{selected_preset}' has no default launch script. Pass --module_path explicitly."
         )
 
     module_path = get_launch_script_path(preset.launch_script_key)
@@ -223,15 +213,18 @@ def _get_sub_command(args: argparse.Namespace) -> str:
     return SubCmd.launch
 
 
-def _get_base_run_name(args: argparse.Namespace) -> str:
+def _get_base_run_name(args: argparse.Namespace, selected_preset: str | None) -> str:
     """Get the base run name."""
-    if args.model_name is not None:
-        logger.info("Overriding checkpoint name with %s", args.model_name)
-        return args.model_name
+    if args.model is not None:
+        logger.info("Overriding checkpoint name with %s", args.model)
+        return args.model
     if args.checkpoint_path is not None:
         parent_dir = os.path.basename(os.path.dirname(args.checkpoint_path))[:100]
         step_num = os.path.basename(args.checkpoint_path)
         return f"{parent_dir}_{step_num}"
+    if selected_preset is not None:
+        logger.info("Using model preset key %s as base run name", selected_preset)
+        return selected_preset
     logger.warning("No model name or checkpoint path provided; using random run name")
     return str(uuid.uuid4())[:8]
 
@@ -286,11 +279,11 @@ def build_commands(args: argparse.Namespace, extra_cli: list[str]) -> list[str]:
     """Build the commands for the sweep."""
     project_name = args.project_name or EVAL_WANDB_PROJECT
     sub_command = _get_sub_command(args)
-    base_run_name = _get_base_run_name(args)
+    selected_preset = args.model
+    base_run_name = _get_base_run_name(args, selected_preset)
     launch_command = "python3" if sub_command != SubCmd.train else "torchrun"
 
-    selected_flag = _selected_model_flag(args)
-    module_path = _resolve_module_path(args, selected_flag)
+    module_path = _resolve_module_path(args, selected_preset)
     checkpoint_args = _get_checkpoint_args(args.checkpoint_path)
 
     # LR sweep
@@ -298,8 +291,8 @@ def build_commands(args: argparse.Namespace, extra_cli: list[str]) -> list[str]:
 
     # Normalizer sweep: default False, use dataset norm, if True, use model norm
     normalizer_options: list[bool] = [False]
-    if selected_flag is not None:
-        preset = MODEL_PRESETS[selected_flag]
+    if selected_preset is not None:
+        preset = MODEL_PRESETS[selected_preset]
         if args.sweep_normalizer and preset.supports_pretrained_normalizer:
             normalizer_options = [False, True]
 
@@ -317,7 +310,7 @@ def build_commands(args: argparse.Namespace, extra_cli: list[str]) -> list[str]:
                     run_suffix = f"FT_lr{lr}_norm_pretrained_False"
             run_name = f"{base_run_name}_{run_suffix}"
 
-            model_args = _build_model_args(selected_flag, norm_val)
+            model_args = _build_model_args(selected_preset, norm_val)
 
             commands.append(
                 _format_launch_command(
@@ -371,19 +364,15 @@ def main() -> None:
         help="Print the commands without launching them",
     )
     parser.add_argument(
-        "--model_name",
-        type=str,
-        required=False,
-        help="Use this as the base run name",
+        "--model",
+        choices=sorted(MODEL_PRESETS.keys()),
+        help="Model preset key to apply (defaults to none).",
     )
     parser.add_argument(
         "--sweep_normalizer",
         action="store_true",
         help="Add a variant with --model.use_pretrained_normalizer=True (per-task NO_NORM).",
     )
-
-    for flag, preset in MODEL_PRESETS.items():
-        parser.add_argument(f"--{flag}", action="store_true")
 
     args, extra_cli = parser.parse_known_args()
 
