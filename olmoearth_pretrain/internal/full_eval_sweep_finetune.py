@@ -321,7 +321,7 @@ def build_commands(
             seed_suffix = (
                 f"_seed{args.finetune_seed}" if args.finetune_seed is not None else ""
             )
-            run_name = f"{base_run_name}_{run_suffix}{seed_suffix}"
+            run_name = f"{base_run_name}{seed_suffix}_{run_suffix}"
             model_args = _build_model_args(selected_preset, norm_val)
 
             commands.append(
