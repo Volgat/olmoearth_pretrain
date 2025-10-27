@@ -313,6 +313,11 @@ class DownstreamEvaluator:
         else:
             model = self.trainer.train_module.model
 
+        original_state = {
+            k: v.detach().cpu().clone() for k, v in model.state_dict().items()
+        }
+        original_training_mode = model.training
+
         # Resolve patch size if model exposes it
         if hasattr(model, "patch_size"):
             logger.info(
@@ -325,23 +330,35 @@ class DownstreamEvaluator:
                 f"No patch size found for {self.dataset}, using patch size {self.patch_size}"
             )
 
-        val_result, test_result = run_finetune_eval(
-            task_name=self.evaluation_name,
-            task_config=self.config,
-            trainer=self.trainer,
-            model=model,
-            device=self.device or self.trainer.device,
-            lr=self.ft_lr,  # type: ignore
-            epochs=self.epochs,
-            patch_size=self.patch_size,
-            pooling_type=self.pooling_type,
-            use_pooled_tokens=self.use_pooled_tokens,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            test_loader=test_loader,
-            seed=self.finetune_seed,
-            save_folder=self.trainer.save_folder,
-        )
+        try:
+            # Save the original global step
+            original_global_step = self.trainer.global_step
+            val_result, test_result = run_finetune_eval(
+                task_name=self.evaluation_name,
+                task_config=self.config,
+                trainer=self.trainer,
+                model=model,
+                device=self.device or self.trainer.device,
+                lr=self.ft_lr,  # type: ignore
+                epochs=self.epochs,
+                patch_size=self.patch_size,
+                pooling_type=self.pooling_type,
+                use_pooled_tokens=self.use_pooled_tokens,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                test_loader=test_loader,
+                seed=self.finetune_seed,
+                save_folder=self.trainer.save_folder,
+            )
+            # Restore the original global step
+            self.trainer.global_step = original_global_step
+        finally:
+            model.load_state_dict(original_state)
+            if original_training_mode:
+                model.train()
+            else:
+                model.eval()
+
         logger.info(
             f"Downstream evaluator {self.evaluation_name} val score: {val_result}, test score: {test_result}"
         )
