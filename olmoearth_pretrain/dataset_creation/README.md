@@ -241,7 +241,7 @@ python -m olmoearth_pretrain.dataset_creation.scripts.sentinel2_l1c.launch_jobs 
 Now convert the data from the rslearn dataset to OlmoEarth format.
 
 ```
-export OLMOEARTH_PATH=/weka/dfive-default/olmoearth/dataset/X/
+export OLMOEARTH_PATH=/path/to/your/dataset
 python -m olmoearth_pretrain.dataset_creation.rslearn_to_olmoearth.cdl --ds_path $DATASET_PATH --olmoearth_path $OLMOEARTH_PATH
 python -m olmoearth_pretrain.dataset_creation.rslearn_to_olmoearth.era5_10 --ds_path $DATASET_PATH --olmoearth_path $OLMOEARTH_PATH
 python -m olmoearth_pretrain.dataset_creation.rslearn_to_olmoearth.landsat --ds_path $DATASET_PATH --olmoearth_path $OLMOEARTH_PATH
