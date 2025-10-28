@@ -225,6 +225,7 @@ class DownstreamEvaluator:
             num_workers=self.num_workers,
             generator=generator,
             worker_init_fn=worker_init_fn,
+            shuffle=(split == "train"),  # Only shuffle train data
         )
 
     def _get_embeddings(
@@ -326,14 +327,10 @@ class DownstreamEvaluator:
         train_loader = self._get_data_loader(
             "train", self.ft_batch_size, seed=self.finetune_seed
         )
-        val_loader = self._get_data_loader(
-            "valid", self.ft_batch_size, seed=self.finetune_seed
-        )
+        val_loader = self._get_data_loader("valid", self.ft_batch_size)
 
         if self.run_on_test:
-            test_loader = self._get_data_loader(
-                "test", self.ft_batch_size, seed=self.finetune_seed
-            )
+            test_loader = self._get_data_loader("test", self.ft_batch_size)
         else:
             test_loader = None
 
