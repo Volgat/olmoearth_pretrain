@@ -327,7 +327,6 @@ def run_finetune_eval(
                             align_corners=True,
                         )
                 loss = loss_fn(logits, label)
-                trainer.global_step += 1
                 finetune_step = epoch * num_batches + i
                 if wandb_logger is not None:
                     wandb_logger.log(
