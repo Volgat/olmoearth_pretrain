@@ -272,6 +272,10 @@ def run_finetune_eval(
 
     ft.train()
     for epoch in range(epochs):
+        # Reset epoch and global step
+        trainer.global_step = epoch * len(train_loader)
+        trainer.epoch = epoch + 1
+
         if not backbone_unfrozen and epoch >= freeze_epochs:
             _set_backbone_trainable(ft.backbone, True)
             backbone_unfrozen = True
@@ -308,6 +312,7 @@ def run_finetune_eval(
                         )
                 loss = loss_fn(logits, label)
                 trainer.global_step += 1
+
                 trainer.record_metric(f"finetune/{task_name}/train/loss", loss.item())
                 trainer._log_metrics()
                 logger.info(
