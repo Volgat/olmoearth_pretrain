@@ -106,3 +106,6 @@ $SCRIPT --project_name $PROJECT_NAME --module_path olmoearth_pretrain/evals/mode
 $SCRIPT --project_name $PROJECT_NAME --module_path olmoearth_pretrain/evals/models/terramind/terramind_launch.py --cluster $CLUSTER --model terramind_large --finetune_seed 1234 --use_dataset_normalizer
 $SCRIPT --project_name $PROJECT_NAME --module_path olmoearth_pretrain/evals/models/terramind/terramind_launch.py --cluster $CLUSTER --model terramind_large --finetune_seed 42 --use_dataset_normalizer
 $SCRIPT --project_name $PROJECT_NAME --module_path olmoearth_pretrain/evals/models/terramind/terramind_launch.py --cluster $CLUSTER --model terramind_large --finetune_seed 0 --use_dataset_normalizer
+
+# Get metrics
+python scripts/get_max_eval_metrics_from_wandb.py --project_name 2025_10_25_phase2_finetune --run_prefix nano_lr0.001_wd0.002_step370000_seed --finetune --get_test_metrics
