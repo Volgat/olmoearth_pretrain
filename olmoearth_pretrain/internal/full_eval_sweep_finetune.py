@@ -309,7 +309,7 @@ def build_commands(
     commands: list[str] = []
     for lr in lrs:
         if args.defaults_only:
-            run_suffix = "FT_defaults_test"
+            run_suffix = "FT_defaults"
         elif args.checkpoint_path:
             run_suffix = f"FT_lr{lr}"
         else:
