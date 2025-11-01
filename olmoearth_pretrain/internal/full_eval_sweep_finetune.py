@@ -97,9 +97,9 @@ MODEL_PRESETS: dict[str, ModelPreset] = {
     "copernicusfm": ModelPreset(
         per_task_overrides={"norm_method": "NormMethod.NORM_YES_CLIP_2_STD"},
     ),
+    # by default, AnySat uses patch size of 4
     "anysat": ModelPreset(
         per_task_overrides={"norm_method": "NormMethod.STANDARDIZE"},
-        global_args=("--model.patch_size=16",),
         task_specific_overrides={
             "m_sa_crop_type": {"ft_batch_size": 4},
             "pastis_sentinel2": {"ft_batch_size": 4},
@@ -134,9 +134,9 @@ MODEL_PRESETS: dict[str, ModelPreset] = {
         launch_script_key="terramind",
         supports_pretrained_normalizer=True,
     ),
+    # by default, Galileo uses patch size of 4
     "galileo": ModelPreset(
         per_task_overrides={"norm_method": "NormMethod.NORM_NO_CLIP_2_STD"},
-        global_args=("--model.patch_size=16",),
         task_specific_overrides={
             "m_sa_crop_type": {"ft_batch_size": 1},
             "pastis_sentinel2": {"ft_batch_size": 2},

@@ -60,6 +60,7 @@ class AnySat(nn.Module):
     ]
 
     supports_multiple_modalities_at_once = True
+    resolution: int = 10
 
     def __init__(self, patch_size: int = 8) -> None:
         """AnySat wrapper."""
@@ -88,7 +89,7 @@ class AnySat(nn.Module):
                 if v in Modality.LANDSAT.band_order
             ],
         }
-
+        # Patch size in pixels
         self.patch_size = patch_size
 
     @staticmethod
@@ -134,14 +135,18 @@ class AnySat(nn.Module):
         return doy
 
     def _calculate_patch_size(self, h: int) -> int:
-        # based on https://arxiv.org/pdf/2412.14123, a patch size of
-        # 40 is the minimum used for images of 128x128. Since smaller patches
-        # = more tokens, this should lead to the best performance
+        """Calculate the patch size in pixels based on the height of the input data.
 
-        # Ensure maximum 32x32 patches
+        Args:
+            h: Height of the input data in pixels
+
+        Returns:
+            Patch size in pixels
+        """
+        # Avoid having more than 32x32 patches per tile as suggested by the authors
         h_adjusted = h // 32
         patch_size_exp = (h_adjusted - 1).bit_length()
-        patch_size = 2**patch_size_exp * 10
+        patch_size = 2**patch_size_exp
         return patch_size
 
     def _process_modality_data(self, data: torch.Tensor, modality: str) -> torch.Tensor:
@@ -217,8 +222,12 @@ class AnySat(nn.Module):
         if len(set(hs)) != 1:
             raise RuntimeError("Expected all inputs to have the same dimension")
 
-        patch_size = max(self.patch_size * 10, self._calculate_patch_size(hs[0]))
-        logger.info(f"Using patch size {patch_size} for AnySat")
+        # If patch size is specified, use it, otherwise, caculate the maximum patch size
+        # based on the height of the input data
+        patch_size_meters = (
+            max(self.patch_size, self._calculate_patch_size(hs[0])) * self.resolution
+        )
+        logger.info(f"Using patch size {patch_size_meters} for AnySat")
 
         # from the README (https://github.com/gastruc/AnySat/blob/main/README.md):
         # "The sub patches are 1x1 pixels for time series and 10x10 pixels for VHR images.
@@ -244,7 +253,7 @@ class AnySat(nn.Module):
             output = "tile"
         output_patches = self.model(
             x=processed_inputs,
-            patch_size=patch_size,
+            patch_size=patch_size_meters,
             output=output,
             output_modality=output_modality,
         )
