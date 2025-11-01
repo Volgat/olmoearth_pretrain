@@ -62,7 +62,7 @@ class AnySat(nn.Module):
     supports_multiple_modalities_at_once = True
     resolution: int = 10
 
-    def __init__(self, patch_size: int = 8) -> None:
+    def __init__(self, patch_size: int = 4) -> None:
         """AnySat wrapper."""
         super().__init__()
         self.model = torch.hub.load(
@@ -264,7 +264,7 @@ class AnySat(nn.Module):
 class AnySatConfig(Config):
     """olmo_core style config for AnySat."""
 
-    patch_size: int = 8
+    patch_size: int = 4
 
     def build(self) -> AnySat:
         """Build the Croma model."""
