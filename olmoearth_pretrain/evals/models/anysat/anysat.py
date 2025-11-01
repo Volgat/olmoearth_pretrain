@@ -61,7 +61,7 @@ class AnySat(nn.Module):
 
     supports_multiple_modalities_at_once = True
 
-    def __init__(self) -> None:
+    def __init__(self, patch_size: int = 8) -> None:
         """AnySat wrapper."""
         super().__init__()
         self.model = torch.hub.load(
@@ -88,6 +88,8 @@ class AnySat(nn.Module):
                 if v in Modality.LANDSAT.band_order
             ],
         }
+
+        self.patch_size = patch_size
 
     @staticmethod
     def calculate_day_of_year(timestamp: torch.Tensor) -> torch.Tensor:
@@ -135,9 +137,11 @@ class AnySat(nn.Module):
         # based on https://arxiv.org/pdf/2412.14123, a patch size of
         # 40 is the minimum used for images of 128x128. Since smaller patches
         # = more tokens, this should lead to the best performance
-        # TODO: this is not taking into account the input image size, e.g. 256x256
-        h_in_m = h * 10
-        patch_size = min(40, h_in_m)
+
+        # Ensure maximum 32x32 patches
+        h_adjusted = h // 32
+        patch_size_exp = (h_adjusted - 1).bit_length()
+        patch_size = 2**patch_size_exp * 10
         return patch_size
 
     def _process_modality_data(self, data: torch.Tensor, modality: str) -> torch.Tensor:
@@ -212,7 +216,9 @@ class AnySat(nn.Module):
                 hs.append(val.shape[-1])
         if len(set(hs)) != 1:
             raise RuntimeError("Expected all inputs to have the same dimension")
-        patch_size = self._calculate_patch_size(hs[0])
+
+        patch_size = max(self.patch_size * 10, self._calculate_patch_size(hs[0]))
+        logger.info(f"Using patch size {patch_size} for AnySat")
 
         # from the README (https://github.com/gastruc/AnySat/blob/main/README.md):
         # "The sub patches are 1x1 pixels for time series and 10x10 pixels for VHR images.
@@ -249,6 +255,8 @@ class AnySat(nn.Module):
 class AnySatConfig(Config):
     """olmo_core style config for AnySat."""
 
+    patch_size: int = 8
+
     def build(self) -> AnySat:
         """Build the Croma model."""
-        return AnySat()
+        return AnySat(patch_size=self.patch_size)

@@ -99,11 +99,20 @@ MODEL_PRESETS: dict[str, ModelPreset] = {
     ),
     "anysat": ModelPreset(
         per_task_overrides={"norm_method": "NormMethod.STANDARDIZE"},
+        global_args=("--model.patch_size=16",),
         task_specific_overrides={
-            "m_sa_crop_type": {"ft_batch_size": 4, "patch_size": 8},
+            "m_sa_crop_type": {"ft_batch_size": 4},
             "pastis_sentinel2": {"ft_batch_size": 4},
-            "m_cashew_plant": {"ft_batch_size": 4, "patch_size": 8},
-            "m_forestnet": {"ft_batch_size": 2, "patch_size": 16},
+            "m_cashew_plant": {"ft_batch_size": 4},
+            "m_forestnet": {"ft_batch_size": 4},
+        },
+    ),
+    "anysat_ps16": ModelPreset(
+        per_task_overrides={"norm_method": "NormMethod.STANDARDIZE"},
+        global_args=("--model.patch_size=16",),
+        task_specific_overrides={
+            "m_cashew_plant": {"ft_batch_size": 4, "patch_size": 16},
+            "m_forestnet": {"ft_batch_size": 4, "patch_size": 16},
         },
     ),
     # Models with pretrained normalizer
@@ -120,10 +129,21 @@ MODEL_PRESETS: dict[str, ModelPreset] = {
     ),
     "galileo": ModelPreset(
         per_task_overrides={"norm_method": "NormMethod.NORM_NO_CLIP_2_STD"},
+        global_args=("--model.patch_size=16",),
         task_specific_overrides={
-            "m_sa_crop_type": {"ft_batch_size": 1, "patch_size": 8},
+            "m_sa_crop_type": {"ft_batch_size": 1},
             "pastis_sentinel2": {"ft_batch_size": 2},
-            "m_cashew_plant": {"ft_batch_size": 1, "patch_size": 8},
+            "m_cashew_plant": {"ft_batch_size": 4},
+        },
+        launch_script_key="galileo",
+        supports_pretrained_normalizer=True,
+    ),
+    "galileo_ps16": ModelPreset(
+        per_task_overrides={"norm_method": "NormMethod.NORM_NO_CLIP_2_STD"},
+        global_args=("--model.patch_size=16",),
+        task_specific_overrides={
+            "m_cashew_plant": {"ft_batch_size": 4, "patch_size": 16},
+            "m_forestnet": {"ft_batch_size": 4, "patch_size": 16},
         },
         launch_script_key="galileo",
         supports_pretrained_normalizer=True,
@@ -320,7 +340,7 @@ def build_commands(
                     if normalizer_value
                     else "_norm_pretrained_False"
                 )
-            run_suffix = f"FT_lr{lr}{norm_suffix}"
+            run_suffix = f"FT_lr{lr}{norm_suffix}_ps16"
 
         seed_suffix = (
             f"_seed{args.finetune_seed}" if args.finetune_seed is not None else ""

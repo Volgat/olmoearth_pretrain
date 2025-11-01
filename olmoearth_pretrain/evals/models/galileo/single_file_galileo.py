@@ -1878,6 +1878,7 @@ class GalileoWrapper(nn.Module):
             months=x.timestamps[:, :, 1] if x.timestamps is not None else None,
         )
         patch_size = self.patch_size
+        logger.info(f"Using patch size {patch_size} for Galileo")
         if s_t_x.shape[1] < self.patch_size:
             logger.info(f"tile size {s_t_x.shape[1]} < self.patch size {self.patch_size}. Using tile size as patch size.")
             patch_size = s_t_x.shape[1]
@@ -1936,7 +1937,7 @@ class GalileoConfig(Config):
     """olmo_core style config for GalileoWrapper."""
 
     size: str = "base"
-    patch_size: int = 4
+    patch_size: int = 16
     month: int = 6
     add_layernorm_on_exit: bool = True
     use_pretrained_normalizer: bool = True
