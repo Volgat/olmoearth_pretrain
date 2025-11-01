@@ -223,6 +223,7 @@ def build_evaluate_config(
         run_name=common.run_name,
         model=model_config,
         trainer=trainer_config,
+        launch=common.launch,
     )
     config = config.merge(overrides)
     logger.info("Evaluate config: %s", config)
