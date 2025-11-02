@@ -535,6 +535,7 @@ If running command on a local machine ie from a session, you can use the [b]loca
             trainer_config_builder=trainer_config_builder,
             overrides=overrides,
         )
+        logger.info("Evaluation config: %s", config)
     else:
         # Training mode
         assert model_config_builder is not None
