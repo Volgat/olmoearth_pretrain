@@ -229,10 +229,9 @@ def build_common_components(
         # Modality.ERA5_10.name,
     ]
     if cmd == SubCmd.launch:
-        if script == "olmoearth_pretrain/internal/all_evals.py":
-            cmd_to_launch = SubCmd.evaluate
-        else:
-            cmd_to_launch = SubCmd.train
+        cmd_to_launch = SubCmd.train
+    elif cmd == SubCmd.launch_evaluate:
+        cmd_to_launch = SubCmd.evaluate
     elif cmd == SubCmd.launch_prep:
         cmd_to_launch = SubCmd.prep
     elif cmd == SubCmd.launch_benchmark:

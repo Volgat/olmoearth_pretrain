@@ -374,6 +374,7 @@ class SubCmd(StrEnum):
     train = "train"
     train_single = "train_single"
     evaluate = "evaluate"
+    launch_evaluate = "launch_evaluate"
     prep = "prep"
     launch_prep = "launch_prep"
     dry_run = "dry_run"
@@ -391,6 +392,7 @@ class SubCmd(StrEnum):
             SubCmd.visualize,
             SubCmd.benchmark,
             SubCmd.launch_benchmark,
+            SubCmd.launch_evaluate,
         ):
             prepare_cli_environment()
         elif self == SubCmd.train or self == SubCmd.evaluate:
@@ -414,7 +416,7 @@ class SubCmd(StrEnum):
             #     f"[b blue]Non-embedding parameters:[/]        {config.model.num_non_embedding_params:,d}"
             # )
 
-        if self == SubCmd.launch:
+        if self == SubCmd.launch or self == SubCmd.launch_evaluate:
             launch(config)
         elif self == SubCmd.dry_run:
             logger.info(config)
@@ -518,7 +520,8 @@ If running command on a local machine ie from a session, you can use the [b]loca
             inference_benchmarking_config_builder=inference_benchmarking_config_builder,
             overrides=overrides,
         )
-    elif cmd == SubCmd.evaluate or script == "olmoearth_pretrain/internal/all_evals.py":
+    elif cmd == SubCmd.evaluate or cmd == SubCmd.launch_evaluate:
+        # Evaluation mode
         assert model_config_builder is not None
         assert trainer_config_builder is not None
         config = build_evaluate_config(
@@ -528,6 +531,7 @@ If running command on a local machine ie from a session, you can use the [b]loca
             overrides=overrides,
         )
     else:
+        # Training mode
         assert model_config_builder is not None
         assert dataset_config_builder is not None
         assert dataloader_config_builder is not None

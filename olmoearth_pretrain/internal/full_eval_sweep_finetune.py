@@ -234,9 +234,11 @@ def _get_sub_command(args: argparse.Namespace) -> str:
     """Get the sub command."""
     if args.dry_run:
         return SubCmd.dry_run
+    # If cluster is local, we run eval locally, if not, we launch evaluation on beaker
     if args.cluster == "local":
         return SubCmd.evaluate
-    return SubCmd.launch
+    else:
+        return SubCmd.launch_evaluate
 
 
 def _get_base_run_name(args: argparse.Namespace, selected_preset: str | None) -> str:
@@ -317,10 +319,7 @@ def build_commands(
     sub_command = _get_sub_command(args)
     selected_preset = args.model
     base_run_name = _get_base_run_name(args, selected_preset)
-    if sub_command == SubCmd.train or sub_command == SubCmd.evaluate:
-        launch_command = "torchrun"
-    else:
-        launch_command = "python3"
+    launch_command = "torchrun" if sub_command == SubCmd.evaluate else "python3"
 
     module_path = _resolve_module_path(args, selected_preset)
     checkpoint_args = _get_checkpoint_args(args.checkpoint_path)

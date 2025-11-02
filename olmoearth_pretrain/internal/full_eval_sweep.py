@@ -350,10 +350,11 @@ def _get_sub_command(args: argparse.Namespace) -> str:
     """Determine the sub command based on args and cluster."""
     if args.dry_run:
         return SubCmd.dry_run
-    elif args.cluster == "local":
-        return SubCmd.train
+    # If cluster is local, we run eval locally, if not, we launch evaluation on beaker
+    if args.cluster == "local":
+        return SubCmd.evaluate
     else:
-        return SubCmd.launch
+        return SubCmd.launch_evaluate
 
 
 def _get_base_run_name(
@@ -707,7 +708,7 @@ def build_commands(args: argparse.Namespace, extra_cli: list[str]) -> list[str]:
     extra = " " + " ".join(extra_cli) if extra_cli else ""
 
     sub_command = _get_sub_command(args)
-    launch_command = "python3" if not sub_command == SubCmd.train else "torchrun"
+    launch_command = "python3" if sub_command == SubCmd.evaluate else "torchrun"
     checkpoint_args = _get_checkpoint_args(args.checkpoint_path)
 
     commands_to_run = []

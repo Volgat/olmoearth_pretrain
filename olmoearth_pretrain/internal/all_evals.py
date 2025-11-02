@@ -443,7 +443,6 @@ if __name__ == "__main__":
         raise ValueError("TRAIN_SCRIPT_PATH environment variable must be set")
     user_mod = load_user_module(module_path)
 
-    # 3) Inject all of the builder names into your namespace
     try:
         build_common_components = user_mod.build_common_components
     except AttributeError:
