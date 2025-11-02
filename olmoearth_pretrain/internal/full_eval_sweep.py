@@ -708,7 +708,7 @@ def build_commands(args: argparse.Namespace, extra_cli: list[str]) -> list[str]:
     extra = " " + " ".join(extra_cli) if extra_cli else ""
 
     sub_command = _get_sub_command(args)
-    launch_command = "python3" if sub_command == SubCmd.evaluate else "torchrun"
+    launch_command = "python3" if args.cluster == "local" else "torchrun"
     checkpoint_args = _get_checkpoint_args(args.checkpoint_path)
 
     commands_to_run = []
