@@ -32,12 +32,21 @@ OlmoEarth is built using [OLMo-core](https://github.com/allenai/OLMo-core.git). 
 
 ## Model Summary
 
+<img src="assets/model.jpg" alt="Mode Architecture Diagram" style="width: 600px; margin-left:'auto' margin-right:'auto' display:'block'"/>
+
 The OlmoEarth models are trained on three satellite modalities (Sentinel 2, Sentinel 1 and Landsat) and six derived maps (OpenStreetMap, WorldCover).
 | Model Size | Weights | Encoder Params | Decoder Params |
 | --- | --- | --- | --- |
 | Nano | [link](https://huggingface.co/allenai/OlmoEarth-v1-Nano) | 1.4M | 800K |
 | Tiny | [link](https://huggingface.co/allenai/OlmoEarth-v1-Tiny) | 6.2M | 1.9M |
 | Base | [link](https://huggingface.co/allenai/OlmoEarth-v1-Base) | 89M | 30M |
+| Large | [link](https://huggingface.co/allenai/OlmoEarth-v1-Large) | 308M | 53M |
+
+## Using OlmoEarth
+
+The OlmoEarth models exist as part of the [OlmoEarth platform](https://allenai.org/olmoearth). The OlmoEarth Platform is an end-to-end solution for scalable planetary intelligence, providing everything needed to go from raw data through R&D, to fine-tuning and production deployment.
+
+Examples of active OlmoEarth deployments are available at [`olmoearth_projects`](github.com/allenai/olmoearth_projects).
 
 ## Data Summary
 
@@ -49,6 +58,8 @@ The distribution of the samples is available below:
 
 The dataset can be downloaded [here](https://huggingface.co/datasets/allenai/olmoearth_pretrain_dataset).
 
+Detailed instructions on how to make your own pretraining dataset are available in [the dataset README](olmoearth_pretrain/dataset_creation/README.md).
+
 ## Training scripts
 
 Detailed instructions on how to pretrain your own OlmoEarth model are available in [Pretraining.md](docs/Pretraining.md).
@@ -56,9 +67,3 @@ Detailed instructions on how to pretrain your own OlmoEarth model are available 
 ## Evaluations
 
 Detailed instructions on how to replicate our evaluations is available in #TODO.
-
-## Deploying OlmoEarth
-
-The OlmoEarth models exist as part of the [OlmoEarth platform](https://allenai.org/olmoearth). The OlmoEarth Platform is an end-to-end solution for scalable planetary intelligence, providing everything needed to go from raw data through R&D, to fine-tuning and production deployment.
-
-Examples of active OlmoEarth deployments are available at [`olmoearth_projects`](github.com/allenai/olmoearth_projects).
