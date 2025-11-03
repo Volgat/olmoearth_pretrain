@@ -4,7 +4,7 @@
   <br>
 </div>
 <p align="center">
-  <a href="https://github.com/allenai/OlmoEarth/blob/main/LICENSE">
+  <a href="https://github.com/allenai/olmoearth_pretrain/blob/main/LICENSE">
     <img alt="GitHub License" src="https://img.shields.io/badge/license-OlmoEarth-green">
   </a>
   <a href="https://huggingface.co/collections/allenai/olmoearth">
