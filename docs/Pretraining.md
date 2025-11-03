@@ -146,27 +146,33 @@ External users must specify the dataset path when launching training scripts:
 
 Evaluation datasets have default paths set in [`olmoearth_pretrain/evals/datasets/paths.py`](../olmoearth_pretrain/evals/datasets/paths.py).
 
-**For external users:** These defaults point to AI2 internal infrastructure. To use evaluations:
+**For external users:** These defaults point to AI2 internal paths. To prepare evaluation datasets:
 
-1. **Download the evaluation datasets locally.** Sync the processed copies from `gs://ai2-olmoearth-projects-public-data/research_benchmarks` (e.g., `gsutil -m rsync`). Original references:
-   - GeoBench: [`recursix/geo-bench-1.0`](https://huggingface.co/datasets/recursix/geo-bench-1.0) and the [official downloader](https://github.com/ServiceNow/geo-bench/blob/main/geobench/geobench_download.py).
-   - CropHarvest: [Zenodo 10251170](https://zenodo.org/records/10251170).
-   - BreizhCrops: [`dl4sits/BreizhCrops`](https://github.com/dl4sits/BreizhCrops/blob/master/breizhcrops/datasets/breizhcrops.py).
-   - MADOS: [Zenodo 10664073](https://zenodo.org/records/10664073).
-   - Sen1Floods11: [`cloudtostreet/Sen1Floods11`](https://github.com/cloudtostreet/Sen1Floods11).
-   - PASTIS-R: [Zenodo 5735646](https://zenodo.org/records/5735646).
-
+1. **Download the evaluation datasets locally.** Sync the evaluation datasets from GCS bucket:
+   ```bash
+   gsutil -m rsync -r gs://ai2-olmoearth-projects-public-data/research_benchmarks /your/path/to/research_benchmarks
+   ```
+   References to the original datasets:
+   - [GeoBench](https://huggingface.co/datasets/recursix/geo-bench-1.0) and the [official downloader](https://github.com/ServiceNow/geo-bench/blob/main/geobench/geobench_download.py).
+   - [CropHarvest](https://zenodo.org/records/10251170).
+   - [BreizhCrops](https://github.com/dl4sits/BreizhCrops/blob/master/breizhcrops/datasets/breizhcrops.py).
+   - [MADOS](https://zenodo.org/records/10664073).
+   - [Sen1Floods11](https://github.com/cloudtostreet/Sen1Floods11).
+   - [PASTIS-R](https://zenodo.org/records/5735646).
 
 2. Set environment variables for each dataset path to override defaults in [`olmoearth_pretrain/evals/datasets/paths.py`](../olmoearth_pretrain/evals/datasets/paths.py)
 
    ```bash
-   export GEOBENCH_DIR="/your/path/to/geobench"
-   export MADOS_DIR="/your/path/to/mados"
-   export FLOODS_DIR="/your/path/to/floods"
-   export PASTIS_DIR="/your/path/to/pastis"
-   export BREIZHCROPS_DIR="/your/path/to/breizhcrops"
-   export CROPHARVEST_DIR="/your/path/to/cropharvest"
+   export GEOBENCH_DIR="/your/path/to/research_benchmarks/geobench"
+   export MADOS_DIR="/your/path/to/research_benchmarks/mados"
+   export FLOODS_DIR="/your/path/to/research_benchmarks/floods"
+   export BREIZHCROPS_DIR="/your/path/to/research_benchmarks/breizhcrops"
+   export CROPHARVEST_DIR="/your/path/to/research_benchmarks/cropharvest"
+   export PASTIS_DIR="/your/path/to/research_benchmarks/pastis_r"
+   export PASTIS_DIR_ORIG="/your/path/to/research_benchmarks/pastis_r_origsize"
+   export PASTIS_DIR_PARTITION="/your/path/to/research_benchmarks/pastis"
    ```
+
 3. If you wish to only use a subset of the evaluations, add the following override:
 
    For example, to only run mados and pastis_sentinel2 evals add the following override:
