@@ -118,6 +118,10 @@ class DownstreamEvaluator:
         self.device = device
         # Add all task attributes to self
         self.dataset = task.dataset
+        # datasets can have an "is_active" attribute. if its false, we
+        # should skip it. We assume its true by default. Currently (20251103)
+        # this only applies to Breizhcrops
+        self.is_dataset_active = getattr(self.dataset, "is_active", True)
         self.embedding_batch_size = task.embedding_batch_size
         self.num_workers = task.num_workers
         self.pooling_type = task.pooling_type
@@ -498,6 +502,12 @@ class DownstreamEvaluatorCallback(Callback):
                     )
                     continue
 
+                if not evaluator.is_dataset_active:
+                    logger.info(
+                        f"Skipping {evaluator.evaluation_name} because the dataset is not active"
+                    )
+                    continue
+
                 # Separate finetune step metric per task
                 if evaluator.eval_mode == EvalMode.FINETUNE:
                     if wandb_callback.enabled:
@@ -541,6 +551,11 @@ class DownstreamEvaluatorCallback(Callback):
             if not self._check_supported_modalities(evaluator):
                 logger.info(
                     f"Skipping {evaluator.evaluation_name} because it requires a modality that is not supported by the model"
+                )
+                continue
+            if not evaluator.is_dataset_active:
+                logger.info(
+                    f"Skipping {evaluator.evaluation_name} because the dataset is not active"
                 )
                 continue
             self._perform_eval(evaluator)

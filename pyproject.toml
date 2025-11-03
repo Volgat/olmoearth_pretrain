@@ -113,7 +113,6 @@ dev = [
 ]
 eval = [
     "albumentations>=1.4.10",
-    "breizhcrops==0.0.4.1",
     "claymodel",
     "geobench",
     "geopandas>=1.1.1",
