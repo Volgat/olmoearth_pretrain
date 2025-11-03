@@ -21,8 +21,6 @@ from .utils import load_min_max_stats
 
 LEVEL = "L1C"
 
-breizhcrops = None
-
 logger = getLogger(__name__)
 
 
@@ -82,17 +80,13 @@ class BreizhCropsDataset(Dataset):
             norm_method: Normalization method to use, only when norm_stats_from_pretrained is False
             monthly_average: Whether to compute a monthly average of the timesteps
         """
-        global breizhcrops
-        if breizhcrops is None:
-            if self.is_active():
-                # breizhcrops==0.0.4.1 must be explictly imported
-                # for this eval to run.
-                import breizhcrops
-                from breizhcrops import BreizhCrops
-                from breizhcrops.datasets.breizhcrops import SELECTED_BANDS
+        if not self.is_active():
+            # breizhcrops==0.0.4.1 must be explictly imported
+            # for this eval to run.
+            return None
 
-            else:
-                return None
+        from breizhcrops import BreizhCrops
+        from breizhcrops.datasets.breizhcrops import SELECTED_BANDS
 
         self.bc_selected_bands = SELECTED_BANDS
 
