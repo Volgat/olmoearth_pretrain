@@ -464,7 +464,7 @@ if __name__ == "__main__":
     build_train_module_config = user_mod.build_train_module_config
     build_dataset_config = user_mod.build_dataset_config
     build_dataloader_config = user_mod.build_dataloader_config
-    build_visualize_config = getattr(user_mod, "build_visualize_config", None)
+    build_visualize_config = user_mod.build_visualize_config
     main(
         common_components_builder=build_common_components,
         model_config_builder=build_model_config,
