@@ -17,7 +17,7 @@
 
 The OlmoEarth models are a flexible, multi-modal, spatio-temporal family of foundation models for Earth Observations.
 
-The OlmoEarth models exist as part of the [OlmoEarth platform](https://allenai.org/olmoearth). The OlmoEarth Platform is an end-to-end solution for scalable planetary intelligence, providing everything needed to go from raw data through R&D, to fine-tuning and production deployment.
+The OlmoEarth models exist as part of the [OlmoEarth platform](https://olmoearth.allenai.org/). The OlmoEarth Platform is an end-to-end solution for scalable planetary intelligence, providing everything needed to go from raw data through R&D, to fine-tuning and production deployment.
 
 ## Installation
 
