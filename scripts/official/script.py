@@ -169,7 +169,7 @@ def build_trainer_config(common: CommonComponents) -> TrainerConfig:
             num_workers=0,
             pooling_type=PoolingType.MEAN,
             norm_stats_from_pretrained=True,
-            eval_interval=Duration.steps(2),
+            eval_interval=Duration.steps(4000),
         ),
         "m_so2sat": DownstreamTaskConfig(
             dataset="m-so2sat",
