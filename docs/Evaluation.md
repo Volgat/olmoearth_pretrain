@@ -52,7 +52,7 @@ The sweep scripts set `TRAIN_SCRIPT_PATH` automatically and select `torchrun` fo
 ### Supported Models
 
 - **OlmoEarth models:** Nano, Tiny, Base, and Large size.
-- **Others:** `dino_v3`, `panopticon`, `galileo`, `satlas`, `croma`, `copernicusfm`, `presto`, `anysat`, `tessera`, `prithvi_v2`, `terramind`, `clay`. Multi-size variants (e.g. `croma_large`, `galileo_large`, `terramind_large`) are also supported.
+- **Others:** The list of supported baseline models is defined in `olmoearth_pretrain/evals/models/__init__.py`. Supported models include Galileo, Satlas, Terramind, Prithvi v2, Panopticon, CROMA, AnySat etc. Multi-size variants are also supported.
 
 ---
 
