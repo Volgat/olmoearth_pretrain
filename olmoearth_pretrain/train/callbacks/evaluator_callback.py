@@ -164,7 +164,7 @@ class DownstreamEvaluator:
 
         if self.eval_mode == EvalMode.LINEAR_PROBE:
             if self.probe_lr is None:
-                raise ValueError("probe_lr cannot be none for segmentation tasks.")
+                raise ValueError("probe_lr cannot be none for linear_probe tasks.")
             if self.config.task_type == TaskType.SEGMENTATION:
                 if self.config.height_width is None:
                     raise ValueError(
@@ -172,10 +172,6 @@ class DownstreamEvaluator:
                     )
                 if self.config.height_width % self.patch_size != 0:
                     raise ValueError("Image height / width indivisable by patch size.")
-
-        if self.eval_mode == EvalMode.LINEAR_PROBE:
-            if self.probe_lr is None:
-                raise ValueError("probe_lr cannot be none for linear_probe tasks.")
 
         if self.eval_mode == EvalMode.FINETUNE:
             if self.ft_lr is None:
