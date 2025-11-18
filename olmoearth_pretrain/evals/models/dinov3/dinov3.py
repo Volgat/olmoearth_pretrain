@@ -70,7 +70,7 @@ class DINOv3(nn.Module):
 
     def __init__(
         self,
-        size: str = DinoV3Models.LARGE_SATELLITE,
+        size: DinoV3Models = DinoV3Models.LARGE_SATELLITE,
         use_cls_token: bool = False,
         apply_normalization: bool = False,
     ):
@@ -268,7 +268,7 @@ class DINOv3Config(Config):
     def build(self) -> "DINOv3":
         """Build the DINOv3 from this config."""
         return DINOv3(
-            size=self.size,
+            size=DinoV3Models(self.size) if isinstance(self.size, str) else self.size,
             use_cls_token=self.use_cls_token,
             apply_normalization=self.apply_normalization,
         )

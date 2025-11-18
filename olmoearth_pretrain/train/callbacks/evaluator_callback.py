@@ -173,6 +173,10 @@ class DownstreamEvaluator:
                 if self.config.height_width % self.patch_size != 0:
                     raise ValueError("Image height / width indivisable by patch size.")
 
+        if self.eval_mode == EvalMode.LINEAR_PROBE:
+            if self.probe_lr is None:
+                raise ValueError("probe_lr cannot be none for linear_probe tasks.")
+
         if self.eval_mode == EvalMode.FINETUNE:
             if self.ft_lr is None:
                 raise ValueError("ft_lr cannot be none for finetune tasks.")
@@ -197,7 +201,7 @@ class DownstreamEvaluator:
                     epochs=self.epochs,
                     eval_interval=self.linear_probe_eval_interval,
                     probe_type=self.probe_type,
-                    lr=self.probe_lr,
+                    lr=self.probe_lr,  # type: ignore
                     select_final_test_miou_based_on_epoch_of_max_val_miou=self.select_final_test_miou_based_on_epoch_of_max_val_miou,
                 )
                 if self.eval_mode == EvalMode.LINEAR_PROBE
