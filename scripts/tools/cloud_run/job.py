@@ -227,7 +227,7 @@ if __name__ == "__main__":
     timestamps_pd = pd.date_range(
         to_date_obj(START_DATE), to_date_obj(END_DATE), freq="MS"
     )[:-1]
-    timestamps = [[t.year, t.month - 1, t.day] for t in timestamps_pd]
+    timestamps = [[t.day, t.month - 1, t.year] for t in timestamps_pd]
 
     for tile in args.tiles:
         run_inference_on_tile(f"{args.run}/{tile}", timestamps)
