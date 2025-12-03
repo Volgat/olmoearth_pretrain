@@ -12,6 +12,7 @@ This is an alternative to generating embeddings using the `generate_embeddings.i
 ### Setup
 
 **1. Push docker container to cloud**
+
 Update the env variables in `deploy.sh`
 ```bash
 GCLOUD_PROJECT="your Google Cloud project name"
@@ -26,6 +27,7 @@ sh scripts/tools/cloud_run/deploy.sh
 ```
 
 **2. Create Cloud Run Job**
+
 Navigate to https://console.cloud.google.com/run/jobs and select "Deploy container".
 
 Specify parameters:
